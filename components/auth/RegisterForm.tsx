@@ -14,7 +14,7 @@ const registerSchema = z.object({
   phone: z.string().min(9, "เบอร์โทรศัพท์ไม่ถูกต้อง"),
   email: z.string().email("อีเมลไม่ถูกต้อง"),
   pdpa_consent: z.boolean().refine((val) => val === true, {
-    errorMap: () => ({ message: "กรุณากดยินยอม PDPA เพื่อดำเนินการต่อ" }),
+    message: "กรุณากดยินยอม PDPA เพื่อดำเนินการต่อ",
   }),
 });
 
