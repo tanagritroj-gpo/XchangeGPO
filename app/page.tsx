@@ -33,7 +33,7 @@ export default function HomePage() {
       <div className="flex flex-col md:flex-row flex-1 w-full px-4 md:px-16 py-8 gap-4">
 
         {/* ── LEFT: GPO Graphic (เต็มกรอบ) ── */}
-        <div className="md:w-1/2 relative rounded-[2rem] overflow-hidden bg-[#e8f7f5]">
+        <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden">
           <Image
             src="/gpo-xchange-graphic2.png"
             alt="GPO Xchange Graphic"
