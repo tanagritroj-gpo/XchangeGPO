@@ -45,7 +45,7 @@ export function RegisterForm() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden"
+      className="min-h-dvh flex items-center justify-center px-4 py-6 md:py-10 relative overflow-hidden"
       style={{ background: 'linear-gradient(160deg, #eefcf6 0%, #f0f4f8 40%, #eef6fb 100%)' }}
     >
       {/* Decorative background blobs */}
@@ -56,7 +56,7 @@ export function RegisterForm() {
       <div className="absolute top-1/3 right-10 w-24 h-24 rounded-full opacity-20 blur-2xl hidden md:block"
         style={{ background: '#0f5132' }} />
 
-      <div className="w-full max-w-lg relative z-10">
+      <div className="w-full max-w-lg mx-auto relative z-10 my-4">
 
         {/* Header */}
         <div className="text-center mb-7">
