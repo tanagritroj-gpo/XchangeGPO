@@ -1,13 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server';
-
+// app/actions/auth.ts
 export async function registerCustomer(payload: any) {
   const supabase = await createClient()
 
   try {
-    // 1. นำข้อมูลลงตาราง clients
-    // กิตเช็ค field ให้ตรงกับที่กิตสร้างไว้ใน Supabase นะครับ
     const { data, error } = await supabase
       .from('clients')
       .insert([
@@ -18,24 +16,23 @@ export async function registerCustomer(payload: any) {
           position: payload.position,
           phone: payload.phone,
           email: payload.email,
-          signature: payload.signature, // เก็บ Base64 ของลายเซ็นต์
+          signature_url: payload.signature_url, // <--- แก้จาก signature เป็น signature_url
           pdpa_consented_at: new Date().toISOString(),
-          status: 'pending' // สถานะเริ่มต้น
+          status: 'pending'
         }
       ])
       .select()
 
     if (error) throw error
 
-    // 2. สำเร็จ! ส่งค่ากลับไปบอกหน้าบ้าน
     return { success: true, data }
     
   } catch (error: any) {
     console.error("Registration Error:", error)
-    // จัดการกรณี email ซ้ำหรือ error อื่นๆ
     return { 
         success: false, 
-        error: error.code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : "เกิดข้อผิดพลาดในการบันทึกข้อมูล" 
+        // เพิ่ม log ให้เห็นชัดๆ ว่า Error รหัสอะไร
+        error: error.code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : error.message 
     }
   }
 }
