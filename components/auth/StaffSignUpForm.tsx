@@ -8,6 +8,7 @@ import { registerStaff } from '@/app/actions/auth-staff';
 export function StaffSignUpForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data: any) => {
@@ -15,8 +16,7 @@ export function StaffSignUpForm() {
     const result = await registerStaff(data);
     
     if (result.success) {
-      alert("ลงทะเบียนสำเร็จ! กรุณารอการอนุมัติจากผู้จัดการ");
-      router.push('/auth/staff-login');
+      setShowModal(true); // เปลี่ยนเป็นการแสดง Modal แทน
     } else {
       alert("เกิดข้อผิดพลาด: " + result.error);
     }
@@ -56,7 +56,7 @@ export function StaffSignUpForm() {
         {/* ชื่อ-นามสกุล */}
         <div>
           <label className={labelStyle}>ชื่อ-นามสกุล</label>
-          <input {...register("full_name", { required: "กรุณากรอกชื่อ-นามสกุล" })} className={inputStyle} placeholder="ระบุชื่อ-นามสกุลจริง (ไม่ต้องมีคำนำหน้า)" />
+          <input {...register("full_name", { required: "กรุณากรอกชื่อ-นามสกุล" })} className={inputStyle} placeholder="ระบุชื่อ-นามสกุลจริง" />
           {errors.full_name && <p className={errorStyle}>{errors.full_name.message as string}</p>}
         </div>
 
@@ -84,14 +84,14 @@ export function StaffSignUpForm() {
         {/* ปุ่มกลับหน้าหลัก */}
         <button
           type="button"
-          onClick={() => window.location.href = '/'}
+          onClick={() => router.push('/')}
           className="w-full py-3 text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors"
         >
           ← กลับหน้าหลัก
         </button>
       </form>
 
-      {/* Footer ตาม Pattern */}
+      {/* Footer */}
       <div className="mt-8 pt-6 border-t border-slate-200 text-center">
         <p className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold">
           องค์การเภสัชกรรม สาขาภาคใต้
@@ -100,6 +100,23 @@ export function StaffSignUpForm() {
           © 2026 Government Pharmaceutical Organization. All rights reserved.
         </p>
       </div>
+
+      {/* Modal แจ้งเตือน */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100">
+            <div className="text-4xl mb-4">✅</div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">ลงทะเบียนเรียบร้อยแล้ว</h3>
+            <p className="text-slate-600 mb-6 text-sm">กรุณารอการอนุมัติสิทธิ์จากผู้จัดการสาขาภาคใต้ หลังจากได้รับการอนุมัติ ท่านจึงจะสามารถเข้าใช้งานระบบได้</p>
+            <button 
+              onClick={() => router.push('/')}
+              className="w-full py-3 bg-teal-700 text-white rounded-xl font-bold hover:bg-teal-800 transition-all"
+            >
+              รับทราบและกลับหน้าหลัก
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
