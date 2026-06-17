@@ -40,15 +40,16 @@ export async function registerStaff(payload: any) {
   }
 }
 
-// --- ล็อกอินพนักงาน (สร้าง Session Cookie) ---
+// --- ล็อกอินพนักงาน (ปรับปรุง: ส่ง department กลับไปให้หน้า Login ด้วย) ---
 export async function loginStaffAction(payload: any) {
   const supabase = await createClient();
   const { username, password } = payload;
 
   try {
+    // เพิ่มการ select 'department' เข้าไปครับ
     const { data: user, error } = await supabase
       .from('staff_users')
-      .select('id, username, password_hash, role, is_approved')
+      .select('id, username, password_hash, role, is_approved, department')
       .eq('username', username)
       .single();
 
@@ -58,46 +59,42 @@ export async function loginStaffAction(payload: any) {
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) return { success: false, error: "รหัสผ่านไม่ถูกต้อง" };
 
-    // สร้าง Session เก็บไว้ใน Cookie แทน localStorage
+    // สร้าง Session
     const cookieStore = await cookies();
     cookieStore.set('staff_session', JSON.stringify({
       id: user.id,
       username: user.username,
-      role: user.role
-    }), { 
-      httpOnly: true, 
+      role: user.role,
+      department: user.department // เก็บ department ไว้ใน session ด้วย
+    }), {
+      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 8 // 8 ชั่วโมง
+      maxAge: 60 * 60 * 8 
     });
 
-    return { success: true, role: user.role };
+    // ส่ง role และ department กลับไปให้หน้า Login ใช้ทำ routing
+    return { success: true, role: user.role, department: user.department };
   } catch (error: any) {
     console.error("Login Error:", error);
     return { success: false, error: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ" };
   }
 }
 
-// --- อนุมัติพนักงาน (ใช้ Session ตรวจสอบสิทธิ์) ---
+// --- อนุมัติพนักงาน ---
 export async function approveStaff(staffId: string) {
   const supabase = await createClient();
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get('staff_session');
 
-  if (!sessionCookie) {
-    return { success: false, error: "ไม่ได้ Login เข้าสู่ระบบ" };
-  }
+  if (!sessionCookie) return { success: false, error: "ไม่ได้ Login" };
 
   const session = JSON.parse(sessionCookie.value);
-
-  // ตรวจสอบสิทธิ์ Manager จาก Session ใน Cookie
   if (session.role !== 'manager') {
     return { success: false, error: "คุณไม่มีสิทธิ์ดำเนินการนี้" };
   }
 
-  // อนุมัติการลงทะเบียน
-  // ตรงนี้ผมเปลี่ยน staffId ให้ตรงกับ parameter ที่รับมาครับ
   const { error } = await supabase
     .from('staff_users')
     .update({ is_approved: true })

@@ -39,20 +39,35 @@ export default function HomePage() {
       return;
     }
 
-    // --- Logic พนักงาน ---
-    setLoadingLogin(true);
-    try {
-      const result = await loginStaffAction({ username: empId, password });
-      if (result.success) {
-        router.push(result.role === 'manager' ? '/admin/manager/staff-approvals' : '/dashboard/staff');
-      } else {
-        alert(result.error || "เข้าสู่ระบบไม่สำเร็จ");
-      }
-    } catch (err) {
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
-    } finally {
-      setLoadingLogin(false);
-    }
+// --- Logic พนักงาน ---
+setLoadingLogin(true);
+try {
+  const result = await loginStaffAction({ username: empId, password });
+  if (result.success) {
+    // ปรับ Logic การ Redirect ให้ตรงกับแต่ละ Role ของพนักงานครับ
+    const deptRoutes: Record<string, string> = {
+      'manager': '/admin/manager/staff-approvals',
+      'csr': '/admin/csr/dashboard',
+      'log': '/admin/log/dashboard',
+      'wh': '/admin/wh/dashboard'
+    };
+    
+    // ถ้าไม่มี role ตรงกับที่ตั้งไว้ ให้ไปหน้ากลาง หรือหน้า dashboard เดิม
+    const destination = deptRoutes[result.department] || '/dashboard';
+
+    console.log("ผลลัพธ์จาก Server:", result);
+    console.log("ปลายทางที่จะไป:", destination);
+
+    router.push(destination);
+    
+  } else {
+    alert(result.error || "เข้าสู่ระบบไม่สำเร็จ");
+  }
+} catch (err) {
+  alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+} finally {
+  setLoadingLogin(false);
+}
   };
 
   return (

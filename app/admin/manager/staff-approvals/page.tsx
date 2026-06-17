@@ -27,7 +27,6 @@ export default function StaffApprovalPage() {
     const confirmed = confirm("ยืนยันการอนุมัติพนักงานท่านนี้?");
     if (!confirmed) return;
 
-    // เราส่งแค่ ID ไป เพราะฝั่ง Server Action ตรวจสอบ Cookie Session ให้กิตเองอัตโนมัติแล้วครับ
     const res = await approveStaff(id);
     
     if (res.success) {
@@ -36,6 +35,11 @@ export default function StaffApprovalPage() {
     } else {
       alert("เกิดข้อผิดพลาด: " + res.error);
     }
+  };
+
+  // ฟังก์ชันย้อนกลับอัจฉริยะ
+  const handleBack = () => {
+    router.replace('/');
   };
 
   return (
@@ -48,9 +52,9 @@ export default function StaffApprovalPage() {
 
       {/* Main Content */}
       <main className="flex-1 p-4 md:p-10">
-        {/* ปุ่มย้อนกลับ */}
+        {/* ปุ่มย้อนกลับที่ปรับปรุงแล้ว */}
         <button 
-          onClick={() => router.back()} 
+          onClick={handleBack} 
           className="mb-6 flex items-center text-slate-500 hover:text-slate-800 transition font-bold"
         >
           <span className="mr-2">←</span> ย้อนกลับ
