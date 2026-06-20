@@ -3,11 +3,6 @@ import { Suspense } from 'react';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 import { redirect } from 'next/navigation';
 
-// สร้าง Loading Component ง่ายๆ
-function Loading() {
-  return <div className="p-8">กำลังตรวจสอบสิทธิ์เข้าใช้งาน...</div>;
-}
-
 async function ProtectedContent({ children }: { children: React.ReactNode }) {
   const session = await getCustomerSession();
   if (!session) redirect('/auth');
@@ -16,7 +11,8 @@ async function ProtectedContent({ children }: { children: React.ReactNode }) {
 
 export default function FormLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<Loading />}>
+    // ย้าย Suspense มาครอบ ProtectedContent แบบนี้ถูกต้องแล้วครับ
+    <Suspense fallback={<div className="p-8">กำลังตรวจสอบสิทธิ์...</div>}>
       <ProtectedContent>{children}</ProtectedContent>
     </Suspense>
   );
