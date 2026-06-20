@@ -17,7 +17,7 @@ const STEPS = [
   { id: 5, label: 'ตรวจสอบ' },
 ];
 
-export default function FormWizardPage() {
+export default function FormWizardPage(props: any) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({ 
