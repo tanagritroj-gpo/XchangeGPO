@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 import FormWizardPage from './FormWizardPage';
 
+export const dynamic = 'force-dynamic';
+
 export default function Page() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
