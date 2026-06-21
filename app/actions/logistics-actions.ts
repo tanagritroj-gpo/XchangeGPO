@@ -40,7 +40,7 @@ export async function updateLogisticsStatus(
   staffId: string,
   newStatus: 'in_transit' | 'at_warehouse',
   remark: string
-) {
+): Promise<{ success: boolean; error?: string }> { // ✅ เพิ่ม Return Type ตรงนี้
   const supabase = await createClient();
 
   // 1. บันทึก Log
