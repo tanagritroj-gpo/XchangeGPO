@@ -30,7 +30,7 @@ export async function getCSRDashboardData() {
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
       
-    // ดึงใบงาน
+    // ดึงใบงาน (ดึง drug_items ติดมาด้วยเพื่อใช้ทำ Item-Level Approval)
     const { data: requests, error: reqErr } = await supabase
       .from('requests')
       .select(`
@@ -57,7 +57,6 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
     await getCSRSession();
     const supabase = await createClient();
     
-    // 1. ดึงข้อมูลลูกค้า
     const { data: client, error: fetchErr } = await supabase
       .from('clients')
       .select('*')
@@ -66,7 +65,6 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
 
     if (fetchErr || !client) throw new Error("หาข้อมูลลูกค้าไม่พบ");
 
-    // 2. อัปเดตสถานะในตาราง clients
     const { error: updateErr } = await supabase
       .from('clients')
       .update({ status: action })
@@ -74,7 +72,6 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
     
     if (updateErr) throw updateErr;
 
-    // 3. ถ้าอนุมัติ ให้ insert ข้อมูลไปที่ b2b_customers
     if (action === 'approved') {
       const { error: insertErr } = await supabase
         .from('b2b_customers')
@@ -96,47 +93,82 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
   }
 }
 
-// อัปเดตสถานะใบงาน
+export async function approveDrugItem(drugItemId: number, requestId: number, staffId: string, remark?: string) {
+  const supabase = await createClient();
+
+  // บันทึก Log: ต้องแน่ใจว่า requestId มีค่า (เพราะตารางบังคับ NOT NULL)
+  const { error: logError } = await supabase
+    .from('status_logs')
+    .insert({
+      request_id: requestId, // ตารางกิตบังคับฟิลด์นี้ ห้ามเป็น null
+      staff_id: staffId,
+      department: 'csr',
+      status_name: 'approved',
+      staff_remark: remark || `อนุมัติรายการยา ID: ${drugItemId}`
+    });
+
+  if (logError) {
+    console.error("Log Error Details:", logError); // เดี๋ยว Error จะโผล่ใน Console ให้กิตเห็นชัดๆ ครับ
+    throw new Error("บันทึกประวัติการทำงานไม่สำเร็จ");
+  }
+
+  // อัปเดตสถานะในตาราง drug_items
+  const { error: updateError } = await supabase
+    .from('drug_items')
+    .update({ current_status: 'approved' })
+    .eq('id', drugItemId);
+
+  if (updateError) throw new Error("อัปเดตสถานะยาไม่สำเร็จ");
+
+  revalidatePath('/admin/csr/dashboard');
+  return { success: true };
+}
+
+// กิตเอาฟังก์ชันนี้ไปวางเพิ่มในไฟล์ csr-actions.ts นะครับ
 export async function approveRequest(requestId: number, staffId: string, remark?: string) {
   const supabase = await createClient();
 
-  // 1. บันทึกประวัติลง status_logs
+  // ตรวจสอบว่าทุกรายการยาผ่านการอนุมัติแล้วหรือยัง
+  const { data: pendingItems, error: checkError } = await supabase
+    .from('drug_items')
+    .select('id')
+    .eq('request_id', requestId)
+    .in('current_status', ['pending_review']);
+
+  if (pendingItems && pendingItems.length > 0) {
+    throw new Error("ไม่สามารถอนุมัติใบงานได้: ยังมีรายการยาบางรายการที่ยังไม่ได้อนุมัติ");
+  }
+
+  // บันทึก Log
   const { error: logError } = await supabase
     .from('status_logs')
     .insert({
       request_id: requestId,
       staff_id: staffId,
-      department: 'csr', // ตรงกับค่าในตาราง staff_users
+      department: 'csr',
       status_name: 'approved',
-      staff_remark: remark || 'อนุมัติใบงานเรียบร้อยโดย CSR'
+      staff_remark: remark || 'อนุมัติทั้งใบงานเรียบร้อย'
     });
 
-  if (logError) {
-    console.error("Log Insert Error:", logError);
-    throw new Error("บันทึกประวัติการทำงานไม่สำเร็จ");
-  }
+  if (logError) throw new Error("บันทึกประวัติการทำงานไม่สำเร็จ");
 
-  // 2. อัปเดตสถานะในตาราง requests
-  const { error: updateError } = await supabase
+  // อัปเดตสถานะในตาราง requests
+  await supabase
     .from('requests')
     .update({ 
-      current_status: 'approved',
-      updated_at: new Date().toISOString()
+      current_status: 'approved', 
+      updated_at: new Date().toISOString() 
     })
     .eq('id', requestId);
 
-  if (updateError) {
-    console.error("Request Update Error:", updateError);
-    throw new Error("อัปเดตสถานะใบงานไม่สำเร็จ");
-  }
-
+  revalidatePath('/admin/csr/dashboard');
   return { success: true };
 }
 
-export async function rejectRequest(requestId: number, staffId: string, remark: string) {
+export async function rejectDrugItem(drugItemId: number, requestId: number, staffId: string, remark?: string) {
   const supabase = await createClient();
 
-  // 1. บันทึก log สถานะ rejected
+  // 1. บันทึกประวัติการปฏิเสธลง status_logs
   const { error: logError } = await supabase
     .from('status_logs')
     .insert({
@@ -144,62 +176,43 @@ export async function rejectRequest(requestId: number, staffId: string, remark: 
       staff_id: staffId,
       department: 'csr',
       status_name: 'rejected',
-      staff_remark: remark // บังคับให้ใส่หมายเหตุเวลาปฏิเสธจะดีมากครับ
+      staff_remark: remark || `ปฏิเสธรายการยา ID: ${drugItemId}`
     });
 
   if (logError) throw new Error("บันทึกประวัติการปฏิเสธไม่สำเร็จ");
 
-  // 2. อัปเดตสถานะเป็น rejected
-  await supabase
-    .from('requests')
-    .update({ current_status: 'rejected', updated_at: new Date().toISOString() })
-    .eq('id', requestId);
+  // 2. อัปเดตสถานะยาเป็น 'rejected'
+  const { error: updateError } = await supabase
+    .from('drug_items')
+    .update({ current_status: 'rejected' })
+    .eq('id', drugItemId);
 
-  return { success: true };
-}
-
-// 6. Stamp กำลังแลกเปลี่ยน (Exchange)
-export async function startExchangeProcess(requestId: number, staffId: string, remark?: string) {
-  const supabase = await createClient();
-
-  // บันทึก Log
-  await supabase.from('status_logs').insert({
-    request_id: requestId,
-    staff_id: staffId,
-    department: 'csr',
-    status_name: 'exchanging',
-    staff_remark: remark || 'เริ่มกระบวนการแลกเปลี่ยนสินค้า'
-  });
-
-  // อัปเดตสถานะ
-  await supabase
-    .from('requests')
-    .update({ current_status: 'exchanging', updated_at: new Date().toISOString() })
-    .eq('id', requestId);
+  if (updateError) throw new Error("อัปเดตสถานะยาไม่สำเร็จ");
 
   revalidatePath('/admin/csr/dashboard');
   return { success: true };
 }
 
-// 7. Stamp งานเสร็จสิ้น (Completed)
+export async function rejectRequest(requestId: number, staffId: string, remark: string) {
+  const supabase = await createClient();
+  await supabase.from('status_logs').insert({ request_id: requestId, staff_id: staffId, department: 'csr', status_name: 'rejected', staff_remark: remark });
+  await supabase.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+  await supabase.from('drug_items').update({ current_status: 'rejected' }).eq('request_id', requestId);
+  return { success: true };
+}
+
+export async function startExchangeProcess(requestId: number, staffId: string, remark?: string) {
+  const supabase = await createClient();
+  await supabase.from('status_logs').insert({ request_id: requestId, staff_id: staffId, department: 'csr', status_name: 'exchanging', staff_remark: remark || 'เริ่มกระบวนการแลกเปลี่ยนสินค้า' });
+  await supabase.from('requests').update({ current_status: 'exchanging', updated_at: new Date().toISOString() }).eq('id', requestId);
+  revalidatePath('/admin/csr/dashboard');
+  return { success: true };
+}
+
 export async function completeRequest(requestId: number, staffId: string, remark?: string) {
   const supabase = await createClient();
-
-  // บันทึก Log
-  await supabase.from('status_logs').insert({
-    request_id: requestId,
-    staff_id: staffId,
-    department: 'csr',
-    status_name: 'completed',
-    staff_remark: remark || 'งานเสร็จสิ้นเรียบร้อย'
-  });
-
-  // อัปเดตสถานะ
-  await supabase
-    .from('requests')
-    .update({ current_status: 'completed', updated_at: new Date().toISOString() })
-    .eq('id', requestId);
-
+  await supabase.from('status_logs').insert({ request_id: requestId, staff_id: staffId, department: 'csr', status_name: 'completed', staff_remark: remark || 'งานเสร็จสิ้นเรียบร้อย' });
+  await supabase.from('requests').update({ current_status: 'completed', updated_at: new Date().toISOString() }).eq('id', requestId);
   revalidatePath('/admin/csr/dashboard');
   return { success: true };
 }

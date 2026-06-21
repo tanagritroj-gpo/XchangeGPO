@@ -22,7 +22,7 @@ export default function LoginPage() {
       const departmentRoutes: Record<string, string> = {
         'manager': '/admin/manager/staff-approvals',
         'csr': '/admin/csr/dashboard',
-        'log': '/admin/log/dashboard',
+        'log': '/admin/logistics/dashboard',
         'wh': '/admin/wh/dashboard'
       };
       

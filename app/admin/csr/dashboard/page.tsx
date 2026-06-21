@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCSRDashboardData, reviewClient, approveRequest, startExchangeProcess, completeRequest } from '@/app/actions/csr-actions';
+import { getCSRDashboardData, reviewClient, approveRequest, startExchangeProcess, completeRequest, approveDrugItem, rejectRequest, rejectDrugItem } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 
 // ── Status config ──────────────────────────────────────────────
@@ -11,6 +11,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   receiving:      { label: 'กำลังรับสินค้า', color: 'text-blue-700',  bg: 'bg-blue-50 border-blue-200',     dot: 'bg-blue-500' },
   exchanging:     { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', dot: 'bg-purple-500' },
   completed:      { label: 'เสร็จสิ้น',   color: 'text-slate-600',   bg: 'bg-slate-100 border-slate-200',  dot: 'bg-slate-400' },
+  out_for_delivery: { label: 'กำลังส่งคืน', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200', dot: 'bg-indigo-500' },
+  at_warehouse:   { label: 'ถึงคลังสินค้า', color: 'text-rose-700',  bg: 'bg-rose-50 border-rose-200',   dot: 'bg-rose-500' },
+  checked_in:     { label: 'ตรวจรับแล้ว', color: 'text-teal-700',   bg: 'bg-teal-50 border-teal-200',    dot: 'bg-teal-500' },
+  rejected:       { label: 'ถูกปฏิเสธ',    color: 'text-red-700',     bg: 'bg-red-50 border-red-200',     dot: 'bg-red-500' },
+  in_transit:     { label: 'อยู่ระหว่างขนส่ง', color: 'text-cyan-700', bg: 'bg-cyan-50 border-cyan-200', dot: 'bg-cyan-500' },
 };
 
 const EXP_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -31,21 +36,64 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function DrugItemRow({ item }: { item: any }) {
-  const exp = EXP_STATUS_CONFIG[item.exp_status] ?? { label: item.exp_status, color: 'text-slate-500', bg: 'bg-slate-50' };
+// ✅ แก้: รับ onUpdate เพื่ออัปเดต item เดียวใน state ทันที (optimistic, ไม่ refetch ทั้งก้อน)
+function DrugItemRow({ item, requestId, onUpdate }: { item: any; requestId: number; onUpdate: (itemId: number, newStatus: string) => void }) {
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleAction = async (action: 'approve' | 'reject') => {
+    const remark = prompt(`ระบุหมายเหตุการ${action === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}รายการยา:`);
+    if (remark === null) return;
+
+    setIsProcessing(true); // เริ่มหมุน
+
+    try {
+      const session = await getStaffSession();
+      if (!session?.id) throw new Error("ไม่พบ Session");
+
+      const res = action === 'approve'
+        ? await approveDrugItem(item.id, requestId, session.id, remark)
+        : await rejectDrugItem(item.id, requestId, session.id, remark);
+
+      if (res.success) {
+        // ✅ อัปเดต state ในเครื่องทันที ไม่ต้องรอ fetch ใหม่ทั้งก้อน
+        // ทำให้ UI เปลี่ยนทันทีแบบ instant ไม่มีอาการกระพริบ/รีโหลดทั้งหน้า
+        onUpdate(item.id, action === 'approve' ? 'approved' : 'rejected');
+      } else {
+        alert('บันทึกไม่สำเร็จ: ' + (res as any).error);
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      // หัวใจสำคัญคือตรงนี้ครับ!
+      // ไม่ว่าผลจะเป็น success หรือ error มันจะสั่งหยุดหมุนให้แน่นอน
+      setIsProcessing(false);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-12 gap-2 text-xs px-3 py-2.5 bg-white rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-teal-50/30 transition-all duration-150">
-      {/* ชื่อยา */}
+    <div className="grid grid-cols-12 gap-2 text-xs px-3 py-2.5 bg-white rounded-xl border border-slate-100 hover:border-teal-200 hover:bg-teal-50/30 transition-all items-center">
       <div className="col-span-4 font-semibold text-slate-800 truncate">{item.drug_name}</div>
-      {/* จำนวน + หน่วย */}
-      <div className="col-span-2 text-slate-500 font-medium">{item.qty} <span className="text-slate-400">{item.unit}</span></div>
-      {/* Lot */}
+      <div className="col-span-2 text-slate-500 font-medium">{item.qty} {item.unit}</div>
       <div className="col-span-2 text-slate-400 font-mono truncate">{item.lot_number ?? '—'}</div>
-      {/* วันหมดอายุ */}
       <div className="col-span-2 text-slate-400">{item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}</div>
-      {/* exp_status */}
-      <div className="col-span-2 flex justify-end">
-        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${exp.bg} ${exp.color}`}>{exp.label}</span>
+
+      <div className="col-span-2 flex justify-end gap-1.5">
+        {isProcessing ? (
+           <div className="flex items-center gap-1.5 text-slate-500">
+             <div className="w-3 h-3 border-2 border-slate-500 border-t-transparent rounded-full animate-spin" />
+             <span className="text-[9px] font-bold">กำลังบันทึก...</span>
+           </div>
+        ) : item.current_status === 'pending_review' ? (
+           <>
+             <button onClick={() => handleAction('approve')} className="px-2 py-1 bg-emerald-600 text-white rounded-lg text-[9px] font-bold hover:bg-emerald-700 transition-all">อนุมัติ</button>
+             <button onClick={() => handleAction('reject')} className="px-2 py-1 bg-red-500 text-white rounded-lg text-[9px] font-bold hover:bg-red-600 transition-all">ปฏิเสธ</button>
+           </>
+        ) : (
+           <span className={`text-[10px] font-bold ${item.current_status === 'rejected' ? 'text-red-500' : 'text-emerald-600'}`}>
+             {item.current_status === 'rejected' ? 'ปฏิเสธแล้ว' : 'อนุมัติแล้ว'}
+           </span>
+        )}
       </div>
     </div>
   );
@@ -73,6 +121,22 @@ export default function CSRDashboard() {
 
   const handleBack = () => router.replace('/');
 
+  // ✅ อัปเดต status ของ drug_item ตัวเดียวใน state ทันที โดยไม่ refetch ทั้งก้อน
+  const handleDrugItemUpdate = (requestId: number, itemId: number, newStatus: string) => {
+    setRequests(prev =>
+      prev.map(req =>
+        req.id !== requestId
+          ? req
+          : {
+              ...req,
+              drug_items: req.drug_items.map((it: any) =>
+                it.id === itemId ? { ...it, current_status: newStatus } : it
+              ),
+            }
+      )
+    );
+  };
+
   const handleReviewClient = async (id: string, action: 'approved' | 'rejected') => {
     const res = await reviewClient(id, action);
     if (res.success) {
@@ -80,44 +144,70 @@ export default function CSRDashboard() {
       fetchData();
     } else alert('Error: ' + res.error);
   };
-  
+
+  const handleRejectRequest = async (id: number) => {
+    const remark = prompt('ระบุหมายเหตุการปฏิเสธใบงาน:');
+
+    if (remark === null) return;
+
+    try {
+      const session = await getStaffSession();
+      if (!session?.id) {
+        alert("ไม่พบ Session พนักงาน กรุณาล็อกอินใหม่");
+        return;
+      }
+
+      const res = await rejectRequest(id, session.id, remark || 'ปฏิเสธใบงาน');
+
+      if (res.success) {
+        alert('ปฏิเสธใบงานเรียบร้อย');
+        fetchData();
+      } else {
+        alert('เกิดข้อผิดพลาดในการปฏิเสธใบงาน');
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    }
+  };
+
   const handleUpdateStatus = async (id: number, newStatus: string) => {
-  const remark = prompt('ระบุหมายเหตุ:');
-  if (remark === null) return;
+    const remark = prompt('ระบุหมายเหตุ:');
+    if (remark === null) return;
 
-  try {
-    // กิตต้องดึง ID พนักงานจาก Session ก่อนเสมอ
-    const session = await getStaffSession(); 
-    if (!session?.id) {
-      alert("ไม่พบ Session พนักงาน กรุณาล็อกอินใหม่");
-      return;
-    }
-    
-    type ApiResponse = { success: boolean, error?: string };
-    let res;
-    // เลือกฟังก์ชันให้ตรงกับ newStatus ที่ส่งมา
-    if (newStatus === 'approved') {
-      res = await approveRequest(id, session.id, remark || '');
-    } else if (newStatus === 'exchanging') {
-      res = await startExchangeProcess(id, session.id, remark || '');
-    } else if (newStatus === 'completed') {
-      res = await completeRequest(id, session.id, remark || '');
-    } else {
-      alert('สถานะไม่รู้จัก');
-      return;
-    }
+    try {
+      const session = await getStaffSession();
+      if (!session?.id) {
+        alert("ไม่พบ Session พนักงาน กรุณาล็อกอินใหม่");
+        return;
+      }
 
-    if (res.success) {
-      alert('อัปเดตสถานะเรียบร้อย');
-      fetchData();
-    } else {
-      alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      type ApiResponse = { success: boolean, error?: string };
+      let res;
+      if (newStatus === 'approved') {
+        res = await approveRequest(id, session.id, remark || '');
+      } else if (newStatus === 'rejected') {
+        res = await rejectRequest(id, session.id, remark || '');
+      } else if (newStatus === 'exchanging') {
+        res = await startExchangeProcess(id, session.id, remark || '');
+      } else if (newStatus === 'completed') {
+        res = await completeRequest(id, session.id, remark || '');
+      } else {
+        alert('สถานะไม่รู้จัก');
+        return;
+      }
+
+      if (res.success) {
+        alert('อัปเดตสถานะเรียบร้อย');
+        fetchData();
+      } else {
+        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
     }
-  } catch (err) {
-    alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-    console.error(err);
-  }
-};
+  };
 
   // ── Loading ──
   if (isLoading) return (
@@ -144,8 +234,8 @@ export default function CSRDashboard() {
             </button>
             <div className="w-px h-5 bg-slate-200" />
             <div>
-              <h1 className="text-base font-black text-slate-800 leading-tight">CSR Command Center</h1>
-              <p className="text-[11px] text-slate-400">GPO Xchange Portal • จัดการคำร้องและอนุมัติลูกค้า</p>
+              <h1 className="text-base font-black text-slate-800 leading-tight">GPO StaffCommand Center</h1>
+              <p className="text-[11px] text-slate-400">GPO Xchange Portal • CSR Dashboard</p>
             </div>
           </div>
           {/* Stats pills */}
@@ -279,25 +369,34 @@ export default function CSRDashboard() {
                       </div>
 
                       {/* Action */}
-                      <div className="col-span-2 text-right">
+                      <div className="col-span-2 text-right flex flex-col items-end gap-2">
                         {req.current_status === 'pending_review' && (
-                          <button
-                            onClick={() => handleUpdateStatus(req.id, 'approved')}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                            style={{ background: 'linear-gradient(135deg,#2563eb,#3b82f6)' }}
-                          >Approve</button>
+                          <>
+                            <button
+                              onClick={() => handleUpdateStatus(req.id, 'approved')}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full"
+                              style={{ background: 'linear-gradient(135deg,#2563eb,#3b82f6)' }}
+                            >Approve</button>
+
+                            {/* เพิ่มปุ่ม Reject ใบงานตรงนี้ครับ */}
+                            <button
+                              onClick={() => handleUpdateStatus(req.id, 'rejected')}
+                              className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full"
+                              style={{ background: 'linear-gradient(135deg,#ef4444,#f87171)' }}
+                            >Reject ใบงาน</button>
+                          </>
                         )}
                         {req.current_status === 'receiving' && (
                           <button
                             onClick={() => handleUpdateStatus(req.id, 'exchanging')}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full"
                             style={{ background: 'linear-gradient(135deg,#ea580c,#f97316)' }}
                           >Start Exchange</button>
                         )}
                         {req.current_status === 'exchanging' && (
                           <button
                             onClick={() => handleUpdateStatus(req.id, 'completed')}
-                            className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full"
                             style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
                           >Complete</button>
                         )}
@@ -317,7 +416,12 @@ export default function CSRDashboard() {
                         </div>
                         <div className="space-y-1.5">
                           {req.drug_items.map((item: any) => (
-                            <DrugItemRow key={item.id} item={item} />
+                            <DrugItemRow
+                              key={item.id}
+                              item={item}
+                              requestId={req.id}
+                              onUpdate={(itemId, newStatus) => handleDrugItemUpdate(req.id, itemId, newStatus)}
+                            />
                           ))}
                         </div>
                         {/* Summary */}
