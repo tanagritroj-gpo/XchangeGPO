@@ -84,22 +84,24 @@ export default function WelcomePage() {
             </div>
           </div>
 
-          {/* Card: Track & Trace */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
-            <div className="p-7">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#93c5fd)' }}>📡</div>
-                <div>
-                  <h2 className="text-sm font-black text-slate-800">ติดตามสถานะงาน</h2>
-                  <p className="text-xs text-slate-400">Track & Trace คำร้องของท่าน</p>
+          {/* Card: Track & Trace (ปรับเป็น Link เรียบร้อย) */}
+          <Link href={`/customer/${customer.customer_code}/tracking`} className="group block">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-teal-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="p-7">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-2xl shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#93c5fd)' }}>📡</div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-800">ติดตามสถานะงาน</h2>
+                    <p className="text-xs text-slate-400">Track & Trace คำร้องของท่าน</p>
+                  </div>
+                </div>
+                <div className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-teal-100 rounded-2xl text-sm text-teal-600 bg-teal-50/40 gap-1.5 group-hover:bg-teal-50 group-hover:border-teal-300 transition-colors">
+                  <span className="text-2xl opacity-60">🔎</span>
+                  <span className="font-bold text-xs">คลิกเพื่อค้นหาและติดตามสถานะ</span>
                 </div>
               </div>
-              <div className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-teal-100 rounded-2xl text-sm text-teal-500 bg-teal-50/40 gap-1.5">
-                <span className="text-2xl opacity-60">📭</span>
-                <span className="font-medium text-xs text-slate-400">ยังไม่มีรายการที่กำลังดำเนินการ</span>
-              </div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* ── Info Grid ── */}

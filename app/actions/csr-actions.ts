@@ -268,8 +268,27 @@ export async function startExchangeProcess(requestId: number, staffId: string, r
 
 export async function completeRequest(requestId: number, staffId: string, remark?: string) {
   const supabase = await createClient();
-  await supabase.from('status_logs').insert({ request_id: requestId, staff_id: staffId, department: 'csr', status_name: 'completed', staff_remark: remark || 'งานเสร็จสิ้นเรียบร้อย' });
-  await supabase.from('requests').update({ current_status: 'completed', updated_at: new Date().toISOString() }).eq('id', requestId);
+
+  // 1. บันทึก log
+  await supabase.from('status_logs').insert({ 
+    request_id: requestId, 
+    staff_id: staffId, 
+    department: 'csr', 
+    status_name: 'completed', 
+    staff_remark: remark || 'งานเสร็จสิ้นเรียบร้อย' 
+  });
+
+  // 2. อัปเดตสถานะหลักใน requests
+  await supabase.from('requests').update({ 
+    current_status: 'completed', 
+    updated_at: new Date().toISOString() 
+  }).eq('id', requestId);
+
+  // 3. เพิ่มส่วนนี้เพื่ออัปเดตรายการยาใน drug_items ครับ!
+  await supabase.from('drug_items')
+    .update({ current_status: 'completed' }) // แก้ไขชื่อคอลัมน์ให้ตรงกับฐานข้อมูลกิตนะครับ
+    .eq('request_id', requestId);
+
   revalidatePath('/admin/csr/dashboard');
   return { success: true };
 }
