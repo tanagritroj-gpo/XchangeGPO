@@ -248,7 +248,7 @@ export default function WHDashboard() {
   useEffect(() => { fetchData(); }, []);
 
   // ── Optimistic update รายชิ้น ──
-  const handleItemUpdate = (requestId: number, itemId: number, newStatus: 'checked_in' | 'receiving') => {
+  const handleItemUpdate = (requestId: number, itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected';) => {
     setData(prev => {
       let shouldRemove = false;
       const updated = prev.map(req => {
