@@ -117,7 +117,18 @@ export default function CSRDashboard() {
     setIsLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    const init = async () => {
+      setIsLoading(true);
+      const session = await getStaffSession();
+      if (!session?.id) {
+        router.replace('/login');
+        return;
+      }
+      await fetchData(); // โหลดข้อมูลจริงเมื่อเช็คสิทธิ์ผ่าน
+    };
+    init(); 
+  }, []);
 
   const handleBack = () => router.replace('/');
 
