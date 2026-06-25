@@ -31,14 +31,25 @@ export default function FormWizardPage({ session }: { session?: any }) {
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 5));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
     try {
-      // เรียกใช้งาน Repository ที่กิตออกแบบไว้
-      const result = await ReturnRepository.createReturnRequest(formData);
-      
+      // ทำความสะอาด formData ก่อนส่ง (เช่น ลบฟิลด์ที่ไม่ได้ใช้แล้วทิ้ง)
+      const cleanData = {
+        ...formData,
+        items: formData.items.map((item: any) => ({
+          drugName: item.drugName,
+          qty: item.qty,
+          unit: item.unit,
+          lot: item.lot,
+          exp: item.exp,
+          val: item.val,
+          inv: item.inv
+          // productType ถูกตัดทิ้งไปแล้วตั้งแต่ขั้นตอนเพิ่มรายการ
+        }))
+      };
+
+      const result = await ReturnRepository.createReturnRequest(cleanData);
       alert(`บันทึกข้อมูลสำเร็จ! เลขที่ใบคำขอ: ${result.refId}`);
-      
-      // หลังจากบันทึกเสร็จ วิ่งไปหน้าหลักหรือประวัติ
       router.push('/welcome'); 
     } catch (error) {
       console.error("Submission Error:", error);
