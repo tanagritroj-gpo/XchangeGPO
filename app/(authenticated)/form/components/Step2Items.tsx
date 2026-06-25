@@ -70,10 +70,18 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
 }
 
 export default function Step2Items({ next, back, updateData, formData }: StepProps) {
-  const [items, setItems] = useState<any[]>(formData?.items || []);
-  const [temp,  setTemp]  = useState({
-    drugName: '', productType: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '',
-  });
+// ให้เปลี่ยนเป็นแบบนี้ครับ (ลบ productType ออกจากโครงสร้าง)
+const [temp, setTemp] = useState<{
+  drugName: string;
+  qty: string;
+  unit: string;
+  lot: string;
+  exp: string;
+  val: string;
+  inv: string;
+}>({
+  drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '',
+});
 
   const isExchange = formData?.sender?.request_type === 'รับคืนแลกเปลี่ยน';
   const drugNameInputRef = useRef<HTMLInputElement>(null);
