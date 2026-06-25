@@ -79,14 +79,40 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
   const drugNameInputRef = useRef<HTMLInputElement>(null);
   const set = (field: string, value: string) => setTemp(prev => ({ ...prev, [field]: value }));
 
-  const addItemToList = () => {
+const addItemToList = () => {
+    // 1. เช็คจำนวน
     if (items.length >= MAX) return alert(`จำกัดสูงสุด ${MAX} รายการ`);
+    
+    // 2. เช็คค่าว่าง (ยึดตามโครงสร้าง temp ใหม่ที่กิตแก้ไว้)
     if (!temp.drugName || !temp.qty || !temp.unit) {
       return alert('กรุณากรอกชื่อยา จำนวน และหน่วยให้ครบถ้วน');
     }
 
-    setItems([...items, { ...temp, id: Date.now() }]);
-    setTemp({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '', });
+    // 3. สร้าง Object รายการใหม่ให้ตรงกับโครงสร้าง temp ปัจจุบัน
+    const newItem = {
+      drugName: temp.drugName,
+      qty: temp.qty,
+      unit: temp.unit,
+      lot: temp.lot,
+      exp: temp.exp,
+      val: temp.val,
+      inv: temp.inv,
+      id: Date.now()
+    };
+
+    setItems([...items, newItem]);
+    
+    // 4. Reset temp ให้ตรงกับโครงสร้างใหม่
+    setTemp({ 
+      drugName: '', 
+      qty: '', 
+      unit: '', 
+      lot: '', 
+      exp: '', 
+      val: '', 
+      inv: '' 
+    });
+    
     drugNameInputRef.current?.focus();
   };
 
