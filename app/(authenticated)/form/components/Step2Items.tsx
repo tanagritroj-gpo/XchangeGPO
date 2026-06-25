@@ -70,55 +70,45 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
 }
 
 export default function Step2Items({ next, back, updateData, formData }: StepProps) {
-// ให้เปลี่ยนเป็นแบบนี้ครับ (ลบ productType ออกจากโครงสร้าง)
-const [temp, setTemp] = useState<{
-  drugName: string;
-  qty: string;
-  unit: string;
-  lot: string;
-  exp: string;
-  val: string;
-  inv: string;
-}>({
-  drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '',
-});
+  // 1. ประกาศ State ให้ถูกต้องตามโครงสร้างใหม่
+  const [items, setItems] = useState<any[]>(formData?.items || []);
+  
+  const [temp, setTemp] = useState<{
+    drugName: string;
+    qty: string;
+    unit: string;
+    lot: string;
+    exp: string;
+    val: string;
+    inv: string;
+  }>({
+    drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '',
+  });
 
+  // 2. ประกาศตัวแปรเสริมอื่นๆ
   const isExchange = formData?.sender?.request_type === 'รับคืนแลกเปลี่ยน';
   const drugNameInputRef = useRef<HTMLInputElement>(null);
+  
+  // 3. ฟังก์ชัน Helper ต้องอยู่ใต้ State
   const set = (field: string, value: string) => setTemp(prev => ({ ...prev, [field]: value }));
 
-const addItemToList = () => {
-    // 1. เช็คจำนวน
+  // 4. ฟังก์ชัน addItemToList ที่กิตต้องการ
+  const addItemToList = () => {
     if (items.length >= MAX) return alert(`จำกัดสูงสุด ${MAX} รายการ`);
     
-    // 2. เช็คค่าว่าง (ยึดตามโครงสร้าง temp ใหม่ที่กิตแก้ไว้)
     if (!temp.drugName || !temp.qty || !temp.unit) {
       return alert('กรุณากรอกชื่อยา จำนวน และหน่วยให้ครบถ้วน');
     }
 
-    // 3. สร้าง Object รายการใหม่ให้ตรงกับโครงสร้าง temp ปัจจุบัน
     const newItem = {
-      drugName: temp.drugName,
-      qty: temp.qty,
-      unit: temp.unit,
-      lot: temp.lot,
-      exp: temp.exp,
-      val: temp.val,
-      inv: temp.inv,
+      ...temp,
       id: Date.now()
     };
 
     setItems([...items, newItem]);
     
-    // 4. Reset temp ให้ตรงกับโครงสร้างใหม่
     setTemp({ 
-      drugName: '', 
-      qty: '', 
-      unit: '', 
-      lot: '', 
-      exp: '', 
-      val: '', 
-      inv: '' 
+      drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' 
     });
     
     drugNameInputRef.current?.focus();
