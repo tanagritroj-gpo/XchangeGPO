@@ -15,7 +15,17 @@ export async function getCustomerExchangeHistory(b2bCustomerId: string) {
       ref_id,
       created_at,
       current_status,
-      drug_items (id, drug_name, current_status)
+      request_type,
+      drug_items (
+        id, 
+        drug_name, 
+        current_status, 
+        qty, 
+        unit, 
+        lot_number, 
+        exp_date, 
+        value_amount
+      )
     `)
     .eq('b2b_customer_id', numericId) 
     .order('created_at', { ascending: false });

@@ -13,27 +13,6 @@ interface StepProps {
 const UNITS = ['แผง', 'กล่อง', 'ขวด', 'amp', 'ลัง'] as const;
 const MAX   = 5;
 
-// ── Validation Logic ───────────────────────────────────────────────────────
-const validateItem = (item: any, isExchange: boolean) => {
-  if (!item.drugName || !item.qty || !item.lot || !item.exp)
-    return { valid: false, msg: 'กรุณากรอกข้อมูลยาให้ครบถ้วนครับ' };
-
-  if (isExchange && !item.productType)
-    return { valid: false, msg: 'กรุณาเลือกประเภทผลิตภัณฑ์ครับ' };
-
-  const today = new Date();
-  const expDate = new Date(item.exp);
-  const diffInMonths = (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth());
-
-  if (item.productType === 'GPO' && expDate < today && Math.abs(diffInMonths) > 6)
-    return { valid: false, msg: 'ยา GPO หมดอายุเกิน 6 เดือน ไม่สามารถทำรายการได้' };
-
-  if (item.productType === 'OTHER' && diffInMonths < 7)
-    return { valid: false, msg: 'ยาจากผู้ผลิตอื่น ต้องมีอายุเหลือมากกว่า 7 เดือน' };
-
-  return { valid: true };
-};
-
 // ── Shared field style ──────────────────────────────────────────────────────
 const fieldStyle = "w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm font-medium text-slate-700 placeholder:text-slate-400 placeholder:font-normal focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200";
 
@@ -157,17 +136,6 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
               className={fieldStyle}
             />
           </div>
-
-          {isExchange && (
-            <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">ประเภทผลิตภัณฑ์</label>
-              <SelectField value={temp.productType} onChange={(v) => set('productType', v)}>
-                <option value="">-- เลือกประเภทผลิตภัณฑ์ --</option>
-                <option value="GPO">ยา GPO ผลิตเอง</option>
-                <option value="OTHER">ยาผู้ผลิตอื่น / สมุนไพร</option>
-              </SelectField>
-            </div>
-          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

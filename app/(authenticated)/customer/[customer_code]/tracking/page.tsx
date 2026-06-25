@@ -1,19 +1,20 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
 import { getTrackingTimeline } from '@/app/actions/tracking-actions';
 
-export default function TrackingPage({ params }: { params: { customer_code: string } }) {
+function TrackingContent({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
   const [refId, setRefId] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const { ref } = use(searchParams);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ฟังก์ชันค้นหา (คง logic เดิม)
+  const handleSearch = async (targetRef: string) => {
+    if (!targetRef) return;
     setLoading(true);
-    const result = await getTrackingTimeline(refId);
+    const result = await getTrackingTimeline(targetRef);
 
-    // เพิ่ม Logic ตรงนี้เท่านั้น: เช็คและเพิ่ม pending_review ถ้ายังไม่มีใน timeline
     if (result?.request && result.timeline) {
       const hasPending = result.timeline.some((log: any) => log.status_name === 'pending_review');
       if (!hasPending) {
@@ -24,15 +25,22 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
         });
       }
     }
-
     setData(result);
     setLoading(false);
   };
 
+  // ดึงค่า ref จาก URL มาค้นหาอัตโนมัติ
+  useEffect(() => {
+    if (ref) {
+      setRefId(ref);
+      handleSearch(ref);
+    }
+  }, [ref]);
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      {/* ส่วน Search Bar */}
-      <form onSubmit={handleSearch} className="mb-8 flex gap-4">
+      {/* ส่วน Search Bar (UI เดิม) */}
+      <form onSubmit={(e) => { e.preventDefault(); handleSearch(refId); }} className="mb-8 flex gap-4">
         <input
           className="flex-1 border rounded-xl p-3"
           placeholder="กรอกเลขอ้างอิง (Ref ID) เพื่อติดตามสถานะ..."
@@ -44,16 +52,14 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
         </button>
       </form>
 
-      {/* ส่วนแสดงผล */}
+      {/* ส่วนแสดงผล (UI เดิม) */}
       {data?.request && (
         <div className="space-y-8">
-          {/* สรุปข้อมูลหลัก */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border">
             <h2 className="text-xl font-black">ใบงานเลขที่: {data.request.ref_id}</h2>
             <p className="text-slate-500">สถานะล่าสุด: {data.request.current_status}</p>
           </div>
 
-          {/* Timeline ประวัติ 7 ขั้นตอน */}
           <div className="relative border-l-2 border-slate-200 ml-3 space-y-8">
             {data.timeline?.map((log: any, index: number) => (
               <div key={index} className="relative pl-8">
@@ -69,5 +75,13 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
         </div>
       )}
     </div>
+  );
+}
+
+export default function TrackingPage({ searchParams }: { searchParams: Promise<{ ref?: string }> }) {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TrackingContent searchParams={searchParams} />
+    </Suspense>
   );
 }

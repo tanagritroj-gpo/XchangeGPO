@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCSRDashboardData, reviewClient, approveRequest, startExchangeProcess, completeRequest, approveDrugItem, rejectRequest, rejectDrugItem } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
+import CSRDrugRow from './component/CSRDrugRow';
 
 // ── Status config ──────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -418,20 +419,21 @@ export default function CSRDashboard() {
                     {isExpanded && drugCount > 0 && (
                       <div className="px-7 pb-4">
                         {/* Column labels */}
-                        <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wide px-3 mb-1.5">
-                          <div className="col-span-4">ชื่อยา / สินค้า</div>
-                          <div className="col-span-2">จำนวน</div>
-                          <div className="col-span-2">Lot No.</div>
-                          <div className="col-span-2">วันหมดอายุ</div>
-                          <div className="col-span-2 text-right">สถานะ</div>
-                        </div>
+<div className="grid grid-cols-12 gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide px-3 mb-1.5">
+  <div className="col-span-3">ชื่อยา</div>
+  <div className="col-span-1">จำนวน</div>
+  <div className="col-span-1 text-center">Lot</div>
+  <div className="col-span-1 text-center">Exp</div>
+  <div className="col-span-2">ประเภท</div>
+  <div className="col-span-1 text-center">เกณฑ์</div>
+  <div className="col-span-3 text-right">Actions</div>
+</div>
                         <div className="space-y-1.5">
                           {req.drug_items.map((item: any) => (
-                            <DrugItemRow
+                            <CSRDrugRow
                               key={item.id}
-                              item={item}
-                              requestId={req.id}
-                              onUpdate={(itemId, newStatus) => handleDrugItemUpdate(req.id, itemId, newStatus)}
+                              item={{ ...item, request_type: req.request_type }} // <--- เพิ่มตรงนี้ครับ!
+                              onUpdate={fetchData}
                             />
                           ))}
                         </div>

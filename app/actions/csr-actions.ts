@@ -80,6 +80,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           hospital_name: client.hospital_name,
           phone: client.phone,
           contact_name: client.contact_name,
+          position: client.position, // ✅ เพิ่มตรงนี้ครับ!
         });
 
       if (insertErr) throw insertErr;
@@ -170,4 +171,17 @@ export async function completeRequest(requestId: number, staffId: string, remark
 export async function withCSRAuth<T>(action: (session: any) => Promise<T>): Promise<T> {
   const session = await getCSRSession();
   return action(session);
+}
+
+export async function updateDrugCompliance(itemId: number, pType: string, compliance: {pass: boolean, msg: string}) {
+  const supabase = await createClient();
+  await supabase
+    .from('drug_items')
+    .update({ 
+      product_type: pType, 
+      is_compliant: compliance.pass, 
+      compliance_remark: compliance.msg 
+    })
+    .eq('id', itemId);
+  return { success: true };
 }
