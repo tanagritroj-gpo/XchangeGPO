@@ -75,13 +75,11 @@ export const ReturnRepository = {
       request_id: request.id,
       drug_name: item.drugName,
       qty: Number(item.qty) || 0,
-      unit: item.unit,
+      unit: item.unit && item.unit !== '' ? item.unit : 'ไม่ระบุ',
       lot_number: item.lot,
       exp_date: sanitizeDate(item.exp),
       value_amount: Number(item.val) || 0,
       invoice_number: item.inv || item.invoiceNumber,
-      product_type: item.productType, // ใช้ค่าที่เลือกจาก Dropdown โดยตรง
-      exp_status: 'pending' // ค่าเริ่มต้นตาม Constraint
     }));
 
     const { error: itemsError } = await supabase

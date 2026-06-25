@@ -49,11 +49,6 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
               {index + 1}
             </span>
             <span className="font-black text-slate-800 text-sm">{item.drugName}</span>
-            {item.productType && (
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${item.productType === 'GPO' ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'}`}>
-                {item.productType === 'GPO' ? 'GPO' : 'OTHER'}
-              </span>
-            )}
           </div>
           <button
             type="button"
@@ -61,6 +56,8 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
             className="w-6 h-6 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-150 active:scale-90"
           >✕</button>
         </div>
+        
+        {/* รายละเอียดด้านล่างยังคงเดิม แต่ดูสะอาดตาขึ้นเพราะมีที่ว่างเพิ่มขึ้นครับ */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-500">
           <div className="flex items-center gap-1"><span className="text-slate-400">📦</span><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
           <div className="flex items-center gap-1"><span className="text-slate-400">📅</span><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
@@ -84,11 +81,12 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
 
   const addItemToList = () => {
     if (items.length >= MAX) return alert(`จำกัดสูงสุด ${MAX} รายการ`);
-    const validation = validateItem(temp, isExchange);
-    if (!validation.valid) return alert(validation.msg);
+    if (!temp.drugName || !temp.qty || !temp.unit) {
+      return alert('กรุณากรอกชื่อยา จำนวน และหน่วยให้ครบถ้วน');
+    }
 
     setItems([...items, { ...temp, id: Date.now() }]);
-    setTemp({ drugName: '', productType: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' });
+    setTemp({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '', });
     drugNameInputRef.current?.focus();
   };
 
