@@ -101,7 +101,7 @@ function DrugItemRow({ item, reqConfirmed, onUpdate }: {
                 onClick={() => handleAction('checked_in')}
                 className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
                 style={{ background: 'linear-gradient(135deg,#0f766e,#14b8a6)' }}
-              >✓ รับเข้า</button>
+              >✓ ผ่าน</button>
             )}
 
             {/* สถานะตรวจรับแล้ว (รอ confirm ทั้งใบ) */}

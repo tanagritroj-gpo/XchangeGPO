@@ -311,7 +311,7 @@ export default function LogisticsDashboard() {
                           <span className="text-[10px] font-bold">กำลังบันทึก...</span>
                         </div>
                       ) : req.current_status === 'approved' && (
-                        <button onClick={() => handleAction(req.id, 'in_transit')} className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm bg-blue-600 hover:bg-blue-700 transition-all w-full">เริ่มขนส่ง</button>
+                        <button onClick={() => handleAction(req.id, 'in_transit')} className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm bg-blue-600 hover:bg-blue-700 transition-all w-full">ส่งรถไปรับคืน</button>
                       )}
                     </div>
                   </div>
