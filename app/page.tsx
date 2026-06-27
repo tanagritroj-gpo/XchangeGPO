@@ -158,7 +158,7 @@ export default function HomePage() {
   className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98]"
 >
   <Image 
-    src="/web_light_rd_SI@1x.png" 
+    src="/web_light_rd_SI@2x.png" 
     alt="Sign in with Google" 
     fill
     className="object-contain"
