@@ -32,30 +32,32 @@ export default function FormWizardPage({ session }: { session?: any }) {
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
 const handleSubmit = async () => {
-    try {
-      // ทำความสะอาด formData ก่อนส่ง (เช่น ลบฟิลด์ที่ไม่ได้ใช้แล้วทิ้ง)
-      const cleanData = {
-        ...formData,
-        items: formData.items.map((item: any) => ({
-          drugName: item.drugName,
-          qty: item.qty,
-          unit: item.unit,
-          lot: item.lot,
-          exp: item.exp,
-          val: item.val,
-          inv: item.inv
-          // productType ถูกตัดทิ้งไปแล้วตั้งแต่ขั้นตอนเพิ่มรายการ
-        }))
-      };
+  try {
+    const cleanData = {
+      ...formData,
+      items: formData.items.map((item: any) => ({
+        drugName: item.drugName,
+        qty: item.qty,
+        unit: item.unit,
+        lot: item.lot,
+        exp: item.exp,
+        val: item.val,
+        inv: item.inv
+      }))
+    };
 
-      const result = await ReturnRepository.createReturnRequest(cleanData);
-      alert(`บันทึกข้อมูลสำเร็จ! เลขที่ใบคำขอ: ${result.refId}`);
-      router.push('/welcome'); 
-    } catch (error) {
-      console.error("Submission Error:", error);
-      alert('บันทึกข้อมูลไม่สำเร็จ กิตลองตรวจสอบข้อมูลใหม่อีกครั้งนะครับ');
-    }
-  };
+    // 1. บันทึกข้อมูล
+    const result = await ReturnRepository.createReturnRequest(cleanData);
+    
+    // 2. คืนค่า result กลับไปให้ ReviewPage (ไม่ต้องมี alert/push แล้ว)
+    return result; 
+
+  } catch (error) {
+    console.error("Submission Error:", error);
+    // 3. ถ้า Error ให้โยน error ออกไป เพื่อให้ ReviewPage จับได้ว่าบันทึกไม่สำเร็จ
+    throw error; 
+  }
+};
 
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">

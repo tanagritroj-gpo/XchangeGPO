@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 
 interface StepProps {
   back:     () => void;
@@ -56,6 +57,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
   const [refId,   setRefId]   = useState('');
+  const [currentRequestId, setCurrentRequestId] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
   const {
@@ -74,6 +76,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     try {
       const result = await onSubmit();
       setRefId(result?.refId || 'N/A');
+      setCurrentRequestId(result?.id); // เก็บ ID ลงใน state ของคอมโพเนนต์นี้แทน
       setStatus('success');
     } catch (error: any) {
       console.error("Error:", error);
@@ -84,27 +87,62 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     }
   };
 
-  // ── Success state ──
+// ── Success state ──
   if (status === 'success') {
-    return (
-      <div className="w-full max-w-lg mx-auto flex flex-col items-center justify-center gap-6 py-16 px-8 text-center bg-white rounded-3xl shadow-xl border border-slate-100 relative overflow-hidden">
-        {/* decorative confetti circles */}
-        <div className="absolute top-6 left-8 w-3 h-3 rounded-full bg-teal-200 opacity-60" />
-        <div className="absolute top-12 right-10 w-2 h-2 rounded-full bg-emerald-300 opacity-60" />
-        <div className="absolute bottom-10 left-12 w-2.5 h-2.5 rounded-full bg-teal-300 opacity-50" />
-        <div className="absolute bottom-16 right-8 w-2 h-2 rounded-full bg-emerald-200 opacity-50" />
+    const handleDownload = async () => {
+      if (!currentRequestId) return;
+      setLoading(true);
+      try {
+        const result = await generatePdfAction(currentRequestId);
+        
+        if (result.success && result.data) {
+          const pdfBytes = new Uint8Array(result.data);
+          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `FM-AJJ0-008_${refId}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          alert(result.error);
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการดาวน์โหลด");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-lg animate-in zoom-in duration-300"
-          style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)', boxShadow: '0 10px 25px -8px rgba(16,185,129,0.4)' }}
-        >✅</div>
+    return (
+      <div className="w-full max-w-lg mx-auto flex flex-col items-center justify-center gap-6 py-16 px-8 text-center bg-white rounded-3xl shadow-xl border border-slate-100">
+        <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-lg" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>✅</div>
         <div>
           <h2 className="text-xl font-black text-slate-900 mb-1.5">ส่งแบบฟอร์มสำเร็จ!</h2>
-          <p className="text-sm text-slate-500">ระบบได้รับข้อมูลและรอดำเนินการตรวจสอบ</p>
+          <p className="text-sm text-slate-500">บันทึกข้อมูลเรียบร้อยแล้ว</p>
         </div>
-        <div className="bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-200 rounded-2xl px-10 py-5 shadow-sm">
+        
+        <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl px-10 py-5">
           <p className="text-[11px] font-black text-teal-600 uppercase tracking-widest mb-1.5">เลขที่อ้างอิง</p>
-          <p className="text-2xl font-black text-teal-700 font-mono tracking-wide">{refId}</p>
+          <p className="text-2xl font-black text-teal-700 font-mono">{refId}</p>
+        </div>
+
+        {/* ── ปุ่มดำเนินการต่อ ── */}
+        <div className="grid grid-cols-1 gap-3 w-full">
+          <button
+            onClick={handleDownload}
+            disabled={loading}
+            className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2"
+          >
+            {loading ? "กำลังสร้าง PDF..." : "📥 ดาวน์โหลดใบรับคืน (PDF)"}
+          </button>
+          <button
+            onClick={() => window.location.href = '/'} // กลับหน้าหลัก
+            className="py-4 rounded-2xl font-black text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+          >
+            กลับหน้าหลัก
+          </button>
         </div>
       </div>
     );

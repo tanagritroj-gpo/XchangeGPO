@@ -65,7 +65,7 @@ export const ReturnRepository = {
     const { data: request, error: reqError } = await supabase
       .from('requests')
       .insert(requestData)
-      .select('id')
+      .select('id, ref_id')
       .single();
 
     if (reqError) throw reqError;
@@ -88,6 +88,6 @@ export const ReturnRepository = {
 
     if (itemsError) throw itemsError;
 
-    return { refId };
+    return { id: request.id, refId: request.ref_id }; // คืนค่า id ออกไปด้วย
   }
 };

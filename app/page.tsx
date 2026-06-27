@@ -2,17 +2,16 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
-// --- Import ฟังก์ชัน Action ที่เราทำไว้ ---
 import { sendOTP, verifyOTP } from '@/app/actions/auth-actions';
 
 export default function HomePage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'customer' | 'staff'>('customer');
   const [loadingLogin, setLoadingLogin] = useState(false);
-  const [isOtpStep, setIsOtpStep] = useState(false); // State คุมขั้นตอน OTP
+  const [isOtpStep, setIsOtpStep] = useState(false);
 
-  // --- เพิ่ม State สำหรับเก็บข้อมูล ---
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [empId, setEmpId] = useState('');
@@ -23,10 +22,8 @@ export default function HomePage() {
   const handleLogin = async () => {
     setLoadingLogin(true);
     try {
-      // --- Logic ลูกค้า ---
       if (isCustomer) {
         if (!isOtpStep) {
-          // เรียกฟังก์ชันส่ง OTP
           const res = await sendOTP(email);
           if (res.success) {
             setIsOtpStep(true);
@@ -35,11 +32,10 @@ export default function HomePage() {
             alert(res.error || "เกิดข้อผิดพลาดในการส่ง OTP");
           }
         } else {
-          // เรียกฟังก์ชันยืนยัน OTP
           const res = await verifyOTP(email, otp);
           if (res.success) {
             alert("ยืนยันตัวตนสำเร็จ!");
-            router.push('/welcome'); // พาไปหน้า welcome
+            router.push('/welcome');
           } else {
             alert("รหัส OTP ไม่ถูกต้องหรือหมดอายุ");
           }
@@ -47,7 +43,6 @@ export default function HomePage() {
         return;
       }
 
-      // --- Logic พนักงาน ---
       const result = await loginStaffAction({ username: empId, password });
       if (result.success) {
         const deptRoutes: Record<string, string> = {
@@ -58,7 +53,6 @@ export default function HomePage() {
         };
         
         const destination = deptRoutes[result.department] || '/dashboard';
-        console.log("ปลายทางที่จะไป:", destination);
         router.push(destination);
       } else {
         alert(result.error || "เข้าสู่ระบบไม่สำเร็จ");
@@ -72,11 +66,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
-
-      {/* ===== SECTION 2+3 : GRAPHIC + AUTH ===== */}
       <div className="flex flex-col md:flex-row flex-1 w-full px-4 md:px-16 py-8 gap-4">
 
-        {/* ── LEFT: GPO Graphic (เต็มกรอบ) ── */}
+        {/* ── LEFT: GPO Graphic ── */}
         <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden">
           <Image
             src="/gpo-xchange-graphic2.png"
@@ -92,7 +84,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* ── RIGHT: Glassmorphism Auth Panel ── */}
+        {/* ── RIGHT: Auth Panel ── */}
         <div
           className="md:w-1/2 relative flex flex-col justify-center px-6 py-8 rounded-[2rem] overflow-hidden border border-white/20 shadow-2xl"
           style={{ background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.95), rgba(6, 78, 59, 0.95))' }}
@@ -111,7 +103,7 @@ export default function HomePage() {
               <div className="text-2xl mb-1.5">🔍</div>
               <p className="text-white text-xs font-bold">ตรวจสอบสถานะ</p>
             </a>
-            <a href="/manual" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all">
+            <a href="/guide" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all">
               <div className="text-2xl mb-1.5">📖</div>
               <p className="text-white text-xs font-bold">คู่มือการใช้งาน</p>
             </a>
@@ -144,20 +136,49 @@ export default function HomePage() {
                 
                 {isCustomer ? (
                   !isOtpStep ? (
-                    <input 
-                      value={email} 
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-teal-400" 
-                      placeholder="📧  อีเมล" 
-                    />
+                    <>
+                      <input 
+                        value={email} 
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-teal-400" 
+                        placeholder="📧  อีเมล" 
+                      />
+                      <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
+                        {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
+                      </button>
+                      
+                      {/* Google Option */}
+                      <div className="relative flex py-2 items-center">
+                        <div className="flex-grow border-t border-slate-200"></div>
+                        <span className="flex-shrink mx-4 text-slate-400 text-[10px] uppercase">หรือ</span>
+                        <div className="flex-grow border-t border-slate-200"></div>
+                      </div>
+<button 
+  onClick={() => loginWithGoogle()}
+  className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98]"
+>
+  <Image 
+    src="/web_light_rd_SI@1x.png" 
+    alt="Sign in with Google" 
+    fill
+    className="object-contain"
+  />
+</button>
+                    </>
                   ) : (
-                    <input 
-                      value={otp} 
-                      onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                      maxLength={6} 
-                      className="w-full px-4 py-3 text-center tracking-[0.5em] text-lg rounded-xl border-2 border-teal-400 bg-teal-50 focus:outline-none" 
-                      placeholder="0 0 0 0 0 0" 
-                    />
+                    <>
+                      <input 
+                        value={otp} 
+                        onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                        maxLength={6} 
+                        className="w-full px-4 py-3 text-center tracking-[0.5em] text-lg rounded-xl border-2 border-teal-400 bg-teal-50 focus:outline-none" 
+                        placeholder="0 0 0 0 0 0" 
+                      />
+                      <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
+                        ยืนยันรหัสเข้าสู่ระบบ
+                      </button>
+                      <button onClick={() => setIsOtpStep(false)} className="w-full text-xs text-slate-400 hover:text-slate-600 underline">ยกเลิก</button>
+                    </>
                   )
                 ) : (
                   <>
@@ -174,14 +195,10 @@ export default function HomePage() {
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" 
                       placeholder="🔑  รหัสผ่าน" 
                     />
+                    <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition-all">
+                      {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
+                    </button>
                   </>
-                )}
-
-                <button onClick={handleLogin} disabled={loadingLogin} className={`w-full py-3 rounded-xl font-bold text-white text-sm shadow-md transition-all ${isCustomer ? 'bg-teal-700' : 'bg-blue-800'}`}>
-                  {loadingLogin ? '⏳ กำลังดำเนินการ...' : (isCustomer && isOtpStep ? 'ยืนยันรหัสเข้าสู่ระบบ' : 'เข้าสู่ระบบ →')}
-                </button>
-                {isCustomer && isOtpStep && (
-                  <button onClick={() => setIsOtpStep(false)} className="w-full text-xs text-slate-400 hover:text-slate-600 underline">ยกเลิก</button>
                 )}
               </div>
 
