@@ -129,7 +129,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           </div>
 
           {/* จำนวน + หน่วย */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <FieldLabel>จำนวน</FieldLabel>
               <input type="number" value={temp.qty} onChange={e => set('qty', e.target.value)} placeholder="0" className={fieldStyle} />
@@ -144,7 +144,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           </div>
 
           {/* Lot + Exp */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <FieldLabel>Lot No.</FieldLabel>
               <input value={temp.lot} onChange={e => set('lot', e.target.value)} placeholder="Lot No." className={fieldStyle} />
@@ -156,7 +156,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           </div>
 
           {/* มูลค่า + เลขใบส่งของ */}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <FieldLabel>มูลค่ารวม (฿)</FieldLabel>
               <input type="number" value={temp.val} onChange={e => set('val', e.target.value)} placeholder="0.00" className={fieldStyle} />
