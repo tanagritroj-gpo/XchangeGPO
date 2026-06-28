@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCSRDashboardData, reviewClient, approveRequest, startExchangeProcess, completeRequest, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
+import { getCSRDashboardData, reviewClient, approveRequest, rejectRequest, startExchangeProcess, completeRequest, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
 
