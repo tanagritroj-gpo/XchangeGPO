@@ -1,19 +1,24 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getTrackingTimeline } from '@/app/actions/tracking-actions';
 
-export default function TrackingPage({ params }: { params: { customer_code: string } }) {
+function TrackingContent() {
+  const searchParams = useSearchParams();
+  const refFromUrl = searchParams.get('ref');
+
   const [refId, setRefId] = useState('');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ฟังก์ชันดึงและคำนวณ Timeline
+  const performSearch = async (id: string) => {
+    if (!id) return;
     setLoading(true);
-    const result = await getTrackingTimeline(refId);
+    const result = await getTrackingTimeline(id);
 
-    // เพิ่ม Logic ตรงนี้เท่านั้น: เช็คและเพิ่ม pending_review ถ้ายังไม่มีใน timeline
+    // Logic ของกิต: เช็คและเพิ่ม pending_review
     if (result?.request && result.timeline) {
       const hasPending = result.timeline.some((log: any) => log.status_name === 'pending_review');
       if (!hasPending) {
@@ -29,9 +34,21 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
     setLoading(false);
   };
 
+  // ดึงค่าจาก URL ทันทีที่โหลดหน้าจอ
+  useEffect(() => {
+    if (refFromUrl) {
+      setRefId(refFromUrl);
+      performSearch(refFromUrl);
+    }
+  }, [refFromUrl]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(refId);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      {/* ส่วน Search Bar */}
+    <>
       <form onSubmit={handleSearch} className="mb-8 flex gap-4">
         <input
           className="flex-1 border rounded-xl p-3"
@@ -44,16 +61,13 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
         </button>
       </form>
 
-      {/* ส่วนแสดงผล */}
       {data?.request && (
         <div className="space-y-8">
-          {/* สรุปข้อมูลหลัก */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border">
             <h2 className="text-xl font-black">ใบงานเลขที่: {data.request.ref_id}</h2>
             <p className="text-slate-500">สถานะล่าสุด: {data.request.current_status}</p>
           </div>
 
-          {/* Timeline ประวัติ 7 ขั้นตอน */}
           <div className="relative border-l-2 border-slate-200 ml-3 space-y-8">
             {data.timeline?.map((log: any, index: number) => (
               <div key={index} className="relative pl-8">
@@ -68,6 +82,16 @@ export default function TrackingPage({ params }: { params: { customer_code: stri
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+export default function TrackingPage() {
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <Suspense fallback={<div className="text-center py-10 text-slate-400">กำลังโหลด...</div>}>
+        <TrackingContent />
+      </Suspense>
     </div>
   );
 }

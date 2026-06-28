@@ -39,3 +39,12 @@ export async function getTrackingTimeline(refId: string) {
 
   return { request, timeline: finalTimeline };
 }
+
+export async function getTrackingData(refId: string) {
+  // 1. เช็ค session ก่อน
+  const session = await getCustomerSession(); 
+  if (!session) throw new Error("Unauthorized");
+  
+  // 2. ค่อยดึงข้อมูลจาก Database
+  // ...
+}

@@ -11,13 +11,12 @@ interface Step1Props {
 }
 
 const TYPES = [
-  { label: 'รับคืนลดหนี้',     icon: '💰', color: 'emerald' },
-  { label: 'รับคืน Recall',    icon: '⚠️', color: 'amber' },
-  { label: 'รับคืนแลกเปลี่ยน', icon: '🔄', color: 'blue' },
-  { label: 'อื่นๆ',            icon: '⋯',  color: 'slate' },
+  { label: 'รับคืนลดหนี้',     icon: '💰' },
+  { label: 'รับคืน Recall',    icon: '⚠️' },
+  { label: 'รับคืนแลกเปลี่ยน', icon: '🔄' },
+  { label: 'อื่นๆ',            icon: '⋯'  },
 ] as const;
 
-// ── Shared UI Helper ───────────────────────────────────────────────────────
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5">
     <span className="w-1 h-1 rounded-full bg-slate-300" />
@@ -26,7 +25,7 @@ const FieldLabel = ({ children }: { children: React.ReactNode }) => (
 );
 
 const InfoBox = ({ children }: { children: React.ReactNode }) => (
-  <div className="px-5 py-3.5 rounded-xl bg-gradient-to-br from-slate-50 to-white text-slate-700 font-bold text-sm border border-slate-100 shadow-sm">
+  <div className="px-4 py-3 rounded-xl bg-slate-50 text-slate-700 font-bold text-sm border border-slate-100">
     {children}
   </div>
 );
@@ -42,22 +41,17 @@ export default function Step1Info({ next, updateData }: Step1Props) {
     const init = async () => {
       const session = await getCustomerSession();
       if (!session) return;
-
       const supabase = createClient();
       const { data } = await supabase
         .from('b2b_customers')
         .select('*')
         .eq('id', session.id)
         .single();
-
       if (data) setClientData(data);
-
       try {
-        const nextNumber = await ReturnRepository.getNextDocNumber();
-        setDocNumber(nextNumber);
-      } catch { setDocNumber("S001/2026"); }
+        setDocNumber(await ReturnRepository.getNextDocNumber());
+      } catch { setDocNumber('S001/2026'); }
     };
-
     init();
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
@@ -65,7 +59,6 @@ export default function Step1Info({ next, updateData }: Step1Props) {
   const handleNext = () => {
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
-
     updateData((prev: any) => ({
       ...prev,
       sender: {
@@ -78,8 +71,8 @@ export default function Step1Info({ next, updateData }: Step1Props) {
         position: clientData?.position,
         phone: clientData?.phone,
         customer_email: clientData?.email,
-        b2b_customer_id: clientData?.id
-      }
+        b2b_customer_id: clientData?.id,
+      },
     }));
     next();
   };
@@ -94,15 +87,16 @@ export default function Step1Info({ next, updateData }: Step1Props) {
       </div>
 
       {/* ══ ประเภทการส่งคืน ══ */}
-      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-7 overflow-hidden">
+      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
-        <h2 className="text-sm font-black text-slate-800 mb-6 flex items-center gap-2.5">
+        <h2 className="text-sm font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>📦</div>
           ประเภทการส่งคืน
         </h2>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        {/* Mobile: 2 cols / Desktop: 4 cols */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
           {TYPES.map((t) => {
             const active = selectedType === t.label;
             return (
@@ -110,11 +104,10 @@ export default function Step1Info({ next, updateData }: Step1Props) {
                 key={t.label}
                 type="button"
                 onClick={() => setSelectedType(t.label)}
-                className={`relative flex flex-col items-center gap-3 py-6 px-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 ${
-                  active
+                className={`relative flex flex-col items-center gap-3 py-5 sm:py-6 px-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 min-h-[88px] sm:min-h-0
+                  ${active
                     ? 'border-teal-500 bg-gradient-to-br from-teal-50 to-emerald-50 shadow-lg shadow-teal-100 -translate-y-0.5'
-                    : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:-translate-y-0.5'
-                }`}
+                    : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:-translate-y-0.5'}`}
               >
                 {active && (
                   <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[9px] flex items-center justify-center font-black">✓</span>
@@ -126,9 +119,8 @@ export default function Step1Info({ next, updateData }: Step1Props) {
           })}
         </div>
 
-        {/* ช่องพิมพ์เมื่อเลือก อื่นๆ */}
         {selectedType === 'อื่นๆ' && (
-          <div className="mb-6 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="mb-5 sm:mb-6 animate-in fade-in slide-in-from-top-2 duration-200">
             <FieldLabel>ระบุรายละเอียดเพิ่มเติม</FieldLabel>
             <input
               type="text"
@@ -143,35 +135,28 @@ export default function Step1Info({ next, updateData }: Step1Props) {
         <div className="grid grid-cols-2 gap-4 pt-1">
           <div>
             <FieldLabel>เลขที่เอกสาร</FieldLabel>
-            <InfoBox>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-teal-500">📄</span> {docNumber}
-              </span>
-            </InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5"><span className="text-teal-500">📄</span>{docNumber}</span></InfoBox>
           </div>
           <div>
             <FieldLabel>วันที่ทำรายการ</FieldLabel>
-            <InfoBox>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-teal-500">📅</span> {today}
-              </span>
-            </InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5"><span className="text-teal-500">📅</span>{today}</span></InfoBox>
           </div>
         </div>
       </div>
 
       {/* ══ ข้อมูลผู้ประสานงาน ══ */}
-      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-7 overflow-hidden">
+      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#1a5c96,#1a7a45,#0f5132)' }} />
 
-        <h2 className="text-sm font-black text-slate-800 mb-6 flex items-center gap-2.5">
+        <h2 className="text-sm font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
           ข้อมูลผู้ประสานงาน
           {!clientData && <span className="ml-auto text-[10px] font-bold text-slate-300 animate-pulse">กำลังโหลด...</span>}
         </h2>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-          <div className="md:col-span-2">
+        {/* Mobile: 1 col / Desktop: 2 cols */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 sm:gap-y-5">
+          <div className="sm:col-span-2">
             <FieldLabel>ชื่อหน่วยงาน (โรงพยาบาล)</FieldLabel>
             <InfoBox>{clientData?.hospital_name || '...'}</InfoBox>
           </div>
@@ -185,15 +170,11 @@ export default function Step1Info({ next, updateData }: Step1Props) {
           </div>
           <div>
             <FieldLabel>เบอร์โทรศัพท์</FieldLabel>
-            <InfoBox>
-              <span className="inline-flex items-center gap-1.5">📞 {clientData?.phone || '-'}</span>
-            </InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5">📞 {clientData?.phone || '-'}</span></InfoBox>
           </div>
           <div>
             <FieldLabel>อีเมล</FieldLabel>
-            <InfoBox>
-              <span className="inline-flex items-center gap-1.5">✉️ {clientData?.email || '-'}</span>
-            </InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5">✉️ {clientData?.email || '-'}</span></InfoBox>
           </div>
         </div>
       </div>
@@ -204,7 +185,7 @@ export default function Step1Info({ next, updateData }: Step1Props) {
         className="group w-full py-4 rounded-2xl font-black text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-2xl"
         style={{
           background: 'linear-gradient(135deg,#0f5132 0%,#1a7a45 60%,#16a085 100%)',
-          boxShadow: '0 12px 28px -8px rgba(26,122,69,0.45)'
+          boxShadow: '0 12px 28px -8px rgba(26,122,69,0.45)',
         }}
       >
         <span className="flex items-center justify-center gap-2">

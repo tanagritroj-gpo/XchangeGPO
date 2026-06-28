@@ -17,81 +17,80 @@ const STEPS = [
   { id: 5, label: 'ตรวจสอบ' },
 ];
 
-export default function FormWizardPage({ session }: { session?: any }) { 
+export default function FormWizardPage({ session }: { session?: any }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    sender: session || {}, // ถ้ามี session ก็ใส่ไป ถ้าไม่มีก็ใช้ {} กันพัง
-    items: [], 
-    reason: '', 
+    sender: session || {},
+    items: [],
+    reason: '',
     signature: null,
-    totalValue: 0 // เพิ่มเผื่อไว้ให้ ReviewPage
+    totalValue: 0,
   });
 
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 5));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
 
-const handleSubmit = async () => {
-  try {
-    const cleanData = {
-      ...formData,
-      items: formData.items.map((item: any) => ({
-        drugName: item.drugName,
-        qty: item.qty,
-        unit: item.unit,
-        lot: item.lot,
-        exp: item.exp,
-        val: item.val,
-        inv: item.inv
-      }))
-    };
-
-    // 1. บันทึกข้อมูล
-    const result = await ReturnRepository.createReturnRequest(cleanData);
-    
-    // 2. คืนค่า result กลับไปให้ ReviewPage (ไม่ต้องมี alert/push แล้ว)
-    return result; 
-
-  } catch (error) {
-    console.error("Submission Error:", error);
-    // 3. ถ้า Error ให้โยน error ออกไป เพื่อให้ ReviewPage จับได้ว่าบันทึกไม่สำเร็จ
-    throw error; 
-  }
-};
+  const handleSubmit = async () => {
+    try {
+      const cleanData = {
+        ...formData,
+        items: formData.items.map((item: any) => ({
+          drugName: item.drugName,
+          qty:      item.qty,
+          unit:     item.unit,
+          lot:      item.lot,
+          exp:      item.exp,
+          val:      item.val,
+          inv:      item.inv,
+        })),
+      };
+      const result = await ReturnRepository.createReturnRequest(cleanData);
+      return result;
+    } catch (error) {
+      console.error('Submission Error:', error);
+      throw error;
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      
-      {/* ส่วนหัวของฟอร์ม */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-black text-slate-800">แบบขอคืน / แลกเปลี่ยนยา</h1>
+    // ลบ max-w และ wrapper กล่องขาวออก ให้ layout.tsx จัดการ padding แทน
+    <div className="py-4 md:py-8">
+
+      {/* Header */}
+      <div className="mb-6 px-1">
+        <h1 className="text-xl md:text-2xl font-black text-slate-800">แบบขอคืน / แลกเปลี่ยนยา</h1>
         <p className="text-sm font-bold text-teal-700">องค์การเภสัชกรรม สาขาภาคใต้</p>
       </div>
 
-      {/* Stepper Bar */}
-      <div className="flex justify-between mb-10 px-4">
-        {STEPS.map((s) => (
-          <div key={s.id} className="flex flex-col items-center gap-2">
-            <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black transition-all ${
-              step >= s.id ? 'bg-teal-600 text-white shadow-lg shadow-teal-200' : 'bg-slate-100 text-slate-400'
-            }`}>
-              {s.id}
+      {/* Stepper — scroll ได้บน mobile ถ้า step เยอะ */}
+      <div className="mb-6 md:mb-10 overflow-x-auto">
+        <div className="flex justify-between min-w-[280px] px-2">
+          {STEPS.map((s) => (
+            <div key={s.id} className="flex flex-col items-center gap-1.5">
+              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base transition-all ${
+                step >= s.id
+                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-200'
+                  : 'bg-slate-100 text-slate-400'
+              }`}>
+                {s.id}
+              </div>
+              <span className={`text-[9px] md:text-[10px] font-black uppercase ${
+                step >= s.id ? 'text-teal-700' : 'text-slate-400'
+              }`}>
+                {s.label}
+              </span>
             </div>
-            <span className={`text-[10px] font-black uppercase ${step >= s.id ? 'text-teal-700' : 'text-slate-400'}`}>
-              {s.label}
-            </span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Main Content */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 min-h-[500px]">
-        {step === 1 && <Step1Info next={nextStep} updateData={setFormData} />}
-        {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
-        {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
-        {step === 4 && <Step4Sign next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
-        {step === 5 && <ReviewPage back={prevStep} formData={formData} onSubmit={handleSubmit} />}
-      </div>
+      {/* Step content — ไม่มีกล่องขาวครอบ ให้แต่ละ Step component จัดการ card เอง */}
+      {step === 1 && <Step1Info next={nextStep} updateData={setFormData} />}
+      {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
+      {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
+      {step === 4 && <Step4Sign next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
+      {step === 5 && <ReviewPage back={prevStep} formData={formData} onSubmit={handleSubmit} />}
     </div>
   );
 }

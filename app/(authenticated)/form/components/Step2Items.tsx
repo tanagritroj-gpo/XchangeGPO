@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react';
 
-// ── Types & Constants ──────────────────────────────────────────────────────
 interface StepProps {
   next:       () => void;
   back:       () => void;
@@ -13,30 +12,29 @@ interface StepProps {
 const UNITS = ['แผง', 'กล่อง', 'ขวด', 'amp', 'ลัง'] as const;
 const MAX   = 5;
 
-// ── Shared field style ──────────────────────────────────────────────────────
 const fieldStyle = "w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm font-medium text-slate-700 placeholder:text-slate-400 placeholder:font-normal focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200";
-
 const selectStyle = "w-full pl-4 pr-10 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm font-medium text-slate-700 focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200 cursor-pointer appearance-none";
 
-// ── Custom Select wrapper (with chevron icon) ───────────────────────────────
-function SelectField({ value, onChange, children, placeholder }: {
-  value: string; onChange: (v: string) => void; children: React.ReactNode; placeholder?: string;
+const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1 flex items-center gap-1.5">
+    <span className="w-1 h-1 rounded-full bg-slate-300" />
+    {children}
+  </label>
+);
+
+function SelectField({ value, onChange, children }: {
+  value: string; onChange: (v: string) => void; children: React.ReactNode;
 }) {
   return (
     <div className="relative">
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className={`${selectStyle} ${!value ? 'text-slate-400' : ''}`}
-      >
+      <select value={value} onChange={e => onChange(e.target.value)} className={`${selectStyle} ${!value ? 'text-slate-400' : ''}`}>
         {children}
       </select>
-      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs transition-transform">▾</span>
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
     </div>
   );
 }
 
-// ── DrugCard ───────────────────────────────────────────────────────────────
 function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemove: () => void }) {
   return (
     <div className="group relative flex bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
@@ -44,8 +42,10 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
       <div className="flex-1 p-4">
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-lg text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-sm"
-              style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)' }}>
+            <span
+              className="w-6 h-6 rounded-lg text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-sm"
+              style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)' }}
+            >
               {index + 1}
             </span>
             <span className="font-black text-slate-800 text-sm">{item.drugName}</span>
@@ -56,8 +56,6 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
             className="w-6 h-6 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-150 active:scale-90"
           >✕</button>
         </div>
-        
-        {/* รายละเอียดด้านล่างยังคงเดิม แต่ดูสะอาดตาขึ้นเพราะมีที่ว่างเพิ่มขึ้นครับ */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-500">
           <div className="flex items-center gap-1"><span className="text-slate-400">📦</span><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
           <div className="flex items-center gap-1"><span className="text-slate-400">📅</span><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
@@ -70,47 +68,17 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
 }
 
 export default function Step2Items({ next, back, updateData, formData }: StepProps) {
-  // 1. ประกาศ State ให้ถูกต้องตามโครงสร้างใหม่
   const [items, setItems] = useState<any[]>(formData?.items || []);
-  
-  const [temp, setTemp] = useState<{
-    drugName: string;
-    qty: string;
-    unit: string;
-    lot: string;
-    exp: string;
-    val: string;
-    inv: string;
-  }>({
-    drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '',
-  });
-
-  // 2. ประกาศตัวแปรเสริมอื่นๆ
-  const isExchange = formData?.sender?.request_type === 'รับคืนแลกเปลี่ยน';
+  const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' });
   const drugNameInputRef = useRef<HTMLInputElement>(null);
-  
-  // 3. ฟังก์ชัน Helper ต้องอยู่ใต้ State
+
   const set = (field: string, value: string) => setTemp(prev => ({ ...prev, [field]: value }));
 
-  // 4. ฟังก์ชัน addItemToList ที่กิตต้องการ
   const addItemToList = () => {
     if (items.length >= MAX) return alert(`จำกัดสูงสุด ${MAX} รายการ`);
-    
-    if (!temp.drugName || !temp.qty || !temp.unit) {
-      return alert('กรุณากรอกชื่อยา จำนวน และหน่วยให้ครบถ้วน');
-    }
-
-    const newItem = {
-      ...temp,
-      id: Date.now()
-    };
-
-    setItems([...items, newItem]);
-    
-    setTemp({ 
-      drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' 
-    });
-    
+    if (!temp.drugName || !temp.qty || !temp.unit) return alert('กรุณากรอกชื่อยา จำนวน และหน่วยให้ครบถ้วน');
+    setItems([...items, { ...temp, id: Date.now() }]);
+    setTemp({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' });
     drugNameInputRef.current?.focus();
   };
 
@@ -124,7 +92,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
   const totalValuePreview = items.reduce((s, i) => s + parseFloat(i.val || '0'), 0);
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-6 font-sarabun max-w-3xl mx-auto">
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
@@ -138,7 +106,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       </div>
 
       {/* ══ ฟอร์มเพิ่มรายการ ══ */}
-      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-7 overflow-hidden">
+      <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
         <h2 className="text-sm font-black text-slate-800 mb-6 flex items-center gap-2.5">
@@ -146,10 +114,11 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           รายการยาและเวชภัณฑ์
         </h2>
 
-        <div className="space-y-4 bg-gradient-to-br from-slate-50 to-white p-6 rounded-2xl border-2 border-dashed border-slate-200">
+        <div className="space-y-4 bg-gradient-to-br from-slate-50 to-white p-5 sm:p-6 rounded-2xl border-2 border-dashed border-slate-200">
 
+          {/* ชื่อยา — full width */}
           <div>
-            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">ชื่อยา</label>
+            <FieldLabel>ชื่อยา</FieldLabel>
             <input
               ref={drugNameInputRef}
               value={temp.drugName}
@@ -159,38 +128,41 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* จำนวน + หน่วย */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">จำนวน</label>
+              <FieldLabel>จำนวน</FieldLabel>
               <input type="number" value={temp.qty} onChange={e => set('qty', e.target.value)} placeholder="0" className={fieldStyle} />
             </div>
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">หน่วย</label>
-              <SelectField value={temp.unit} onChange={(v) => set('unit', v)}>
+              <FieldLabel>หน่วย</FieldLabel>
+              <SelectField value={temp.unit} onChange={v => set('unit', v)}>
                 <option value="">เลือกหน่วย</option>
                 {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
               </SelectField>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Lot + Exp */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">Lot No.</label>
+              <FieldLabel>Lot No.</FieldLabel>
               <input value={temp.lot} onChange={e => set('lot', e.target.value)} placeholder="Lot No." className={fieldStyle} />
             </div>
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">วันหมดอายุ</label>
+              <FieldLabel>วันหมดอายุ</FieldLabel>
               <input type="date" value={temp.exp} onChange={e => set('exp', e.target.value)} className={fieldStyle} />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* มูลค่า + เลขใบส่งของ */}
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">มูลค่ารวม (฿)</label>
+              <FieldLabel>มูลค่ารวม (฿)</FieldLabel>
               <input type="number" value={temp.val} onChange={e => set('val', e.target.value)} placeholder="0.00" className={fieldStyle} />
             </div>
             <div>
-              <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1">เลขใบส่งของ</label>
+              <FieldLabel>เลขใบส่งของ</FieldLabel>
               <input value={temp.inv} onChange={e => set('inv', e.target.value)} placeholder="เลขใบส่งของ" className={fieldStyle} />
             </div>
           </div>
@@ -218,7 +190,12 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           </div>
           <div className="space-y-3">
             {items.map((item, i) => (
-              <DrugCard key={item.id} item={item} index={i} onRemove={() => setItems(items.filter(it => it.id !== item.id))} />
+              <DrugCard
+                key={item.id}
+                item={item}
+                index={i}
+                onRemove={() => setItems(items.filter(it => it.id !== item.id))}
+              />
             ))}
           </div>
         </div>
@@ -233,7 +210,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       )}
 
       {/* ══ Navigation ══ */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <button
           onClick={back}
           className="group py-4 rounded-2xl font-black text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
