@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server';
+import { getCustomerSession } from '@/app/actions/auth-actions';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
