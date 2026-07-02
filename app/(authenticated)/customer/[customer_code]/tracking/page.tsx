@@ -6,63 +6,59 @@ import { getTrackingTimeline } from '@/app/actions/tracking-actions';
 
 function TrackingContent() {
   const searchParams = useSearchParams();
-  const refFromUrl = searchParams.get('ref');
-
-  const [refId, setRefId] = useState('');
+  const [refId, setRefId] = useState(searchParams.get('ref') || '');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // ฟังก์ชันดึงและคำนวณ Timeline
   const performSearch = async (id: string) => {
-    if (!id) return;
+    if (!id.trim()) return;
     setLoading(true);
-    const result = await getTrackingTimeline(id);
+    setError(null);
 
-    // Logic ของกิต: เช็คและเพิ่ม pending_review
-    if (result?.request && result.timeline) {
-      const hasPending = result.timeline.some((log: any) => log.status_name === 'pending_review');
-      if (!hasPending) {
-        result.timeline.unshift({
-          status_name: 'pending_review',
-          log_date: result.request.created_at,
-          staff_remark: 'ได้รับคำร้องเข้าสู่ระบบ'
-        });
+    try {
+      // Backend จัดการ Logic ทั้งหมดให้แล้ว ทั้งสิทธิ์การเข้าถึงและ Timeline
+      const result = await getTrackingTimeline(id);
+      
+      if (result.error) {
+        setError(result.error);
+        setData(null);
+      } else {
+        setData(result);
       }
+    } catch (err) {
+      setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+    } finally {
+      setLoading(false);
     }
-
-    setData(result);
-    setLoading(false);
   };
 
-  // ดึงค่าจาก URL ทันทีที่โหลดหน้าจอ
   useEffect(() => {
+    const refFromUrl = searchParams.get('ref');
     if (refFromUrl) {
       setRefId(refFromUrl);
       performSearch(refFromUrl);
     }
-  }, [refFromUrl]);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    performSearch(refId);
-  };
+  }, [searchParams]);
 
   return (
     <>
-      <form onSubmit={handleSearch} className="mb-8 flex gap-4">
+      <form onSubmit={(e) => { e.preventDefault(); performSearch(refId); }} className="mb-8 flex gap-4">
         <input
-          className="flex-1 border rounded-xl p-3"
-          placeholder="กรอกเลขอ้างอิง (Ref ID) เพื่อติดตามสถานะ..."
+          className="flex-1 border rounded-xl p-3 focus:outline-teal-500"
+          placeholder="กรอกเลขอ้างอิง (Ref ID)..."
           value={refId}
-          onChange={(e) => setRefId(e.target.value)}
+          onChange={(e) => setRefId(e.target.value.toUpperCase())}
         />
-        <button type="submit" className="bg-teal-700 text-white px-6 rounded-xl font-bold">
-          {loading ? 'ค้นหา...' : 'ติดตามงาน'}
+        <button type="submit" disabled={loading} className="bg-teal-700 text-white px-6 rounded-xl font-bold hover:bg-teal-800 transition-all">
+          {loading ? 'กำลังค้นหา...' : 'ติดตามงาน'}
         </button>
       </form>
 
+      {error && <p className="text-red-500 font-bold text-center py-4">{error}</p>}
+
       {data?.request && (
-        <div className="space-y-8">
+        <div className="space-y-8 animate-in fade-in duration-500">
           <div className="bg-white p-6 rounded-2xl shadow-sm border">
             <h2 className="text-xl font-black">ใบงานเลขที่: {data.request.ref_id}</h2>
             <p className="text-slate-500">สถานะล่าสุด: {data.request.current_status}</p>
@@ -89,7 +85,7 @@ function TrackingContent() {
 export default function TrackingPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <Suspense fallback={<div className="text-center py-10 text-slate-400">กำลังโหลด...</div>}>
+      <Suspense fallback={<div className="text-center py-10">กำลังโหลด...</div>}>
         <TrackingContent />
       </Suspense>
     </div>

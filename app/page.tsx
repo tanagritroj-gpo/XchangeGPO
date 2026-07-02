@@ -72,6 +72,7 @@ export default function HomePage() {
         <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden">
           <Image
             src="/gpo-xchange-graphic2.png"
+            sizes="(max-width: 768px) 100vw, 50vw" // เติมบรรทัดนี้ครับ
             alt="GPO Xchange Graphic"
             fill
             sizes="(max-width: 768px) 100vw, 50vw" 
