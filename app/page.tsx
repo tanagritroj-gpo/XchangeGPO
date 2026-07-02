@@ -75,7 +75,6 @@ export default function HomePage() {
             sizes="(max-width: 768px) 100vw, 50vw" // เติมบรรทัดนี้ครับ
             alt="GPO Xchange Graphic"
             fill
-            sizes="(max-width: 768px) 100vw, 50vw" 
             className="object-cover"
             priority
           />
