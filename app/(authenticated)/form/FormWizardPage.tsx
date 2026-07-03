@@ -33,8 +33,19 @@ export default function FormWizardPage({ session }: { session?: any }) {
 
   const handleSubmit = async () => {
     try {
+      // 1. ดึงอีเมลออกมาให้ชัวร์ก่อนว่าอยู่ตรงไหนของ session (รองรับโครงสร้างของ Supabase Auth)
+      const userEmail = formData.sender?.user?.email || formData.sender?.email || '';
+
       const cleanData = {
         ...formData,
+        // 2. ดักส่งอีเมลไปให้ครบทุกชื่อตัวแปร เผื่อ Repository เรียกใช้
+        customerEmail: userEmail, 
+        customer_email: userEmail,
+        sender: {
+          ...formData.sender,
+          email: userEmail,
+          customerEmail: userEmail,
+        },
         items: formData.items.map((item: any) => ({
           drugName: item.drugName,
           qty:      item.qty,

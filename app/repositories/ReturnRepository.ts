@@ -10,20 +10,20 @@ const sanitizeDate = (dateStr: string) => {
 export const ReturnRepository = {
   // ใช้ Logic ของกิตที่จัดการเรื่อง Error ได้แม่นยำขึ้น
   async getNextDocNumber() {
-  const supabase = createClient();
-  
-  // เรียก RPC แทนการ Query ตรงๆ เพื่อข้าม RLS
-  const { data, error } = await supabase.rpc('get_latest_doc_number');
-  
-  if (error || !data) {
-    return "S001/2026";
-  }
+    const supabase = createClient();
+    
+    // เรียก RPC แทนการ Query ตรงๆ เพื่อข้าม RLS
+    const { data, error } = await supabase.rpc('get_latest_doc_number');
+    
+    if (error || !data) {
+      return "S001/2026";
+    }
 
-  // ใช้ logic เดิมของกิตได้เลย
-  const lastNum = parseInt(data.split('/')[0].replace('S', ''));
-  const nextNum = (lastNum + 1).toString().padStart(3, '0');
-  return `S${nextNum}/2026`;
-},
+    // ใช้ logic เดิมของกิตได้เลย
+    const lastNum = parseInt(data.split('/')[0].replace('S', ''));
+    const nextNum = (lastNum + 1).toString().padStart(3, '0');
+    return `S${nextNum}/2026`;
+  },
 
   createReturnRequest: async (formData: any) => {
 
@@ -43,7 +43,10 @@ export const ReturnRepository = {
       hospital_name: formData.sender.hospital_name,
       contact_name: formData.sender.contact_name,
       phone: formData.sender.phone,
-      customer_email: formData.sender.customer_email,
+      
+      // 🎯 แก้ไขตรงนี้: ดักจับอีเมลจากทุกจุดที่ FormWizard ส่งมา ป้องกันค่าหลุด
+      customer_email: formData.customer_email || formData.sender?.email || formData.sender?.customer_email,
+      
       b2b_customer_id: formData.sender.b2b_customer_id,
       return_reason: formData.return_reason,
       delivery_type: formData.delivery_type,

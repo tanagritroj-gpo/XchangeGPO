@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { generatePdfAction } from '@/app/actions/generate-pdf-action';
+import { ReviewSuccessCard } from './ReviewSuccessCard';
 
 interface StepProps {
   back:     () => void;
@@ -76,7 +76,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     try {
       const result = await onSubmit();
       setRefId(result?.refId || 'N/A');
-      setCurrentRequestId(result?.id); // เก็บ ID ลงใน state ของคอมโพเนนต์นี้แทน
+      setCurrentRequestId(result?.id);
       setStatus('success');
     } catch (error: any) {
       console.error("Error:", error);
@@ -87,64 +87,15 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     }
   };
 
-// ── Success state ──
-  if (status === 'success') {
-    const handleDownload = async () => {
-      if (!currentRequestId) return;
-      setLoading(true);
-      try {
-        const result = await generatePdfAction(currentRequestId);
-        
-        if (result.success && result.data) {
-          const pdfBytes = new Uint8Array(result.data);
-          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `FM-AJJ0-008_${refId}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          alert(result.error);
-        }
-      } catch (err) {
-        alert("เกิดข้อผิดพลาดในการดาวน์โหลด");
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // ── ส่วนนี้คือการเช็ค Success แล้วตัดจบด้วย Component ใหม่ ──
+if (status === 'success') {
     return (
-      <div className="w-full max-w-lg mx-auto flex flex-col items-center justify-center gap-6 py-16 px-8 text-center bg-white rounded-3xl shadow-xl border border-slate-100">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-lg" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>✅</div>
-        <div>
-          <h2 className="text-xl font-black text-slate-900 mb-1.5">ส่งแบบฟอร์มสำเร็จ!</h2>
-          <p className="text-sm text-slate-500">บันทึกข้อมูลเรียบร้อยแล้ว</p>
-        </div>
-        
-        <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl px-10 py-5">
-          <p className="text-[11px] font-black text-teal-600 uppercase tracking-widest mb-1.5">เลขที่อ้างอิง</p>
-          <p className="text-2xl font-black text-teal-700 font-mono">{refId}</p>
-        </div>
-
-        {/* ── ปุ่มดำเนินการต่อ ── */}
-        <div className="grid grid-cols-1 gap-3 w-full">
-          <button
-            onClick={handleDownload}
-            disabled={loading}
-            className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? "กำลังสร้าง PDF..." : "📥 ดาวน์โหลดใบรับคืน (PDF)"}
-          </button>
-          <button
-            onClick={() => window.location.href = '/'} // กลับหน้าหลัก
-            className="py-4 rounded-2xl font-black text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
-          >
-            กลับหน้าหลัก
-          </button>
-        </div>
-      </div>
+      <ReviewSuccessCard
+        requestId={currentRequestId!} 
+        refId={refId} 
+        customerCode={formData.sender?.customerCode || 'GPO'} 
+        customerEmail={formData.sender?.user?.email || formData.sender?.email}
+      />
     );
   }
 
@@ -190,7 +141,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
           ))}
           <div className="flex justify-between items-center pt-3.5 mt-1 border-t-2 border-dashed border-slate-100">
             <span className="text-xs font-black text-slate-400 uppercase tracking-widest">รวมมูลค่า</span>
-            <span className="text-xl font-black text-teal-600">{(totalValue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
           </div>
         </div>
       </div>
