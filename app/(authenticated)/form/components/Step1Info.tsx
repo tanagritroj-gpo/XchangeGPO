@@ -41,29 +41,39 @@ export default function Step1Info({ next, updateData }: Step1Props) {
     const init = async () => {
       const session = await getCustomerSession();
       if (!session) return;
+      
       const supabase = createClient();
       const { data } = await supabase
         .from('b2b_customers')
         .select('*')
         .eq('id', session.id)
         .single();
+      
       if (data) setClientData(data);
+
+      // ย้ายมาไว้ข้างใน init ตรงนี้ครับ
       try {
-        setDocNumber(await ReturnRepository.getNextDocNumber());
-      } catch { setDocNumber('S001/2026'); }
+        const nextDoc = await ReturnRepository.getNextDocNumber();
+        setDocNumber(nextDoc);
+      } catch (err) {
+        console.error("Failed to load doc number:", err);
+        setDocNumber('Error');
+      }
     };
+    
     init();
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
+    const latestDocNumber = await ReturnRepository.getNextDocNumber();
     updateData((prev: any) => ({
       ...prev,
       sender: {
         ...prev.sender,
-        doc_number: docNumber,
+        doc_number: latestDocNumber, // ใช้เลขที่ดึงมาใหม่ล่าสุด
         request_type: selectedType,
         return_reason: selectedType === 'อื่นๆ' ? otherDetail : selectedType,
         hospital_name: clientData?.hospital_name,

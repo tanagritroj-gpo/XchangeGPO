@@ -10,33 +10,33 @@ const sanitizeDate = (dateStr: string) => {
 export const ReturnRepository = {
   // ใช้ Logic ของกิตที่จัดการเรื่อง Error ได้แม่นยำขึ้น
   async getNextDocNumber() {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('requests')
-      .select('doc_number')
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle(); // ป้องกัน Error กรณีตารางว่าง
+  const supabase = createClient();
   
-    if (error) {
-      console.error("Error fetching doc_number:", error);
-      return "S001/2026";
-    }
+  // เรียก RPC แทนการ Query ตรงๆ เพื่อข้าม RLS
+  const { data, error } = await supabase.rpc('get_latest_doc_number');
+  
+  if (error || !data) {
+    return "S001/2026";
+  }
 
-    if (!data || !data.doc_number) return "S001/2026"; 
-
-    // ใช้ logic ของกิตที่อ่านง่ายและชัวร์
-    const lastNum = parseInt(data.doc_number.split('/')[0].replace('S', ''));
-    const nextNum = (lastNum + 1).toString().padStart(3, '0');
-    return `S${nextNum}/2026`;
-   },
+  // ใช้ logic เดิมของกิตได้เลย
+  const lastNum = parseInt(data.split('/')[0].replace('S', ''));
+  const nextNum = (lastNum + 1).toString().padStart(3, '0');
+  return `S${nextNum}/2026`;
+},
 
   createReturnRequest: async (formData: any) => {
+
+    if (!formData.items || formData.items.length === 0) {
+      throw new Error("ต้องมีรายการสินค้าอย่างน้อย 1 รายการครับ");
+    }
+
     const supabase = createClient();
     const refId = `REF-${crypto.randomUUID().substring(0, 8).toUpperCase()}`;
 
-    // 1. บันทึกตาราง requests
+    // รวมข้อมูลให้เรียบร้อยในขั้นตอนเดียว
     const requestData = {
+      ...formData.sender,
       ref_id: refId,
       doc_number: formData.sender.doc_number,
       request_type: formData.sender.request_type,
@@ -62,32 +62,27 @@ export const ReturnRepository = {
       request_date: new Date().toISOString()
     };
 
-    const { data: request, error: reqError } = await supabase
-      .from('requests')
-      .insert(requestData)
-      .select('id, ref_id')
-      .single();
-
-    if (reqError) throw reqError;
-
-    // 2. บันทึกตาราง drug_items (ปรับตาม Schema ใหม่)
-    const itemsToInsert = formData.items.map((item: any) => ({
-      request_id: request.id,
+    const items = formData.items.map((item: any) => ({
       drug_name: item.drugName,
       qty: Number(item.qty) || 0,
-      unit: item.unit && item.unit !== '' ? item.unit : 'ไม่ระบุ',
+      unit: item.unit || 'ไม่ระบุ',
       lot_number: item.lot,
       exp_date: sanitizeDate(item.exp),
       value_amount: Number(item.val) || 0,
       invoice_number: item.inv || item.invoiceNumber,
     }));
 
-    const { error: itemsError } = await supabase
-      .from('drug_items')
-      .insert(itemsToInsert);
+    // เรียกใช้ RPC
+    const { data, error } = await supabase.rpc('create_exchange_request', {
+      p_b2b_customer_id: formData.sender.b2b_customer_id,
+      p_request_data: requestData,
+      p_drug_items: items
+    });
 
-    if (itemsError) throw itemsError;
+    if (error) throw error;
 
-    return { id: request.id, refId: request.ref_id }; // คืนค่า id ออกไปด้วย
+    // ตรวจสอบว่า data ออกมาเป็น Array หรือ Object
+    // ถ้า Function คืนค่าเป็น Table ปกติจะเป็น Array ของ Object
+    return { id: data[0].request_id, refId: data[0].ref_id };
   }
 };

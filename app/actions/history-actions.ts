@@ -4,39 +4,20 @@ import { createClient } from '@/lib/supabase/server';
 
 export async function getCustomerExchangeHistory(b2bCustomerId: string) {
   const supabase = await createClient();
-
-  // แปลง string เป็น number (bigint) ให้ชัวร์ก่อน Query
   const numericId = parseInt(b2bCustomerId, 10);
 
-  const { data, error } = await supabase
-    .from('requests')
-    .select(`
-      id,
-      ref_id,
-      created_at,
-      current_status,
-      request_type,
-      drug_items (
-        id, 
-        drug_name, 
-        current_status, 
-        qty, 
-        unit, 
-        lot_number, 
-        exp_date, 
-        value_amount
-      )
-    `)
-    .eq('b2b_customer_id', numericId) 
-    .order('created_at', { ascending: false });
+  if (isNaN(numericId)) return [];
+
+  // เรียกใช้ RPC ที่เราเพิ่งสร้างขึ้น
+  const { data, error } = await supabase.rpc('get_customer_history', { 
+    p_customer_id: numericId 
+  });
 
   if (error) {
-    console.error('Error fetching history:', error);
+    console.error('Error fetching history via RPC:', error);
     return [];
   }
 
-  // Log ออกมาดูอีกครั้งใน Terminal ว่าสรุปแล้ว data คืออะไร
-  console.log('Result for ID', numericId, ':', data);
-
+  // เนื่องจาก RPC ส่งค่ากลับมาเป็น JSON (Array) เราก็พร้อมใช้งานได้ทันที
   return data || [];
 }

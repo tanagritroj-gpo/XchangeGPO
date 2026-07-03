@@ -4,15 +4,15 @@ import { promises as fs } from 'fs';
 import path from 'path';
 
 export async function generateReturnFormFromDB(requestId: number, supabase: any) {
-  // 1. ดึงข้อมูล request พร้อม drug_items
-  const { data: request, error: dbError } = await supabase
-    .from('requests')
-    .select('*, drug_items(*)')
-    .eq('id', requestId)
-    .single();
+  // เปลี่ยนมาใช้ RPC เพื่อเลี่ยง RLS
+  const { data, error: dbError } = await supabase
+    .rpc('get_request_data', { p_request_id: requestId });
 
   if (dbError) throw new Error(`Supabase query failed: ${dbError.message}`);
-  if (!request) throw new Error(`ไม่พบ request id: ${requestId}`);
+  if (!data) throw new Error(`ไม่พบ request id: ${requestId}`);
+
+  // รวมข้อมูล request และ drug_items เข้าด้วยกันเพื่อให้โค้ดเดิมทำงานต่อได้
+  const request = { ...data.request, drug_items: data.drug_items || [] };
 
   // 2. โหลด Template และ Font
   const templatePath = path.join(process.cwd(), 'public', 'forms', 'FM-AJJ0-008_Return_rev.02.pdf');
