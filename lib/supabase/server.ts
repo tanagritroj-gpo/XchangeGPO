@@ -16,10 +16,15 @@ export async function createClient() {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { 
+                ...options, 
+                path: '/', // <--- เพิ่มตรงนี้ครับ บังคับให้ใช้ทั่วทั้งโปรเจกต์
+                sameSite: 'lax', // แนะนำให้ใส่เพิ่มเพื่อความปลอดภัยและเสถียรภาพ
+                secure: process.env.NODE_ENV === 'production' 
+              })
             );
-          } catch {
-            // Server Action แก้ไขคุกกี้ไม่ได้ในบางกรณี ไม่ต้องทำอะไร
+          } catch (error) {
+            console.error("Cookie set failed:", error);
           }
         },
       },

@@ -2,28 +2,41 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { Resend } from 'resend';
+import { cookies } from 'next/headers';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendPdfEmailAction(requestId: number) {
   try {
     const supabase = await createClient();
+    const cookieStore = await cookies(); // ต้องมีบรรทัดนี้
 
-    // 🎯 1. เปลี่ยนมาใช้ RPC ตัวเดียวกับที่ใช้สร้าง PDF เพื่อทะลวง RLS
+    // 1. ดึง userId มาด้วยเหมือนตอนสร้าง PDF
+    const userCookie = cookieStore.get('customer_session')?.value;
+    const userId = userCookie ? JSON.parse(userCookie).id : null;
+
+    if (!userId) {
+       return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+    }
+
+    // 2. เรียก RPC โดยส่ง p_user_id เข้าไปด้วยให้ครบ
+    // 1. เรียก RPC
     const { data: rpcData, error: reqErr } = await supabase.rpc('get_request_data_for_pdf', { 
-      p_request_id: requestId 
+      p_request_id: requestId,
+      p_user_id: userId 
     });
 
     if (reqErr || !rpcData || rpcData.length === 0) {
       console.error('❌ Supabase RPC Error:', reqErr);
-      return { success: false, error: 'ดึงข้อมูลไม่สำเร็จ หรือไม่พบคำร้องนี้' };
+      return { success: false, error: 'ดึงข้อมูลไม่สำเร็จ' };
     }
 
-    // ดึงข้อมูล request ออกมาจาก RPC
-    const requestData = rpcData[0].request_data;
-
-    if (!requestData?.customer_email) {
-      return { success: false, error: 'คอลัมน์ customer_email ในฐานข้อมูลเป็นค่าว่าง (ยังไม่ได้เซฟอีเมล)' };
+    // 🎯 เพิ่มบรรทัดนี้ครับ: ตรงนี้คือการนำข้อมูลจาก RPC มาใส่ตัวแปร requestData
+    const requestData = rpcData[0].request_data; 
+    
+    // และตรงนี้ตรวจสอบว่าได้ข้อมูลมาจริง
+    if (!requestData) {
+      return { success: false, error: 'ไม่พบข้อมูลคำร้อง' };
     }
 
     // 2. ดึงไฟล์ PDF จากตาราง document_attachments

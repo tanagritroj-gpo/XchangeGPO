@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { buildReturnFormPdf } from '../services/pdf-service'; 
+import { cookies } from 'next/headers';
 
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 const RATE_LIMIT_MAX_REQUESTS = 5;
@@ -12,14 +13,44 @@ type ActionResult =
 
 export async function generatePdfAction(requestId: number): Promise<ActionResult> {
   const supabase = await createClient();
+  const cookieStore = await cookies();
+  
+  // ดึง userId จากคุกกี้ (เปลี่ยนจาก session เป็นดึงค่าตรงๆ)
+  const userCookie = cookieStore.get('customer_session')?.value;
+let userId = null;
 
-  // 0. Rate limiting
+if (userCookie) {
+  try {
+    const userObj = JSON.parse(userCookie);
+    userId = userObj.id; // ดึงแค่ ID ออกมา (ซึ่งน่าจะเป็นเลข 1)
+  } catch (e) {
+    userId = userCookie; // ถ้าไม่ใช่ JSON ก็ให้ใช้ค่าเดิมไป
+  }
+}
+
+  // ใน generatePdfAction.ts หลังบรรทัด const userId = ...
+  console.log("🔍 ค่า userId ที่ได้จากคุกกี้คือ:", userId);
+  console.log("🔍 ค่า requestId ที่กำลังกด:", requestId);
+
+  if (!userId) {
+    return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+  }
+
+  // Rate limiting (ใช้เหมือนเดิม)
   const rateLimitOk = await checkRateLimit(supabase, `pdf:${requestId}`);
-  if (!rateLimitOk) return { success: false, error: 'มีการเรียกดูเอกสารถี่เกินไป กรุณารอสักครู่' };
+  if (!rateLimitOk) return { success: false, error: 'มีการเรียกดูเอกสารถี่เกินไป' };
 
-  // 1. ดึงข้อมูลผ่าน RPC
-  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_request_data_for_pdf', { p_request_id: requestId });
-  if (rpcErr || !rpcData || rpcData.length === 0) return { success: false, error: 'ไม่พบคำร้องนี้' };
+  // ส่ง userId เข้าไปให้ RPC เลย
+  const { data: rpcData, error: rpcErr } = await supabase.rpc('get_request_data_for_pdf', { 
+    p_request_id: requestId,
+    p_user_id: userId 
+  });
+  
+  if (rpcErr) {
+    return { success: false, error: rpcErr.message === 'not authorized' ? 'ไม่มีสิทธิ์เข้าถึงเอกสารนี้' : 'ไม่พบคำร้องนี้' };
+  }
+  
+  if (!rpcData || rpcData.length === 0) return { success: false, error: 'ไม่พบคำร้องนี้' };
 
   const request = { ...rpcData[0].request_data, drug_items: rpcData[0].drug_items_data || [] };
 
