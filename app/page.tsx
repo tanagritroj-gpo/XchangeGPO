@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
+import { Building2, User, Search, BookOpen } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
@@ -72,7 +73,7 @@ export default function HomePage() {
         <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden">
           <Image
             src="/gpo-xchange-graphic2.png"
-            sizes="(max-width: 768px) 100vw, 50vw" // เติมบรรทัดนี้ครับ
+            sizes="(max-width: 768px) 100vw, 50vw"
             alt="GPO Xchange Graphic"
             fill
             className="object-cover"
@@ -95,16 +96,16 @@ export default function HomePage() {
             <h1 className="text-3xl md:text-4xl font-black text-white tracking-tight drop-shadow-md">
               GPO XCHANGE PORTAL
             </h1>
-            <p className="text-teal-100/80 font-medium tracking-wider text-xs uppercase">องค์การเภสัชกรรม • สาขาภาคใต้</p>
+            <p className="text-teal-100/80 font-medium tracking-wider text-xs uppercase">ระบบรับคืนและแลกเปลี่ยนสินค้า องค์การเภสัชกรรม </p>
           </div>
 
           <div className="relative flex gap-3 mb-6">
-            <a href="/tracking" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all">
-              <div className="text-2xl mb-1.5">🔍</div>
+            <a href="/tracking" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all flex flex-col items-center">
+              <Search size={24} className="text-white mb-1.5" />
               <p className="text-white text-xs font-bold">ตรวจสอบสถานะ</p>
             </a>
-            <a href="/guide" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all">
-              <div className="text-2xl mb-1.5">📖</div>
+            <a href="/guide" className="flex-1 group bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-3.5 text-center hover:bg-white/20 transition-all flex flex-col items-center">
+              <BookOpen size={24} className="text-white mb-1.5" />
               <p className="text-white text-xs font-bold">คู่มือการใช้งาน</p>
             </a>
           </div>
@@ -115,13 +116,15 @@ export default function HomePage() {
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab); setIsOtpStep(false); }}
-                  className={`py-3.5 text-sm font-bold transition-all border-b-2 ${
+                  className={`py-3.5 text-sm font-bold transition-all border-b-2 flex flex-col items-center justify-center ${
                     activeTab === tab 
                       ? (tab === 'customer' ? 'text-teal-700 border-teal-500 bg-white' : 'text-blue-700 border-blue-500 bg-white') 
                       : 'text-slate-400 border-transparent hover:text-slate-600'
                   }`}
                 >
-                  <span className="block text-base mb-0.5">{tab === 'customer' ? '🏠' : '👨‍⚕️'}</span>
+                  <span className="block mb-0.5">
+                    {tab === 'customer' ? <Building2 size={20} /> : <User size={20} />}
+                  </span>
                   {tab === 'customer' ? 'ลูกค้า' : 'พนักงาน GPO'}
                 </button>
               ))}
@@ -147,23 +150,22 @@ export default function HomePage() {
                         {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
                       </button>
                       
-                      {/* Google Option */}
                       <div className="relative flex py-2 items-center">
                         <div className="flex-grow border-t border-slate-200"></div>
                         <span className="flex-shrink mx-4 text-slate-400 text-[10px] uppercase">หรือ</span>
                         <div className="flex-grow border-t border-slate-200"></div>
                       </div>
-<button 
-  onClick={() => loginWithGoogle()}
-  className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98]"
->
-  <Image 
-    src="/web_light_rd_SI@2x.png" 
-    alt="Sign in with Google" 
-    fill
-    className="object-contain"
-  />
-</button>
+                      <button 
+                        onClick={() => loginWithGoogle()}
+                        className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98]"
+                      >
+                        <Image 
+                          src="/web_light_rd_SI@2x.png" 
+                          alt="Sign in with Google" 
+                          fill
+                          className="object-contain"
+                        />
+                      </button>
                     </>
                   ) : (
                     <>
