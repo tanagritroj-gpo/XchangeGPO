@@ -25,7 +25,10 @@ export async function sendOTP(email: string) {
   // ★ เช็ค format ก่อนทุกอย่าง — ไม่เกี่ยวกับ enumeration เพราะยังไม่ได้ query ว่ามี/ไม่มีในระบบ
   const parsedEmail = EmailSchema.safeParse(email);
   if (!parsedEmail.success) {
-    return { success: false, error: parsedEmail.error.errors[0]?.message || 'กรุณากรอกอีเมลให้ถูกต้อง' };
+    return { 
+  success: false, 
+  error: parsedEmail.error.flatten().formErrors[0] || 'กรุณากรอกอีเมลให้ถูกต้อง' 
+};
   }
   const cleanEmail = parsedEmail.data;
 
