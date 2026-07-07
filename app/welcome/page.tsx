@@ -85,7 +85,7 @@ export default function WelcomePage() {
           </div>
 
           {/* Card: Track & Trace (ปรับเป็น Link เรียบร้อย) */}
-          <Link href={`/customer/${customer.customer_code}/tracking`} className="group block">
+          <Link href="/customer/tracking" className="group block">
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-teal-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
               <div className="p-7">
                 <div className="flex items-center gap-3 mb-5">
