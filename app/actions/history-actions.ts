@@ -1,16 +1,15 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import { getCustomerSession } from './auth-actions';
 
-export async function getCustomerExchangeHistory(b2bCustomerId: string) {
-  const supabase = await createClient();
-  const numericId = parseInt(b2bCustomerId, 10);
+export async function getCustomerExchangeHistory() {
+  // ★ ไม่รับ b2bCustomerId จากภายนอกอีกต่อไป ดึงจาก session ที่ verify แล้วเท่านั้น
+  const session = await getCustomerSession();
+  if (!session) return [];
 
-  if (isNaN(numericId)) return [];
-
-  // เรียกใช้ RPC ที่เราเพิ่งสร้างขึ้น
-  const { data, error } = await supabase.rpc('get_customer_history', { 
-    p_customer_id: numericId 
+  const { data, error } = await supabaseAdmin.rpc('get_customer_history', {
+    p_customer_id: session.id,
   });
 
   if (error) {
@@ -18,6 +17,5 @@ export async function getCustomerExchangeHistory(b2bCustomerId: string) {
     return [];
   }
 
-  // เนื่องจาก RPC ส่งค่ากลับมาเป็น JSON (Array) เราก็พร้อมใช้งานได้ทันที
   return data || [];
 }

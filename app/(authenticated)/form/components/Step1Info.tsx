@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import { ReturnRepository } from '../../../repositories/ReturnRepository';
+import { getNextDocNumber } from '@/app/actions/form-actions';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 
 interface Step1Props {
@@ -41,19 +40,16 @@ export default function Step1Info({ next, updateData }: Step1Props) {
   useEffect(() => {
     const init = async () => {
       const session = await getCustomerSession();
-      if (!session) return;
-      
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('b2b_customers')
-        .select('*')
-        .eq('id', session.id)
-        .single();
-      
-      if (data) setClientData(data);
+      if (!session) {
+        setDocNumber('กรุณาเข้าสู่ระบบใหม่');
+        return;
+      } 
+
+      // ★ session ที่ verify แล้วมีข้อมูลครบอยู่แล้ว ไม่ต้อง query ซ้ำจาก browser
+      setClientData(session);
 
       try {
-        const nextDoc = await ReturnRepository.getNextDocNumber();
+        const nextDoc = await getNextDocNumber();
         setDocNumber(nextDoc);
       } catch (err) {
         console.error("Failed to load doc number:", err);
@@ -68,7 +64,7 @@ export default function Step1Info({ next, updateData }: Step1Props) {
   const handleNext = async () => {
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
-    const latestDocNumber = await ReturnRepository.getNextDocNumber();
+    const latestDocNumber = await getNextDocNumber();
     updateData((prev: any) => ({
       ...prev,
       sender: {

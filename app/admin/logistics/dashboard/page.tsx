@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getLogisticsDashboardData, updateLogisticsStatus, updateItemStatus, rejectItemStatus, confirmLogisticsBatch } from '@/app/actions/logistics-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
 
 const LOGISTICS_STATUS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   approved:     { label: 'อนุมัติรับคืนสินค้า',  color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     dot: 'bg-blue-500'   },
@@ -28,16 +27,14 @@ function DrugItemRow({ item, reqStatus, onUpdate }: {
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleAction = async (action: 'at_warehouse' | 'rejected') => {
+const handleAction = async (action: 'at_warehouse' | 'rejected') => {
     const remark = prompt(`ระบุหมายเหตุการ${action === 'at_warehouse' ? 'ตรวจรับ' : 'ปฏิเสธ'}:`);
     if (remark === null) return;
     setIsProcessing(true);
     try {
-      const session = await getStaffSession();
-      if (!session?.id) throw new Error('ไม่พบ Session');
       const res = action === 'at_warehouse'
-        ? await updateItemStatus(item.id, session.id, 'at_warehouse', remark || '')
-        : await rejectItemStatus(item.id, session.id, remark || '');
+        ? await updateItemStatus(item.id, 'at_warehouse', remark || '')
+        : await rejectItemStatus(item.id, remark || '');
       if (res.success) { onUpdate(item.id, action); }
       else alert('บันทึกไม่สำเร็จ: ' + (res as any).error);
     } catch (err) { console.error('Error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
@@ -113,9 +110,7 @@ export default function LogisticsDashboard() {
     if (remark === null) return;
     setProcessingReqId(id);
     try {
-      const session = await getStaffSession();
-      if (!session?.id) { alert('กรุณาล็อกอินใหม่'); return; }
-      const res = await updateLogisticsStatus(id, session.id, nextStatus, remark || '');
+      const res = await updateLogisticsStatus(id, nextStatus, remark || '');
       if (res.success) {
         if (nextStatus === 'at_warehouse') {
           setRequests(prev => prev.filter(req => req.id !== id));
@@ -150,12 +145,10 @@ export default function LogisticsDashboard() {
   };
 
   const handleConfirmBatch = async (requestId: number) => {
-    const session = await getStaffSession();
-    if (!session?.id) return;
     const actions = Object.entries(pendingActions).map(([itemId, val]) => ({
       itemId: Number(itemId), status: val.status, remark: val.remark
     }));
-    const res = await confirmLogisticsBatch(requestId, session.id, actions);
+    const res = await confirmLogisticsBatch(requestId, actions);
     if (res.success) {
       setRequests(prevRequests => {
         let shouldRemove = false;

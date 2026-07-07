@@ -128,6 +128,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                 value={reasonOther}
                 onChange={e => setReasonOther(e.target.value)}
                 placeholder="พิมพ์รายละเอียดเหตุผล..."
+                maxLength={500}
                 className={`${textareaCls} animate-in fade-in slide-in-from-top-2 duration-200`}
               />
             )}

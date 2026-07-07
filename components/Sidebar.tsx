@@ -6,7 +6,6 @@ import Link from 'next/link';
 
 export default function Sidebar({ customer }: { customer: any }) {
   const router = useRouter();
-  const customerId = customer?.id || '';
 
   return (
     <aside className="h-full w-full flex flex-col p-6 bg-white border-r border-slate-100">
@@ -46,7 +45,7 @@ export default function Sidebar({ customer }: { customer: any }) {
           <span className="text-base">🏠</span> หน้าหลัก
         </Link>
         <Link
-          href={`/customer/${customerId}/history`}
+          href="/customer/history"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-teal-700 transition-all"
         >
           <span className="text-base">🔄</span> ประวัติการแลกเปลี่ยน

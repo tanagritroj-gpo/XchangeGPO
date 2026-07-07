@@ -89,12 +89,14 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
 
   // ── ส่วนนี้คือการเช็ค Success แล้วตัดจบด้วย Component ใหม่ ──
 if (status === 'success') {
+  if (!currentRequestId) {
+    return <div className="text-center text-red-500 py-10">เกิดข้อผิดพลาด ไม่พบเลขที่คำร้อง</div>;
+  } 
     return (
       <ReviewSuccessCard
-        requestId={currentRequestId!} 
+        requestId={currentRequestId}
         refId={refId} 
-        customerCode={formData.sender?.customerCode || 'GPO'} 
-        customerEmail={formData.sender?.user?.email || formData.sender?.email}
+        customerEmail={formData.sender?.email}
       />
     );
   }

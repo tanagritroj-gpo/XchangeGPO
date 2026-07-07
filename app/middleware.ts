@@ -44,9 +44,9 @@ export async function middleware(request: NextRequest) {
   }
 );
 
-    const { data: { session: googleSession } } = await supabase.auth.getSession();
+    const { data: { user: googleUser } } = await supabase.auth.getUser();
     const customerSession = request.cookies.get('customer_session');
-    const isCustomerLoggedIn = !!googleSession || !!customerSession;
+    const isCustomerLoggedIn = !!googleUser || !!customerSession;
     const staffSession = request.cookies.get('staff_session');
 
     // ตรวจสอบสิทธิ์

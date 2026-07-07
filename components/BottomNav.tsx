@@ -4,17 +4,16 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logoutCustomer } from '@/app/actions/auth-actions';
 
-export default function BottomNav({ customerId }: { customerId: string }) {
+export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
 
   const tabs = [
-    { href: '/welcome',                        icon: '🏠', label: 'หน้าหลัก' },
-    { href: `/customer/${customerId}/history`, icon: '🔄', label: 'ประวัติ'  },
+    { href: '/welcome',          icon: '🏠', label: 'หน้าหลัก' },
+    { href: '/customer/history', icon: '🔄', label: 'ประวัติ'  },
   ];
 
   return (
-    // เปลี่ยนจาก sm:hidden → md:hidden
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100 flex items-stretch h-16">
 
       {tabs.map(tab => {

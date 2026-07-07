@@ -12,14 +12,19 @@ function TrackingContent() {
   const [error, setError] = useState<string | null>(null);
 
   const handleSearch = async (targetRef: string) => {
-    if (!targetRef.trim()) return;
+    const cleaned = targetRef.trim();
+    if (!cleaned) return;
+    if (cleaned.length > 50) {
+      setError('รหัสอ้างอิงไม่ถูกต้อง');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setData(null);
 
     try {
-      const result = await getTrackingTimeline(targetRef);
+      const result = await getTrackingTimeline(cleaned);
       if (result.error) {
         setError(result.error);
       } else {
@@ -41,7 +46,7 @@ function TrackingContent() {
     <div className="max-w-4xl mx-auto py-10 px-6">
       {/* ปุ่มกลับหน้าหลัก - ดีไซน์เดิมที่กิตชอบ */}
       <div className="mb-6">
-        <a href="/" className="inline-flex items-center gap-1.5 font-bold bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg shadow transition-all">
+        <a href="/welcome" className="inline-flex items-center gap-1.5 font-bold bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg shadow transition-all">
           ← กลับหน้าหลัก
         </a>
       </div>
@@ -49,15 +54,25 @@ function TrackingContent() {
       <h1 className="text-2xl font-black text-slate-800 mb-6">ตรวจสอบสถานะคำร้อง</h1>
       
       <form onSubmit={(e) => { e.preventDefault(); handleSearch(refId); }} className="mb-8 flex flex-col md:flex-row gap-3">
-        <input
-          className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-teal-500 outline-none transition-all"
-          placeholder="กรอกเลขอ้างอิง (เช่น REF-XXXXX)..."
-          value={refId}
-          onChange={(e) => setRefId(e.target.value.toUpperCase())}
-        />
-        <button type="submit" disabled={loading} className="bg-teal-700 text-white px-6 rounded-xl font-bold hover:bg-teal-800 transition-all py-3 md:py-0">
-          {loading ? 'กำลังค้นหา...' : 'ติดตามงาน'}
-        </button>
+<input
+    className="flex-1 px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-teal-500 outline-none transition-all"
+    placeholder="กรอกเลขอ้างอิง (เช่น REF-XXXXX)..."
+    value={refId}
+    onChange={(e) => setRefId(e.target.value.toUpperCase())}
+    maxLength={50}
+  />
+  <button 
+    type="submit" 
+    // เพิ่มเงื่อนไข disabled ตรงนี้ครับ: กันทั้งตอนโหลด และกันตอนไม่ได้กรอกข้อมูล
+    disabled={loading || !refId.trim()} 
+    className={`px-6 rounded-xl font-bold transition-all py-3 md:py-0 ${
+      !refId.trim() 
+        ? 'bg-slate-300 cursor-not-allowed' 
+        : 'bg-teal-700 text-white hover:bg-teal-800'
+    }`}
+  >
+    {loading ? 'กำลังค้นหา...' : 'ติดตามงาน'}
+  </button>
       </form>
 
       {error && <p className="text-red-500 font-bold text-center py-4">{error}</p>}
@@ -79,7 +94,6 @@ function TrackingContent() {
                   {new Date(log.log_date).toLocaleString('th-TH')}
                 </p>
                 <h4 className="font-bold text-teal-900">{log.status_name}</h4>
-                <p className="text-sm text-slate-600 font-medium">{log.staff_remark}</p>
               </div>
             ))}
           </div>

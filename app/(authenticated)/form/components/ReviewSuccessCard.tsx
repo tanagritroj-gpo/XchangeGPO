@@ -19,13 +19,11 @@ export function ReviewSuccessCard({
   requestId,
   refId,
   docNumber,
-  customerCode,
   customerEmail,
 }: {
   requestId: number;
   refId: string;
   docNumber?: string | null;
-  customerCode: string;
   customerEmail?: string;
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
@@ -207,7 +205,7 @@ export function ReviewSuccessCard({
               </div>
 
               <a
-                href={`/customer/${customerCode}/tracking?ref=${refId}`}
+                href={`/tracking?ref=${refId}`}
                 className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
               >
                 ติดตามสถานะคำร้องนี้ →
@@ -216,7 +214,7 @@ export function ReviewSuccessCard({
           )}
 
           <button
-            onClick={() => (window.location.href = '/')}
+            onClick={() => (window.location.href = '/welcome')}
             className="text-xs font-bold text-slate-400 hover:text-slate-500 mt-1"
           >
             กลับหน้าหลัก

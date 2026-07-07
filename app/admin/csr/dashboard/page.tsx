@@ -62,13 +62,11 @@ export default function CSRDashboard() {
     const remark = prompt('ระบุหมายเหตุ:');
     if (remark === null) return;
     try {
-      const session = await getStaffSession();
-      if (!session?.id) { alert('ไม่พบ Session พนักงาน กรุณาล็อกอินใหม่'); return; }
       let res;
-      if (newStatus === 'approved')   res = await approveRequest(id, session.id, remark || '');
-      else if (newStatus === 'rejected')  res = await rejectRequest(id, session.id, remark || '');
-      else if (newStatus === 'exchanging') res = await startExchangeProcess(id, session.id, remark || '');
-      else if (newStatus === 'completed')  res = await completeRequest(id, session.id, remark || '');
+      if (newStatus === 'approved')   res = await approveRequest(id, remark || '');
+      else if (newStatus === 'rejected')  res = await rejectRequest(id, remark || '');
+      else if (newStatus === 'exchanging') res = await startExchangeProcess(id, remark || '');
+      else if (newStatus === 'completed')  res = await completeRequest(id, remark || '');
       else { alert('สถานะไม่รู้จัก'); return; }
       if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
       else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));

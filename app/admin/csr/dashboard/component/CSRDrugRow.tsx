@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
 
 export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: () => void }) {
   const isExchangeRequest = item.request_type === 'รับคืนแลกเปลี่ยน';
@@ -30,11 +29,9 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
     const remark = prompt(`ระบุหมายเหตุการ${action === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}รายการยา:`);
     if (remark === null) return;
     try {
-      const session = await getStaffSession();
-      if (!session?.id) return alert('ไม่พบ Session พนักงาน');
       const res = action === 'approve'
-        ? await approveDrugItem(item.id, item.request_id, session.id, remark)
-        : await rejectDrugItem(item.id, item.request_id, session.id, remark);
+        ? await approveDrugItem(item.id, item.request_id, remark)
+        : await rejectDrugItem(item.id, item.request_id, remark);
       if (res.success) {
         setLocalStatus(action === 'approve' ? 'approved' : 'rejected');
       } else {

@@ -1,46 +1,39 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
-import { cookies } from 'next/headers';
+import { getCustomerSession } from './auth-actions';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendPdfEmailAction(requestId: number) {
   try {
-    const supabase = await createClient();
-    const cookieStore = await cookies(); // ต้องมีบรรทัดนี้
-
-    // 1. ดึง userId มาด้วยเหมือนตอนสร้าง PDF
-    const userCookie = cookieStore.get('customer_session')?.value;
-    const userId = userCookie ? JSON.parse(userCookie).id : null;
-
-    if (!userId) {
-       return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
+    // ★ 1. Identity มาจาก session ที่ verify กับ DB เท่านั้น
+    const session = await getCustomerSession();
+    if (!session) {
+      return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
     }
 
-    // 2. เรียก RPC โดยส่ง p_user_id เข้าไปด้วยให้ครบ
-    // 1. เรียก RPC
-    const { data: rpcData, error: reqErr } = await supabase.rpc('get_request_data_for_pdf', { 
-      p_request_id: requestId,
-      p_user_id: userId 
-    });
-
-    if (reqErr || !rpcData || rpcData.length === 0) {
-      console.error('❌ Supabase RPC Error:', reqErr);
-      return { success: false, error: 'ดึงข้อมูลไม่สำเร็จ' };
+    // ★ 2. Rate limit กัน email bombing
+    const allowed = await checkRateLimit(`send-email:${session.id}`, 3600, 5);
+    if (!allowed) {
+      return { success: false, error: 'ส่งอีเมลถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
 
-    // 🎯 เพิ่มบรรทัดนี้ครับ: ตรงนี้คือการนำข้อมูลจาก RPC มาใส่ตัวแปร requestData
-    const requestData = rpcData[0].request_data; 
-    
-    // และตรงนี้ตรวจสอบว่าได้ข้อมูลมาจริง
-    if (!requestData) {
-      return { success: false, error: 'ไม่พบข้อมูลคำร้อง' };
+    // ★ 3. ดึงข้อมูล + ตรวจสิทธิ์เจ้าของในคำสั่งเดียว
+    const { data: requestData, error: reqErr } = await supabaseAdmin
+      .from('requests')
+      .select('ref_id, hospital_name, b2b_customer_id')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !requestData || requestData.b2b_customer_id !== session.id) {
+      return { success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' };
     }
 
-    // 2. ดึงไฟล์ PDF จากตาราง document_attachments
-    const { data: docData, error: docErr } = await supabase
+    // 4. ดึงไฟล์ PDF จากตาราง document_attachments
+    const { data: docData, error: docErr } = await supabaseAdmin
       .from('document_attachments')
       .select('file_path')
       .eq('request_id', requestId)
@@ -50,44 +43,60 @@ export async function sendPdfEmailAction(requestId: number) {
       return { success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' };
     }
 
-    // 3. สร้าง Signed URL เพื่อแนบเป็นลิงก์
-    const { data: signed } = await supabase.storage
+    // 5. สร้าง Signed URL — ลดอายุลงมาให้เหมาะกับเอกสารอ่อนไหว (ดูหมายเหตุด้านล่าง)
+    const { data: signed, error: signErr } = await supabaseAdmin.storage
       .from('return-documents')
-      .createSignedUrl(docData.file_path, 60 * 60 * 24 * 7); 
+      .createSignedUrl(docData.file_path, 60 * 60 * 24); // 24 ชม.
 
-    // 4. ส่งอีเมลด้วย Resend
-    const { data, error } = await resend.emails.send({
+    if (signErr || !signed) {
+      return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
+    }
+
+    // ★ 6. ส่งไปที่ session.email เสมอ — ไม่พึ่งค่าที่เก็บใน requestData
+    //    (แม้ตอน insert จะมาจาก session.email อยู่แล้ว แต่ยึด session ปัจจุบันเป็น
+    //     single source of truth เพื่อความชัดเจนว่าใครคือผู้รับที่แท้จริง)
+    const { error: emailErr } = await resend.emails.send({
       from: 'Xchange Portal <onboarding@resend.dev>',
-      to: [requestData.customer_email],
+      to: [session.email],
       subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
       html: `
         <h2>สวัสดีครับ, ตัวแทนจาก ${requestData.hospital_name}</h2>
         <p>ระบบได้ทำการสร้างเอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้าเรียบร้อยแล้ว</p>
         <p>เลขอ้างอิงของคุณคือ: <strong>${requestData.ref_id}</strong></p>
         <p>
-          <a href="${signed?.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
+          <a href="${signed.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
             คลิกที่นี่เพื่อดาวน์โหลดเอกสาร PDF
           </a>
         </p>
-        <p>ลิงก์นี้มีอายุการใช้งาน 7 วัน</p>
+        <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
       `,
     });
 
-    if (error) {
-      console.error('❌ Resend API Error:', error);
-      return { success: false, error: `ส่งผ่าน Resend ไม่สำเร็จ: ${error.message}` };
+    if (emailErr) {
+      console.error('Resend API Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
+      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail จาก Resend
     }
 
-    // 5. บันทึก Log
-    await supabase.rpc('insert_status_log', { 
-        p_req_id: requestId, 
-        p_remark: `ส่งเอกสารไปยังอีเมล ${requestData.customer_email} เรียบร้อยแล้ว` 
+    // 7. บันทึก Log — insert ตรง ไม่ผ่าน RPC เดิม
+    await supabaseAdmin.from('status_logs').insert({
+      request_id: requestId,
+      department: 'system',
+      status_name: 'email_sent',
+      staff_remark: `ส่งเอกสารไปยังอีเมล ${session.email} เรียบร้อยแล้ว`,
+      actor_type: 'system',
+    });
+
+    // ★ 8. Audit log ตาม PDPA
+    await supabaseAdmin.from('access_logs').insert({
+      actor_type: 'customer',
+      action: 'send_pdf_email',
+      request_id: requestId,
     });
 
     return { success: true, message: 'ส่งอีเมลสำเร็จแล้ว' };
 
   } catch (err: any) {
-    console.error('❌ Send Email Catch Error:', err);
-    return { success: false, error: `ระบบขัดข้อง: ${err.message}` };
+    console.error('Send Email Catch Error:', err); // log เต็มไว้ฝั่ง server
+    return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ err.message ดิบ
   }
 }

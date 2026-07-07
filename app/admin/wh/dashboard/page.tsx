@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getWHData, stampCheckedIn, stampReceiving, confirmCheckedInBatch, rejectWHItem } from '@/app/actions/wh-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
 
 // ── Status Config ──────────────────────────────────────────────
 const WH_STATUS: Record<string, { label: string; color: string; bg: string; dot: string; border: string }> = {
@@ -32,16 +31,14 @@ function DrugItemRow({ item, reqConfirmed, onUpdate }: {
   const handleAction = async (action: 'checked_in' | 'receiving' | 'rejected', remark?: string) => {
     setIsProcessing(true);
     try {
-      const session = await getStaffSession();
-      if (!session?.id) throw new Error("ไม่พบ Session");
 
       let res;
       if (action === 'checked_in') {
-        res = await stampCheckedIn(item.id, session.id, 'ตรวจรับเรียบร้อย');
+        res = await stampCheckedIn(item.id, 'ตรวจรับเรียบร้อย');
       } else if (action === 'receiving') {
-        res = await stampReceiving(item.id, session.id, 'จัดเก็บเข้าคลังแล้ว');
+        res = await stampReceiving(item.id, 'จัดเก็บเข้าคลังแล้ว');
       } else {
-        res = await rejectWHItem(item.id, session.id, remark || "ปฏิเสธรายการ");
+        res = await rejectWHItem(item.id, remark || "ปฏิเสธรายการ");
       }
 
       if (res?.success) {
@@ -266,10 +263,8 @@ export default function WHDashboard() {
 
   // ── ยืนยันตรวจรับทั้งใบ → mark _confirmStep = 'storage' ──
   const handleConfirmCheckedIn = async (requestId: number) => {
-    const session = await getStaffSession();
-    if (!session?.id) { alert("กรุณาล็อกอินใหม่"); return; }
 
-    const res = await confirmCheckedInBatch(requestId, session.id, 'ยืนยันตรวจรับทั้งใบงาน');
+    const res = await confirmCheckedInBatch(requestId, 'ยืนยันตรวจรับทั้งใบงาน');
     if (res.success) {
       setData(prev => prev.map(req =>
         req.id !== requestId ? req : { ...req, _confirmStep: 'storage' }

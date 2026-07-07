@@ -1,66 +1,60 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server';
-import { getCustomerSession } from '@/app/actions/auth-actions';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import { getCustomerSession } from './auth-actions';
 
-// 1. ประกาศ Interface ให้ชัดเจน
-interface TimelineItem {
-  id: string;
-  request_id: string;
-  department: string;
-  status_name: string;
-  staff_remark: string;
-  log_date: string;
-  ref_id: string;
+// ── Public: ไม่ต้อง login ────────────────────────────────────
+export async function getTrackingTimeline(refId: string) {
+  const cleaned = refId?.trim();
+  if (!cleaned || cleaned.length > 50) return { error: 'รหัสอ้างอิงไม่ถูกต้อง' };
+
+  // แก้ไข: เพิ่ม 'id' ลงใน .select()
+  const { data: request, error: reqErr } = await supabaseAdmin
+    .from('requests')
+    .select('id, ref_id, current_status, created_at, request_type')
+    .eq('ref_id', cleaned)
+    .maybeSingle();
+
+  if (reqErr || !request) return { error: 'ไม่พบรหัสอ้างอิงนี้ในระบบ' };
+
+  // ตอนนี้ request.id จะมีค่าแล้วครับ
+  const { data: timeline } = await supabaseAdmin
+    .from('timeline_summary')
+    .select('status_name, log_date')
+    .eq('request_id', request.id) 
+    .order('log_date', { ascending: true });
+
+  return { request, timeline: timeline ?? [] };
 }
 
-export async function getTrackingTimeline(refId: string) {
-  const supabase = await createClient();
+// ── Private: ต้อง login ────────────────────────────────────
+export async function trackMyRequestByRefId(refId: string) {
   const session = await getCustomerSession();
-  const cleanRefId = refId.trim();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
 
-  const rpcName = session ? 'get_my_request' : 'get_public_status';
-  const rpcParams = session 
-    ? { p_ref_id: cleanRefId, p_customer_id: Number(session.id) }
-    : { p_ref_id: cleanRefId };
+  // แก้ไข: .select('*') ปกติจะดึง 'id' มาให้แล้ว แต่เพื่อให้ชัวร์ว่าเข้าถึง request.id ได้แน่นอน
+  const { data: request, error: reqErr } = await supabaseAdmin
+    .from('requests')
+    .select('*, drug_items(*)')
+    .eq('ref_id', refId)
+    .single();
 
-  const { data: requestData, error: rpcError } = await supabase.rpc(rpcName, rpcParams);
-
-  if (rpcError || !requestData || requestData.length === 0) {
-    return { error: 'ไม่พบรายการที่ค้นหา หรือรหัสอ้างอิงไม่ถูกต้อง' };
+  if (reqErr || !request || request.b2b_customer_id !== session.id) {
+    return { success: false, error: 'ไม่พบข้อมูล หรือไม่มีสิทธิ์เข้าถึง' };
   }
 
-  const request = requestData[0];
+  // ตอนนี้ request.id จะมีค่าแล้วครับ
+  const { data: timeline } = await supabaseAdmin
+    .from('timeline_summary')
+    .select('status_name, log_date, staff_remark')
+    .eq('request_id', request.id) 
+    .order('log_date', { ascending: true });
 
-  // 2. ดึงข้อมูลโดยกำหนด Type ของผลลัพธ์เป็น TimelineItem[]
-  const { data: timeline, error: timelineError } = await supabase
-    .from('view_request_timeline')
-    .select('id, request_id, department, status_name, staff_remark, log_date, ref_id')
-    .eq('ref_id', cleanRefId)
-    .order('log_date', { ascending: true })
-    .returns<TimelineItem[]>(); // กำหนด Type ตรงนี้ครับ
-
-  if (timelineError) {
-    console.error("View Error:", timelineError);
-  }
-
-  // 3. จัดการสถานะแรกสุดด้วย Type ที่ถูกต้อง
-  let finalTimeline: TimelineItem[] = timeline || [];
-  
-  const hasPending = finalTimeline.some((log) => log.status_name === 'pending_review');
-  
-  if (!hasPending) {
-    const pendingLog: TimelineItem = {
-      id: 'pending-log',
-      request_id: request.id, // อย่าลืมใส่ให้ครบตาม interface
-      status_name: 'pending_review',
-      log_date: request.created_at || new Date().toISOString(),
-      staff_remark: 'ได้รับคำร้องเข้าสู่ระบบแล้ว รอการตรวจสอบเอกสาร',
-      department: 'System',
-      ref_id: cleanRefId
-    };
-    finalTimeline = [pendingLog, ...finalTimeline];
-  }
-
-  return { request, timeline: finalTimeline };
+  return { 
+    success: true, 
+    data: { 
+      ...request, 
+      timeline: timeline || [] 
+    } 
+  };
 }
