@@ -131,6 +131,8 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
   const [position, setPosition] = useState(formData?.sender?.position || '');
   const [pdpa, setPdpa] = useState(false);
 
+  const canProceed = !isEmpty && fullname.trim().length > 0 && pdpa;
+
   const clearSig = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d')!;
@@ -232,8 +234,9 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
         <button
           type="button"
           onClick={handleNext}
+          disabled={!canProceed}
           className="group py-4 rounded-2xl font-black text-white text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 10px 25px -8px rgba(26,122,69,0.45)' }}
+          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
           ตรวจสอบและยืนยัน <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
         </button>

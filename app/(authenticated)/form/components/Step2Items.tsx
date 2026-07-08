@@ -72,6 +72,8 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
   const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' });
   const drugNameInputRef = useRef<HTMLInputElement>(null);
 
+  const canProceed = items.length > 0;
+
   const set = (field: string, value: string) => setTemp(prev => ({ ...prev, [field]: value }));
 
   const addItemToList = () => {
@@ -219,8 +221,9 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
         </button>
         <button
           onClick={handleNext}
+          disabled={!canProceed}
           className="group py-4 rounded-2xl font-black text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 10px 25px -8px rgba(26,122,69,0.45)' }}
+          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
           ดำเนินการต่อ <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
         </button>
