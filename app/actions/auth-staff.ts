@@ -1,6 +1,5 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
@@ -10,14 +9,12 @@ const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
 // --- ลงทะเบียนพนักงาน ---
 export async function registerStaff(payload: any) {
-  const supabase = await createClient();
-
   try {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(payload.password, salt);
     const userRole = payload.department === 'manager' ? 'manager' : 'staff';
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('staff_users')
       .insert([
         {
@@ -46,11 +43,10 @@ export async function registerStaff(payload: any) {
 
 // --- ล็อกอินพนักงาน ---
 export async function loginStaffAction(payload: any) {
-  const supabase = await createClient();
   const { username, password } = payload;
 
   try {
-    const { data: user, error } = await supabase
+    const { data: user, error } = await supabaseAdmin
       .from('staff_users')
       .select('id, username, password_hash, role, is_approved, department')
       .eq('username', username)
@@ -67,7 +63,6 @@ export async function loginStaffAction(payload: any) {
 
     if (!user.is_approved) return { success: false, error: "บัญชีนี้ยังไม่ได้รับการอนุมัติ" };
 
-    // สร้าง session ใน DB แล้วเก็บแค่ token ไว้ใน cookie
     const { data: session, error: sessErr } = await supabaseAdmin
       .from('sessions')
       .insert({
@@ -98,7 +93,7 @@ export async function loginStaffAction(payload: any) {
 
 // --- อนุมัติพนักงาน ---
 export async function approveStaff(staffId: string) {
-  const session = await getStaffSession(); // query DB จริง แก้ cookie ไม่ได้ผลอีกต่อไป
+  const session = await getStaffSession();
   if (!session) return { success: false, error: "ไม่ได้ Login" };
 
   if (session.role !== 'manager') {
@@ -147,13 +142,11 @@ export async function getStaffSession() {
 
   if (!data || new Date(data.expires_at) < new Date()) return null;
 
-  // Normalize: บาง PostgREST version (โดยเฉพาะ self-host) คืน embedded relation
-  // เป็น array แทน object แม้จะเป็น many-to-one ก็ตาม กันไว้ทั้งสองแบบ
   const staffUser = Array.isArray(data.staff_users)
     ? data.staff_users[0]
     : data.staff_users;
 
-  if (!staffUser || !staffUser.is_approved) return null; // เช็คซ้ำเผื่อโดนถอนสิทธิ์ภายหลัง
+  if (!staffUser || !staffUser.is_approved) return null;
 
   return {
     id: staffUser.id,
