@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 export default async function LogisticsLayout({ children }: { children: React.ReactNode }) {
   const session = await getStaffSession();
   if (!session || (session.department !== 'log' && session.role !== 'manager')) {
-    redirect('/admin/login');
+    redirect('/');
   }
   return <>{children}</>;
 }

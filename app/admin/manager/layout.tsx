@@ -5,7 +5,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   const session = await getStaffSession();
 
   if (!session || session.role !== 'manager') {
-    redirect('/admin/login');
+    redirect('/');
   }
 
   return <>{children}</>;
