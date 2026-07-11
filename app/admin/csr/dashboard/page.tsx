@@ -375,7 +375,7 @@ export default function CSRDashboard() {
   const handleReviewClient = async (id: string, action: 'approved' | 'rejected') => {
     const res = await reviewClient(id, action);
     if (res.success) { alert(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย'); fetchData(); }
-    else alert('Error: ' + res.error);
+    else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
   };
 
   // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เริ่มแลกเปลี่ยน / เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
@@ -412,7 +412,7 @@ export default function CSRDashboard() {
         setRemark('');
         fetchData();
       } else {
-        alert('Error: ' + res.error);
+        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
