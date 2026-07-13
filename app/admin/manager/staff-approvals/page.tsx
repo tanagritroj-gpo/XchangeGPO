@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
+import { getManagerStatusLogs } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
 
 // ── Status config: ใช้ชุดสีเดียวกับ CSR Dashboard ให้ทั้งระบบสอดคล้องกัน ──
@@ -192,6 +193,7 @@ export default function StaffApprovalPage() {
   const router = useRouter();
   const [pendingStaff, setPendingStaff] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
+  const [statusLogs, setStatusLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'staff' | 'history' | 'all' | 'insights'>('staff');
 
@@ -201,9 +203,10 @@ export default function StaffApprovalPage() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    const [staffResult, dashboardResult] = await Promise.all([
+    const [staffResult, dashboardResult, statusLogsResult] = await Promise.all([
       getPendingStaff(),
       getCSRDashboardData(), // manager มีสิทธิ์เรียกอยู่แล้ว (getCSRSession อนุญาต department 'manager')
+      getManagerStatusLogs(), // manager-only — ใช้คำนวณเวลาเฉลี่ยแต่ละขั้นตอน + เหตุผลปฏิเสธ
     ]);
 
     if (staffResult.success) {
@@ -216,6 +219,12 @@ export default function StaffApprovalPage() {
       setRequests(dashboardResult.requests || []);
     } else {
       console.error("Error fetching requests:", dashboardResult.error);
+    }
+
+    if (statusLogsResult.success) {
+      setStatusLogs(statusLogsResult.data || []);
+    } else {
+      console.error("Error fetching status logs:", statusLogsResult.error);
     }
 
     setIsLoading(false);
@@ -393,7 +402,7 @@ export default function StaffApprovalPage() {
 
             {/* ── Tab 4: ภาพรวม & สถิติ (Visual Dashboard) — แยกไฟล์ ManagerInsights.tsx ── */}
             {activeTab === 'insights' && (
-              <ManagerInsights requests={requests} />
+              <ManagerInsights requests={requests} statusLogs={statusLogs} />
             )}
 
           </div>
