@@ -85,7 +85,7 @@ export default function HistoryPage() {
               </div>
 
               <a 
-                href={`/tracking?ref=${request.ref_id}`}
+                href={`/customer/tracking?ref=${request.ref_id}`}
                 className="block w-full py-2.5 text-center text-xs font-bold text-teal-700 bg-teal-50 rounded-xl hover:bg-teal-100 transition-colors"
               >
                 ดูประวัติ Timeline ทั้งหมด
