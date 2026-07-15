@@ -3,14 +3,15 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logoutCustomer } from '@/app/actions/auth-actions';
+import { Home, History, LogOut } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
 
   const tabs = [
-    { href: '/welcome',          icon: '🏠', label: 'หน้าหลัก' },
-    { href: '/customer/history', icon: '🔄', label: 'ประวัติ'  },
+    { href: '/welcome',          icon: Home,    label: 'หน้าหลัก' },
+    { href: '/customer/history', icon: History, label: 'ประวัติ'  },
   ];
 
   return (
@@ -18,6 +19,7 @@ export default function BottomNav() {
 
       {tabs.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/');
+        const Icon = tab.icon;
         return (
           <Link
             key={tab.href}
@@ -25,9 +27,7 @@ export default function BottomNav() {
             className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors
               ${active ? 'text-teal-700' : 'text-slate-400'}`}
           >
-            <span className={`text-xl leading-none transition-transform ${active ? 'scale-110' : ''}`}>
-              {tab.icon}
-            </span>
+            <Icon className={`w-5 h-5 transition-transform ${active ? 'scale-110' : ''}`} />
             {tab.label}
             {active && (
               <span className="absolute bottom-0 w-10 h-0.5 rounded-full bg-teal-500" />
@@ -40,7 +40,7 @@ export default function BottomNav() {
         onClick={async () => { await logoutCustomer(); router.push('/'); }}
         className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-red-400 active:text-red-600"
       >
-        <span className="text-xl leading-none">❌</span>
+        <LogOut className="w-5 h-5" />
         ออกจากระบบ
       </button>
     </nav>

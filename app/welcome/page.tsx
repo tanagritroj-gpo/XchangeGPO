@@ -117,15 +117,16 @@ export default function WelcomePage() {
             <div className="text-teal-600 font-bold text-xs bg-teal-50 w-fit px-3 py-1.5 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors">อ่านรายละเอียดเพิ่มเติม</div>
           </a>
 
-          <a href="/manual/gpo-manual.pdf" target="_blank" className="group block bg-white rounded-3xl border border-slate-100 shadow-sm p-7 hover:shadow-xl hover:border-teal-200 transition-all duration-300 transform hover:-translate-y-1">
+          {/* Card: คู่มือการใช้งาน — ชี้ไปคู่มือเวอร์ชัน authenticated (ปุ่มกลับหน้าหลักไป /welcome ไม่ใช่ /) */}
+          <a href="/customer/manual" className="group block bg-white rounded-3xl border border-slate-100 shadow-sm p-7 hover:shadow-xl hover:border-teal-200 transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-teal-50 text-xl group-hover:bg-teal-600 group-hover:text-white transition-colors">📖</div>
                 <h3 className="text-sm font-black text-slate-800">คู่มือการใช้งานระบบ (Manual)</h3>
               </div>
             </div>
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">ดาวน์โหลดคู่มือการใช้งานฉบับสมบูรณ์ สำหรับโรงพยาบาลและหน่วยงานที่ใช้บริการ</p>
-            <div className="text-teal-600 font-bold text-xs bg-teal-50 w-fit px-3 py-1.5 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors">ดาวน์โหลด PDF</div>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">อ่านคู่มือการใช้งานฉบับสมบูรณ์ สำหรับโรงพยาบาลและหน่วยงานที่ใช้บริการ ไม่ต้องดาวน์โหลดไฟล์</p>
+            <div className="text-teal-600 font-bold text-xs bg-teal-50 w-fit px-3 py-1.5 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors">เปิดอ่านคู่มือ</div>
           </a>
         </div>
       </main>
