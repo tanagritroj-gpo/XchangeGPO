@@ -1,8 +1,5 @@
 import { Truck, FileCheck, XCircle, Clock, Check } from 'lucide-react';
 
-// requests.current_status / drug_items.current_status เป็น enum ภาษาอังกฤษตาม CHECK constraint จริง:
-// pending_review | approved | rejected | in_transit | at_warehouse | checked_in
-// | receiving | exchanging | completed | out_for_delivery
 export const REJECTED_STATUS = 'rejected';
 
 export const STATUS_LABELS: Record<string, string> = {

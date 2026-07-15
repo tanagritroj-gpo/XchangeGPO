@@ -205,7 +205,7 @@ export function ReviewSuccessCard({
               </div>
 
               <a
-                href={`/tracking?ref=${refId}`}
+                href={`/customer/tracking?ref=${refId}`}
                 className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
               >
                 ติดตามสถานะคำร้องนี้ →
