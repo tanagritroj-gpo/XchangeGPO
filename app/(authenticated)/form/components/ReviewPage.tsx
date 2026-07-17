@@ -7,6 +7,10 @@ interface StepProps {
   back:     () => void;
   formData: any;
   onSubmit: () => Promise<any>;
+  // ── เพิ่มใหม่: ทั้งหมด optional พร้อม default ตรงกับพฤติกรรมเดิมของฝั่งลูกค้าทุกประการ ──
+  stepNumber?: number;   // เลขขั้นตอนที่แสดงบน badge — ฝั่งลูกค้า 5 ขั้น, ฝั่ง staff 4 ขั้น (ไม่มี step เซ็น)
+  allowEmail?: boolean;  // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "ส่งเข้าอีเมล"
+  homeHref?: string;     // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "กลับหน้าหลัก"
 }
 
 // ── Helper สำหรับแสดงผลรายการยา ──
@@ -53,7 +57,14 @@ function ReviewCard({ title, gradient, children }: { title: string; gradient: st
   );
 }
 
-export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
+export default function ReviewPage({
+  back,
+  formData,
+  onSubmit,
+  stepNumber = 5,
+  allowEmail = true,
+  homeHref = '/welcome',
+}: StepProps) {
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
   const [refId,   setRefId]   = useState('');
@@ -65,6 +76,11 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     addr_street, addr_sub, addr_district, addr_province, agent_info,
     signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other 
   } = formData;
+
+  // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
+  //   fallback ไปใช้ข้อมูลผู้ติดต่อของลูกค้าที่เลือกไว้ใน sender แทน กันการ์ด "ข้อมูลหน่วยงาน" ขาดชื่อไปเงียบๆ
+  const displaySignerName = signer_name || sender?.contact_name;
+  const displaySignerPosition = signer_position || sender?.position;
 
   const deliveryDetail = delivery_type === 'ขนส่ง'
     ? `${addr_street || ''} ต.${addr_sub || ''} อ.${addr_district || ''} จ.${addr_province || ''}`
@@ -97,6 +113,8 @@ if (status === 'success') {
         requestId={currentRequestId}
         refId={refId} 
         customerEmail={formData.sender?.email}
+        allowEmail={allowEmail}
+        homeHref={homeHref}
       />
     );
   }
@@ -106,7 +124,7 @@ if (status === 'success') {
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">5</span>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">{stepNumber}</span>
         <p className="text-xs font-bold text-slate-400">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
       </div>
 
@@ -114,8 +132,8 @@ if (status === 'success') {
       <ReviewCard title="📋 ข้อมูลหน่วยงาน" gradient="linear-gradient(90deg,#0f5132,#1a7a45)">
         <ReviewRow label="ประเภทรายการ" value={sender?.request_type} />
         <ReviewRow label="หน่วยงาน" value={sender?.hospital_name} />
-        <ReviewRow label="ผู้ส่งคืน" value={signer_name} />
-        <ReviewRow label="ตำแหน่ง" value={signer_position} />
+        <ReviewRow label="ผู้ส่งคืน" value={displaySignerName} />
+        <ReviewRow label="ตำแหน่ง" value={displaySignerPosition} />
       </ReviewCard>
 
       {/* ══ รายการยา ══ */}
@@ -169,25 +187,23 @@ if (status === 'success') {
         <ReviewRow label="รายละเอียด" value={deliveryDetail} />
       </ReviewCard>
 
-      {/* ══ ลายมือชื่อ ══ */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
-        <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
-          ✍️ ลายมือชื่อผู้ส่งคืน
+      {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}
+      {signature_url && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
+          <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
+            ✍️ ลายมือชื่อผู้ส่งคืน
+          </div>
+          <div className="px-6 py-6 flex flex-col items-center gap-2">
+            <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
+              <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
+            </div>
+            <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
+              <p className="text-sm font-black text-slate-800">({signer_name})</p>
+              <p className="text-xs text-slate-500 font-medium">{signer_position}</p>
+            </div>
+          </div>
         </div>
-        <div className="px-6 py-6 flex flex-col items-center gap-2">
-          {signature_url && (
-            <>
-              <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
-                <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
-              </div>
-              <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
-                <p className="text-sm font-black text-slate-800">({signer_name})</p>
-                <p className="text-xs text-slate-500 font-medium">{signer_position}</p>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* ══ Navigation ══ */}
       <div className="grid grid-cols-2 gap-4">

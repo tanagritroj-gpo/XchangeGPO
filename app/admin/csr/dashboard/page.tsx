@@ -3,19 +3,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
-  Building2,
   ClipboardList,
   ChevronDown,
   Check,
   X,
   Loader2,
   Pill,
-  Truck,
   RefreshCw,
   CheckCircle2,
   Inbox,
-  CheckCheck,
-  MapPin,
   AlertTriangle,
   ClipboardCheck,
   History,
@@ -24,7 +20,6 @@ import {
 } from 'lucide-react';
 import {
   getCSRDashboardData,
-  reviewClient,
   approveRequest,
   rejectRequest,
   startExchangeProcess,
@@ -343,11 +338,10 @@ function RequestListSection({
 
 export default function CSRDashboard() {
   const router = useRouter();
-  const [clients, setClients]         = useState<any[]>([]);
   const [requests, setRequests]       = useState<any[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [expandedReq, setExpandedReq] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'clients' | 'active' | 'history'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [workflowSubTab, setWorkflowSubTab] = useState<'csr' | 'monitor'>('csr');
 
   // Modal ยืนยันอนุมัติ/ปฏิเสธใบงาน (พร้อมหมายเหตุ) — เปิดเมื่อรายการยาครบทุกตัวแล้วเท่านั้น
@@ -358,7 +352,7 @@ export default function CSRDashboard() {
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
     const data = await getCSRDashboardData();
-    if (data.success) { setClients(data.clients || []); setRequests(data.requests || []); }
+    if (data.success) { setRequests(data.requests || []); }
     if (!opts?.silent) setIsLoading(false);
   };
 
@@ -371,12 +365,6 @@ export default function CSRDashboard() {
     };
     init();
   }, []);
-
-  const handleReviewClient = async (id: string, action: 'approved' | 'rejected') => {
-    const res = await reviewClient(id, action);
-    if (res.success) { alert(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย'); fetchData(); }
-    else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
-  };
 
   // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เริ่มแลกเปลี่ยน / เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
   const handleUpdateStatus = async (id: number, newStatus: string) => {
@@ -447,7 +435,7 @@ export default function CSRDashboard() {
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
-              onClick={() => router.replace('/')}
+              onClick={() => router.replace('/admin/csr')}
               className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
@@ -460,7 +448,6 @@ export default function CSRDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-            <StatPill icon={Building2} value={clients.length} label="ราย" tone="amber" />
             <StatPill icon={ClipboardList} value={requests.length} label="ใบงาน" tone="teal" />
           </div>
         </div>
@@ -469,14 +456,9 @@ export default function CSRDashboard() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
-          {/* ══ Sidebar Tabs (แนวตั้ง — ตามเดิม ไม่แก้) ══ */}
+          {/* ══ Sidebar Tabs (แนวตั้ง — ตัด "ลูกค้าที่รออนุมัติ" ออก ย้ายไปหน้าแยกแล้ว) ══ */}
           <aside className="md:w-60 shrink-0">
             <nav className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible -mx-1 px-1 md:mx-0 md:px-0 pb-1 md:pb-0">
-              <TabButton
-                icon={Building2} label="ลูกค้าที่รออนุมัติ" count={clients.length}
-                active={activeTab === 'clients'} onClick={() => setActiveTab('clients')}
-                accentBg="bg-amber-100" accentColor="text-amber-600"
-              />
               <TabButton
                 icon={ClipboardList} label="จัดการใบงาน" count={activeRequests.length}
                 active={activeTab === 'active'} onClick={() => setActiveTab('active')}
@@ -493,68 +475,6 @@ export default function CSRDashboard() {
           {/* ══ Content ══ */}
           <div className="flex-1 min-w-0">
 
-            {activeTab === 'clients' && (
-            <section>
-              <div className="flex items-center gap-2.5 mb-3 px-1">
-                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                  <Building2 size={16} className="text-amber-600" strokeWidth={2.5} />
-                </div>
-                <div>
-                  <h2 className="text-sm font-bold text-slate-800">ลูกค้าที่รออนุมัติ</h2>
-                  <p className="text-[11px] text-slate-400">{clients.length} รายการรอดำเนินการ</p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                {clients.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <CheckCheck className="w-9 h-9 text-emerald-400 mx-auto mb-2.5" strokeWidth={1.75} />
-                    <p className="text-sm text-slate-400 font-medium">ไม่มีลูกค้าที่รออนุมัติ</p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100">
-                    {clients.map((client, idx) => (
-                      <div key={client.id}
-                        className="flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4 hover:bg-slate-50 transition-colors gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400 shrink-0">
-                            {idx + 1}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 truncate">{client.hospital_name}</p>
-                            {client.province && (
-                              <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                                <MapPin size={11} strokeWidth={2.5} />
-                                {client.province}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => handleReviewClient(client.id, 'approved')}
-                            className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                          >
-                            <Check size={14} strokeWidth={3} /> อนุมัติ
-                          </button>
-                          <button
-                            onClick={() => handleReviewClient(client.id, 'rejected')}
-                            className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                          >
-                            <X size={14} strokeWidth={3} /> ปฏิเสธ
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-            )}
-
-            {/* ══════════════════════════════════════════════════════════
-                ★ ส่วนที่ปรับตามคำขอล่าสุด: sub-tab แนวนอน CSR Workflow / Active Workflow
-               ══════════════════════════════════════════════════════════ */}
             {activeTab === 'active' && (
             <div>
               {/* ── Sub-tab แนวนอน (segmented control) ── */}
@@ -608,7 +528,6 @@ export default function CSRDashboard() {
               )}
             </div>
             )}
-            {/* ══════════════════════════════════════════════════════════ */}
 
             {activeTab === 'history' && (
             <RequestListSection

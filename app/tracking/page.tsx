@@ -237,7 +237,7 @@ function TrackingContent() {
                           )}
                         </div>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {item.lot_number && <>ล็อต {item.lot_number}</>}
+                          {item.lot_number && <>Lot. {item.lot_number}</>}
                           {item.lot_number && item.exp_date && ' · '}
                           {item.exp_date && (
                             <>หมดอายุ {new Date(item.exp_date).toLocaleDateString('th-TH')}</>

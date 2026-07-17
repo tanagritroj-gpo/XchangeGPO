@@ -20,11 +20,15 @@ export function ReviewSuccessCard({
   refId,
   docNumber,
   customerEmail,
+  allowEmail = true,
+  homeHref = '/welcome',
 }: {
   requestId: number;
   refId: string;
   docNumber?: string | null;
   customerEmail?: string;
+  allowEmail?: boolean; // false ฝั่ง staff — CSR กรอกแทนลูกค้า ไม่ต้องมีปุ่มส่งอีเมล
+  homeHref?: string;    // ปุ่ม "กลับหน้าหลัก" ชี้ไปคนละที่ระหว่างลูกค้า/staff
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -185,36 +189,44 @@ export function ReviewSuccessCard({
                 📥 ดาวน์โหลดใบรับคืน (PDF)
               </button>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
                   className="py-3 rounded-2xl font-bold text-xs text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all"
                 >
                   📋 {copyLabel}
                 </button>
-                <button
-                  onClick={handleEmailCopy}
-                  disabled={emailState === 'sending' || !customerEmail}
-                  className="py-3 rounded-2xl font-bold text-xs text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
-                >
-                  {emailState === 'sending' && '⏳ กำลังส่ง…'}
-                  {emailState === 'sent' && '✓ ส่งแล้ว'}
-                  {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
-                  {emailState === 'idle' && '✉️ ส่งเข้าอีเมล'}
-                </button>
+                {/* ปุ่มส่งอีเมล — ซ่อนทั้งบล็อกถ้า allowEmail=false (ฝั่ง staff ไม่ต้องส่งอีเมล) */}
+                {allowEmail && (
+                  <button
+                    onClick={handleEmailCopy}
+                    disabled={emailState === 'sending' || !customerEmail}
+                    className="py-3 rounded-2xl font-bold text-xs text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
+                  >
+                    {emailState === 'sending' && '⏳ กำลังส่ง…'}
+                    {emailState === 'sent' && '✓ ส่งแล้ว'}
+                    {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
+                    {emailState === 'idle' && '✉️ ส่งเข้าอีเมล'}
+                  </button>
+                )}
               </div>
 
-              <a
-                href={`/customer/tracking?ref=${refId}`}
-                className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
-              >
-                ติดตามสถานะคำร้องนี้ →
-              </a>
+              {/* ลิงก์ "ติดตามสถานะคำร้องนี้" — ผูกกับ allowEmail เดียวกัน (ตกลงกันไว้ว่าทั้งสองอย่างนี้
+                  มีความหมายเฉพาะฝั่งลูกค้าเหมือนกัน) ฝั่งลูกค้า (allowEmail=true ค่า default) ยังเห็นเหมือนเดิม
+                  ฝั่ง staff (allowEmail=false) ไม่เห็นทั้งคู่ */}
+              {allowEmail && (
+                <a
+                  href={`/customer/tracking?ref=${refId}`}
+                  className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
+                >
+                  ติดตามสถานะคำร้องนี้ →
+                </a>
+              )}
             </div>
           )}
 
           <button
-            onClick={() => (window.location.href = '/welcome')}
+            onClick={() => (window.location.href = homeHref)}
             className="text-xs font-bold text-slate-400 hover:text-slate-500 mt-1"
           >
             กลับหน้าหลัก

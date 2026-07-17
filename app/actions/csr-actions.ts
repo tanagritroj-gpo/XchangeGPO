@@ -4,12 +4,14 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 
-// ดึง Session เพื่อเช็คว่าเป็น CSR หรือ Manager — ใช้ getStaffSession() ที่ verify กับ DB จริง
+// ดึง Session เพื่อเช็คว่าเป็น CSR — ใช้ getStaffSession() ที่ verify กับ DB จริง
+// ตัดข้อยกเว้น department 'manager' ออกแล้ว ให้ตรงกับ app/admin/csr/layout.tsx
+// ที่แยก CSR ออกจาก manager โดยเด็ดขาด (manager มี dashboard ของตัวเองต่างหาก)
 async function getCSRSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
 
-  if (session.department !== 'csr' && session.department !== 'manager') {
+  if (session.department !== 'csr') {
     throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
   }
   return session;
@@ -89,7 +91,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
         .eq('id', clientId);
     }
 
-    revalidatePath('/admin/csr/dashboard');
+    revalidatePath('/admin/csr/customers');
     return { success: true };
 
   } catch (e: any) {

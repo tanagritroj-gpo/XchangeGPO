@@ -48,7 +48,7 @@ export default function HomePage() {
       if (result.success) {
         const deptRoutes: Record<string, string> = {
           'manager': '/admin/manager/staff-approvals',
-          'csr': '/admin/csr/dashboard',
+          'csr': '/admin/csr',
           'log': '/admin/logistics/dashboard',
           'wh': '/admin/wh/dashboard'
         };

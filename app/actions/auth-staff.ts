@@ -124,13 +124,14 @@ export async function getPendingStaff() {
 }
 
 // --- ดึง Session (verify กับ DB จริงทุกครั้ง) ---
+// เพิ่ม full_name เข้า select เพื่อให้หน้า hub/dashboard ต่างๆ แสดงชื่อจริงพนักงานแทน username ได้
 export async function getStaffSession() {
   const token = (await cookies()).get('staff_session')?.value;
   if (!token || !UUID_RE.test(token)) return null;
 
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, staff_users!inner(id, username, role, department, is_approved)')
+    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved)')
     .eq('token', token)
     .eq('actor_type', 'staff')
     .maybeSingle();
@@ -151,6 +152,7 @@ export async function getStaffSession() {
   return {
     id: staffUser.id,
     username: staffUser.username,
+    full_name: staffUser.full_name,
     role: staffUser.role,
     department: staffUser.department,
   };
