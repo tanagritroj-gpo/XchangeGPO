@@ -179,3 +179,66 @@ export async function updateDrugCompliance(itemId: number, pType: string, compli
     return { success: true };
   });
 }
+
+// ดึงประวัติใบงานทั้งหมดของลูกค้ารายหนึ่ง — ใช้ในหน้าค้นหาลูกค้า (CSR customers page)
+// เช็คสิทธิ์ผ่าน getCSRSession() เหมือนทุกฟังก์ชันในไฟล์นี้ (department === 'csr' เท่านั้น)
+// ไม่ใช่ RLS เพราะ query นี้วิ่งผ่าน supabaseAdmin (service_role) ที่ bypass RLS อยู่แล้วโดยธรรมชาติ
+// การควบคุมสิทธิ์จริงจึงอยู่ที่ getCSRSession() ในโค้ดนี้เท่านั้น — ไม่ใช่ RLS policy บนตาราง requests
+export async function getCustomerRequestHistory(customerId: number) {
+  try {
+    await getCSRSession();
+
+    if (!customerId || !Number.isFinite(customerId)) {
+      throw new Error('รหัสลูกค้าไม่ถูกต้อง');
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('requests')
+      .select('id, ref_id, request_type, current_status, total_value, created_at')
+      .eq('b2b_customer_id', customerId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return { success: true, data: data ?? [] };
+  } catch (e: any) {
+    console.error('getCustomerRequestHistory error:', e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+export async function getStaffRequestDetail(requestId: number, customerId: number) {
+  try {
+    await getCSRSession();
+
+    const { data: request, error: reqErr } = await supabaseAdmin
+      .from('requests')
+      .select('*, drug_items(*)')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !request || request.b2b_customer_id !== customerId) {
+      throw new Error('ไม่พบข้อมูลใบงานนี้');
+    }
+
+    const { data: timelineRaw } = await supabaseAdmin
+      .from('timeline_summary')
+      .select('status_name, log_date, staff_remark, drug_item_id')
+      .eq('request_id', request.id)
+      .order('log_date', { ascending: true });
+
+    const drugNameById: Record<number, string> = Object.fromEntries(
+      (request.drug_items ?? []).map((i: any) => [i.id, i.drug_name])
+    );
+
+    const timeline = (timelineRaw ?? []).map((t) => ({
+      ...t,
+      drug_name: t.drug_item_id != null ? drugNameById[t.drug_item_id] ?? null : null,
+    }));
+
+    return { success: true, data: { ...request, timeline } };
+  } catch (e: any) {
+    console.error('getStaffRequestDetail error:', e.message);
+    return { success: false, error: e.message };
+  }
+}

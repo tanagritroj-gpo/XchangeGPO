@@ -25,11 +25,11 @@ export default function CsrHubPage() {
 
   const handleLogout = async () => {
     await logoutStaffAction();
-    router.push('/admin/login');
+    router.push('/');
   };
 
   if (!staff) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#fff7ed' }}>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#fafaf9' }}>
       <div className="text-center space-y-3">
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-sm text-orange-600 font-medium">กำลังโหลดข้อมูล...</p>
@@ -38,7 +38,7 @@ export default function CsrHubPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(160deg,#fff7ed 0%,#f0f4f8 100%)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: '#fafaf9' }}>
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
 
@@ -57,7 +57,7 @@ export default function CsrHubPage() {
             onClick={handleLogout}
             className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 px-3.5 py-2 rounded-xl transition-all"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="w-4 h-5" />
             ออกจากระบบ
           </button>
         </div>
@@ -83,7 +83,7 @@ export default function CsrHubPage() {
                 <Building2 className="w-4 h-4" /> แผนก CSR (Customer Service)
               </p>
               <p className="text-orange-100/90 mt-3 text-sm leading-relaxed">
-                ขอให้มีความสุขตลอดการทำงานในวันที่สดใส{today && <> วัน{today}</>}
+                ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
               </p>
             </div>
             <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl px-5 py-4 text-center hidden md:block">
@@ -97,13 +97,13 @@ export default function CsrHubPage() {
         </div>
 
         {/* ── Action Grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
           {/* Card: กรอกแบบฟอร์มแทนลูกค้า */}
-          <Link href="/admin/csr/form" className="group block">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="p-7">
+          <Link href="/admin/csr/form" className="group block h-full">
+            <div className="h-full flex flex-col bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#ffedd5,#fdba74)' }}>
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#ffedd5,#fdba74)' }}>
                     <FileEdit className="w-5 h-5 text-orange-700" />
                   </div>
                   <div>
@@ -112,7 +112,7 @@ export default function CsrHubPage() {
                   </div>
                 </div>
                 <div
-                  className="w-full py-3.5 rounded-2xl font-bold text-white text-sm text-center shadow-md shadow-orange-200 group-hover:shadow-xl group-hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
+                  className="mt-auto h-16 w-full rounded-2xl font-bold text-white text-sm shadow-md shadow-orange-200 group-hover:shadow-xl group-hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
                   style={{ background: 'linear-gradient(135deg,#ea580c,#f97316)' }}
                 >
                   <FileEdit className="w-4 h-4" /> เริ่มสร้างคำร้องใหม่
@@ -122,11 +122,11 @@ export default function CsrHubPage() {
           </Link>
 
           {/* Card: CSR Dashboard */}
-          <Link href="/admin/csr/dashboard" className="group block">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="p-7">
+          <Link href="/admin/csr/dashboard" className="group block h-full">
+            <div className="h-full flex flex-col bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#ffedd5,#fed7aa)' }}>
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#ffedd5,#fed7aa)' }}>
                     <Building2 className="w-5 h-5 text-orange-700" />
                   </div>
                   <div>
@@ -134,8 +134,8 @@ export default function CsrHubPage() {
                     <p className="text-xs text-slate-400">ตรวจสอบ/อนุมัติใบงานที่รอดำเนินการ</p>
                   </div>
                 </div>
-                <div className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-orange-100 rounded-2xl text-sm text-orange-600 bg-orange-50/40 gap-1.5 group-hover:bg-orange-50 group-hover:border-orange-300 transition-colors">
-                  <FolderKanban className="w-6 h-6 opacity-60" />
+                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-orange-100 rounded-2xl text-sm text-orange-600 bg-orange-50/40 gap-1 group-hover:bg-orange-50 group-hover:border-orange-300 transition-colors">
+                  <FolderKanban className="w-5 h-5 opacity-60" />
                   <span className="font-bold text-xs flex items-center gap-1">
                     ดูรายการที่รอดำเนินการ <ArrowRight className="w-3.5 h-3.5" />
                   </span>
@@ -145,11 +145,11 @@ export default function CsrHubPage() {
           </Link>
 
           {/* Card: การจัดการข้อมูลลูกค้า */}
-          <Link href="/admin/csr/customers" className="group block">
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="p-7">
+          <Link href="/admin/csr/customers" className="group block h-full">
+            <div className="h-full flex flex-col bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:border-orange-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#ffedd5,#fb923c)' }}>
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#ffedd5,#fb923c)' }}>
                     <Users className="w-5 h-5 text-orange-700" />
                   </div>
                   <div>
@@ -157,8 +157,8 @@ export default function CsrHubPage() {
                     <p className="text-xs text-slate-400">อนุมัติ/ปฏิเสธลูกค้าใหม่ที่รอตรวจสอบ</p>
                   </div>
                 </div>
-                <div className="h-20 flex flex-col items-center justify-center border-2 border-dashed border-orange-100 rounded-2xl text-sm text-orange-600 bg-orange-50/40 gap-1.5 group-hover:bg-orange-50 group-hover:border-orange-300 transition-colors">
-                  <Users className="w-6 h-6 opacity-60" />
+                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-orange-100 rounded-2xl text-sm text-orange-600 bg-orange-50/40 gap-1 group-hover:bg-orange-50 group-hover:border-orange-300 transition-colors">
+                  <Users className="w-5 h-5 opacity-60" />
                   <span className="font-bold text-xs flex items-center gap-1">
                     ดูลูกค้าที่รออนุมัติ <ArrowRight className="w-3.5 h-3.5" />
                   </span>
