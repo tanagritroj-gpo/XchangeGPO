@@ -79,6 +79,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         contact_name: selectedCustomer.contact_name,
         position: selectedCustomer.position,
         phone: selectedCustomer.phone,
+        email: selectedCustomer.email,
         customer_email: selectedCustomer.email,
         b2b_customer_id: selectedCustomer.id,
       },

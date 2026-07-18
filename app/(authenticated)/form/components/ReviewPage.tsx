@@ -10,7 +10,10 @@ interface StepProps {
   // ── เพิ่มใหม่: ทั้งหมด optional พร้อม default ตรงกับพฤติกรรมเดิมของฝั่งลูกค้าทุกประการ ──
   stepNumber?: number;   // เลขขั้นตอนที่แสดงบน badge — ฝั่งลูกค้า 5 ขั้น, ฝั่ง staff 4 ขั้น (ไม่มี step เซ็น)
   allowEmail?: boolean;  // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "ส่งเข้าอีเมล"
+  showTrackingLink?: boolean; // ส่งต่อไป ReviewSuccessCard ควบคุมลิงก์ "ติดตามสถานะคำร้องนี้" แยกจาก allowEmail
   homeHref?: string;     // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "กลับหน้าหลัก"
+  generatePdfActionFn?: (requestId: number) => Promise<any>; // override เป็น generateStaffPdfAction ฝั่ง staff
+  sendEmailActionFn?: (requestId: number) => Promise<any>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
 }
 
 // ── Helper สำหรับแสดงผลรายการยา ──
@@ -63,7 +66,10 @@ export default function ReviewPage({
   onSubmit,
   stepNumber = 5,
   allowEmail = true,
+  showTrackingLink = true,
   homeHref = '/welcome',
+  generatePdfActionFn,
+  sendEmailActionFn,
 }: StepProps) {
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
@@ -114,7 +120,10 @@ if (status === 'success') {
         refId={refId} 
         customerEmail={formData.sender?.email}
         allowEmail={allowEmail}
+        showTrackingLink={showTrackingLink}
         homeHref={homeHref}
+        generatePdfActionFn={generatePdfActionFn}
+        sendEmailActionFn={sendEmailActionFn}
       />
     );
   }

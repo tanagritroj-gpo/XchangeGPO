@@ -4,6 +4,9 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sanitizeDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -254,4 +257,93 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
     refId: request.ref_id,
     docNumber: request.doc_number,
   };
+}
+
+// ── 5. ส่งอีเมลลิงก์ PDF ให้ลูกค้า — CSR เป็นคนกด แต่ต้องส่งไปที่อีเมลลูกค้า ไม่ใช่อีเมล staff ──
+// ต่างจาก sendPdfEmailAction เดิม (ฝั่งลูกค้า) ตรงที่: gate ด้วย CSR session แทน customer session,
+// และส่งไปที่ requests.customer_email ที่บันทึกไว้ตอนสร้างคำร้อง แทน session.email
+// (เพราะฝั่งนี้ไม่มี customer session ให้อ้างอิงเลย)
+export async function sendStaffPdfEmailAction(requestId: number) {
+  try {
+    const session = await requireCsrSession();
+
+    const allowed = await checkRateLimit(`send-staff-email:${session.id}`, 3600, 20);
+    if (!allowed) {
+      return { success: false, error: 'ส่งอีเมลถี่เกินไป กรุณาลองใหม่ภายหลัง' };
+    }
+
+    const { data: requestData, error: reqErr } = await supabaseAdmin
+      .from('requests')
+      .select('ref_id, hospital_name, customer_email')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !requestData) {
+      return { success: false, error: 'ไม่พบคำร้องนี้' };
+    }
+
+    if (!requestData.customer_email) {
+      return { success: false, error: 'คำร้องนี้ไม่มีอีเมลลูกค้าบันทึกไว้ ส่งอีเมลไม่ได้' };
+    }
+
+    const { data: docData, error: docErr } = await supabaseAdmin
+      .from('document_attachments')
+      .select('file_path')
+      .eq('request_id', requestId)
+      .maybeSingle();
+
+    if (docErr || !docData?.file_path) {
+      return { success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' };
+    }
+
+    const { data: signed, error: signErr } = await supabaseAdmin.storage
+      .from('return-documents')
+      .createSignedUrl(docData.file_path, 60 * 60 * 24);
+
+    if (signErr || !signed) {
+      return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
+    }
+
+    const { error: emailErr } = await resend.emails.send({
+      from: 'Xchange Portal <onboarding@resend.dev>',
+      to: [requestData.customer_email],
+      subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
+      html: `
+        <h2>สวัสดีครับ, ตัวแทนจาก ${requestData.hospital_name}</h2>
+        <p>เจ้าหน้าที่ CSR ได้ทำการสร้างเอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้าให้เรียบร้อยแล้ว</p>
+        <p>เลขอ้างอิงของคุณคือ: <strong>${requestData.ref_id}</strong></p>
+        <p>
+          <a href="${signed.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
+            คลิกที่นี่เพื่อดาวน์โหลดเอกสาร PDF
+          </a>
+        </p>
+        <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
+      `,
+    });
+
+    if (emailErr) {
+      console.error('Resend API Error (staff):', emailErr);
+      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
+    }
+
+    await supabaseAdmin.from('status_logs').insert({
+      request_id: requestId,
+      department: 'system',
+      status_name: 'email_sent',
+      staff_remark: `เจ้าหน้าที่ CSR ส่งเอกสารไปยังอีเมลลูกค้า ${requestData.customer_email} เรียบร้อยแล้ว`,
+      actor_type: 'system',
+    });
+
+    await supabaseAdmin.from('access_logs').insert({
+      actor_type: 'staff',
+      staff_id: session.id,
+      action: 'send_pdf_email',
+      request_id: requestId,
+    });
+
+    return { success: true, message: 'ส่งอีเมลสำเร็จแล้ว' };
+  } catch (err: any) {
+    console.error('Send Staff Email Catch Error:', err);
+    return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' };
+  }
 }

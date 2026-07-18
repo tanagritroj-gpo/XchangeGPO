@@ -5,6 +5,8 @@ import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action'; 
 
 type PdfState = 'preparing' | 'ready' | 'error';
+type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
+type EmailActionResult = { success: boolean; message?: string; error?: string };
 
 // ลำดับสถานะงานตาม enum จริงใน requests.current_status
 const STATUS_STEPS: { key: string; label: string }[] = [
@@ -21,14 +23,23 @@ export function ReviewSuccessCard({
   docNumber,
   customerEmail,
   allowEmail = true,
+  showTrackingLink = true,
   homeHref = '/welcome',
+  generatePdfActionFn = generatePdfAction,
+  sendEmailActionFn = sendPdfEmailAction,
 }: {
   requestId: number;
   refId: string;
   docNumber?: string | null;
   customerEmail?: string;
-  allowEmail?: boolean; // false ฝั่ง staff — CSR กรอกแทนลูกค้า ไม่ต้องมีปุ่มส่งอีเมล
+  allowEmail?: boolean;       // false ฝั่ง staff เดิม — ตอนนี้เปิดใช้ทั้ง 2 ฝั่งแล้ว (CSR ก็ส่งอีเมลให้ลูกค้าได้)
+  showTrackingLink?: boolean; // ควบคุมแยกจาก allowEmail แล้ว — ฝั่ง staff ยังไม่โชว์ลิงก์นี้ตามที่ตกลงไว้
   homeHref?: string;    // ปุ่ม "กลับหน้าหลัก" ชี้ไปคนละที่ระหว่างลูกค้า/staff
+  // ★ จุดสำคัญ: default เป็นตัว customer-only เดิม แต่ฝั่ง staff ต้อง override เป็น
+  //   generateStaffPdfAction / sendStaffPdfEmailAction เพราะตัว default เรียก getCustomerSession()
+  //   ข้างในตรงๆ ถ้าไม่ override จะ error "กรุณาเข้าสู่ระบบ" ทันทีเมื่อ staff เป็นคนกด
+  generatePdfActionFn?: (requestId: number) => Promise<PdfActionResult>;
+  sendEmailActionFn?: (requestId: number) => Promise<EmailActionResult>;
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -41,7 +52,7 @@ export function ReviewSuccessCard({
     let cancelled = false;
 
     (async () => {
-      const result = await generatePdfAction(requestId);
+      const result = await generatePdfActionFn(requestId);
       if (cancelled) return;
 
       if (result.success) {
@@ -62,7 +73,7 @@ export function ReviewSuccessCard({
   const retryGenerate = async () => {
     setPdfState('preparing');
     setErrorMsg('');
-    const result = await generatePdfAction(requestId);
+    const result = await generatePdfActionFn(requestId);
     if (result.success) {
       setDownloadUrl(result.url);
       setPdfState('ready');
@@ -74,7 +85,7 @@ export function ReviewSuccessCard({
 
   // 3. ฟังก์ชันดาวน์โหลด (ขอ URL ใหม่เสมอ ป้องกันลิงก์หมดอายุ 5 นาที)
   const handleDownload = async () => {
-    const fresh = await generatePdfAction(requestId);
+    const fresh = await generatePdfActionFn(requestId);
     if (!fresh.success) {
       setErrorMsg(fresh.error);
       setPdfState('error');
@@ -98,7 +109,7 @@ export function ReviewSuccessCard({
   // 5. ฟังก์ชันส่งอีเมล
   const handleEmailCopy = async () => {
     setEmailState('sending');
-    const result = await sendPdfEmailAction(requestId);
+    const result = await sendEmailActionFn(requestId);
     
     if (result.success) {
       setEmailState('sent');
@@ -211,10 +222,9 @@ export function ReviewSuccessCard({
                 )}
               </div>
 
-              {/* ลิงก์ "ติดตามสถานะคำร้องนี้" — ผูกกับ allowEmail เดียวกัน (ตกลงกันไว้ว่าทั้งสองอย่างนี้
-                  มีความหมายเฉพาะฝั่งลูกค้าเหมือนกัน) ฝั่งลูกค้า (allowEmail=true ค่า default) ยังเห็นเหมือนเดิม
-                  ฝั่ง staff (allowEmail=false) ไม่เห็นทั้งคู่ */}
-              {allowEmail && (
+              {/* ลิงก์ "ติดตามสถานะคำร้องนี้" — ควบคุมแยกจากปุ่มอีเมลแล้ว ผ่าน showTrackingLink
+                  ฝั่งลูกค้า (default true) ยังเห็นเหมือนเดิม ฝั่ง staff (false) ไม่เห็นตามที่ตกลงกันไว้ */}
+              {showTrackingLink && (
                 <a
                   href={`/customer/tracking?ref=${refId}`}
                   className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"

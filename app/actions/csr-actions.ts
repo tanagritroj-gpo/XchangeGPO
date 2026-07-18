@@ -4,9 +4,6 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 
-// ดึง Session เพื่อเช็คว่าเป็น CSR — ใช้ getStaffSession() ที่ verify กับ DB จริง
-// ตัดข้อยกเว้น department 'manager' ออกแล้ว ให้ตรงกับ app/admin/csr/layout.tsx
-// ที่แยก CSR ออกจาก manager โดยเด็ดขาด (manager มี dashboard ของตัวเองต่างหาก)
 async function getCSRSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
@@ -160,7 +157,7 @@ export async function completeRequest(requestId: number, remark?: string) {
   return withCSRAuth(async (session) => {
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'completed', staff_remark: remark || 'งานเสร็จสิ้น' });
     await supabaseAdmin.from('requests').update({ current_status: 'completed', updated_at: new Date().toISOString() }).eq('id', requestId);
-    await supabaseAdmin.from('drug_items').update({ current_status: 'completed' }).eq('request_id', requestId);
+    await supabaseAdmin.from('drug_items').update({ current_status: 'completed' }).eq('request_id', requestId).neq('current_status', 'rejected');
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
   });
