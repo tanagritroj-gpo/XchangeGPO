@@ -1,27 +1,5 @@
 "use client";
 
-/**
- * ==========================================================================
- * CustomerGuidePage.tsx
- * "คู่มือการใช้งานระบบสำหรับลูกค้า" — GPO Xchange Portal
- * ==========================================================================
- * วิธีติดตั้งเข้าโปรเจกต์:
- * 1) วางไฟล์นี้ไว้ที่ app/guide/page.tsx (แทนที่ของเดิม) หรือสร้างเส้นทางใหม่
- *    เช่น app/customer-guide/page.tsx แล้ว export default ตามปกติของ App Router
- * 2) คอมโพเนนต์นี้เป็น self-contained ใช้ Tailwind CSS utility classes ล้วน
- *    (ไม่พึ่ง shadcn/ui components) เพื่อให้วางแทนที่ได้ทันทีโดยไม่ต้องเช็ค
- *    import path ของ @/components/ui/* ในโปรเจกต์คุณ — ถ้าต้องการใช้
- *    shadcn/ui (Card, Badge, Button) แทน ให้สลับ class ที่คอมเมนต์ไว้แต่ละจุด
- * 3) ฟอนต์ Sarabun ถูกโหลด global อยู่แล้วใน app/layout.tsx ของโปรเจกต์
- *    (ตาม pattern เดียวกับหน้าอื่น) จึงไม่ต้อง import ฟอนต์ซ้ำในไฟล์นี้
- * 4) โทนสีอ้างอิงจาก Design System เดิมของระบบ:
- *      --ink   : #0E1622  (กรมท่าเข้ม ใช้เป็นพื้นหลัง header/footer)
- *      --teal  : #0E7C6B  (สีหลัก/ปุ่ม/ไอคอนเน้น)
- *      --teal-soft : #E1F1EC (พื้นหลังอ่อนของ badge/card เน้น)
- *      --accent: #5FD1B4  (ทีลอ่อน ใช้ตัดเส้น/ไฮไลต์ตัวอักษรบนพื้นเข้ม)
- * ==========================================================================
- */
-
 import { useState, Fragment } from "react";
 import {
   FileText,
@@ -312,7 +290,7 @@ export default function CustomerGuidePage() {
               href="/form"
               className="rounded-lg bg-[#0E7C6B] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-[#0c6a5c]"
             >
-              เริ่มยื่นคำร้องคืนสินค้า
+              เข้าระบบเพื่อยื่นคำร้อง
             </a>
             <a
               href="/tracking"

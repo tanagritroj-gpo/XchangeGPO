@@ -1,5 +1,7 @@
 import Sidebar from '@/components/Sidebar';
 import BottomNav from '@/components/BottomNav';
+import { ChatWidget } from '@/components/ChatWidget';
+import { ChatWidgetErrorBoundary } from '@/components/ChatWidgetErrorBoundary';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 import { redirect } from 'next/navigation';
 
@@ -25,6 +27,12 @@ export default async function AuthenticatedLayout({
       </main>
 
       <BottomNav />
+
+      {/* ปุ่มแชทลอย — mount ที่นี่จุดเดียว ครอบคลุมทุกหน้าใน (authenticated)
+          ห่อด้วย error boundary กัน bug ใน ChatWidget ทำทั้งหน้าพังไปด้วย */}
+      <ChatWidgetErrorBoundary>
+        <ChatWidget />
+      </ChatWidgetErrorBoundary>
     </div>
   );
 }
