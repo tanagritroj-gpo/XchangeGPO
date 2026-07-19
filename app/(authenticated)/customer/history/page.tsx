@@ -26,7 +26,6 @@ import {
 
 /**
  * ── สถานะ/สี/กลุ่ม — ใช้ lib/tracking-status.ts เป็นแหล่งความจริงเดียว ──
- * ไม่สร้าง mapping สถานะแยกของตัวเองอีกต่อไป (รอบก่อนเคยเดาไว้ผิด) จุดสำคัญ:
  * getStatusMeta() จับคำจาก "ข้อความไทย" ผ่าน regex ไม่ใช่ raw enum อังกฤษ
  * จึงต้อง getStatusLabel(status) ให้ได้ข้อความไทยก่อน แล้วค่อยส่งเข้า
  * getStatusMeta() ต่อ — องค์ประกอบนี้คือวิธีที่ถูกต้องเดียวกับที่หน้า
@@ -38,10 +37,7 @@ const hasRejectedItem = (items: any[]) =>
 
 /** badge/ขอบสีของการ์ด — อิงจาก "สถานะจริงของทั้งใบงาน" (request.current_status)
  *  เท่านั้น ไม่ผูกกับสถานะของรายการย่อยข้างในอีกต่อไป — ถ้าใบงานยังไม่ถูก
- *  ยกเลิกทั้งใบ (แค่บางรายการถูกปฏิเสธ) การ์ดจะยังโชว์สถานะจริงตามปกติ เช่น
- *  "อยู่ระหว่างขนส่ง" ไม่ถูกบังคับกลายเป็น "ต้องดำเนินการ" ทั้งที่ใบงานเดินหน้า
- *  ต่อได้ตามปกติ — รายการที่ถูกปฏิเสธแค่ทำไฮไลต์แดง + เครื่องหมาย ✕ ที่ตัวมันเอง
- *  (ดู itemRejected ใน RequestCard) */
+ *  ยกเลิกทั้งใบ (แค่บางรายการถูกปฏิเสธ) การ์ดจะยังโชว์สถานะจริงตามปกติ */
 function getCardTone(request: any) {
   if (request.current_status === REJECTED_STATUS) {
     return { badge: 'bg-red-50 text-red-700', border: 'border-l-red-500' };
@@ -52,9 +48,6 @@ function getCardTone(request: any) {
   return { badge: 'bg-amber-50 text-amber-700', border: 'border-l-amber-500' };
 }
 
-// กลุ่มใหญ่ = 4 stage เดียวกับ stepper ของหน้า tracking (STAGES) + กลุ่ม
-// "ต้องดำเนินการ" (ถูกปฏิเสธ) แทรกไว้บนสุด เพราะ rejected ไม่อยู่ใน STAGES
-// อยู่แล้ว (getCurrentStageIndex คืน -1 ให้ rejected ตามโค้ดต้นฉบับ)
 type Group = { key: string; label: string; icon: LucideIcon; iconTone: string };
 
 const REJECTED_GROUP: Group = {
@@ -64,9 +57,6 @@ const REJECTED_GROUP: Group = {
   iconTone: 'text-red-600',
 };
 
-// ไอคอน/สีต่อ stage มาจาก getStatusMeta(stage.label) ตรงๆ — label ของแต่ละ
-// stage เป็นข้อความไทยคงที่อยู่แล้ว จึง deterministic และ sync กับสีที่หน้า
-// tracking ใช้กับ timeline โดยอัตโนมัติถ้าใครมาแก้ label ใน STAGES ทีหลัง
 const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
   const meta = getStatusMeta(stage.label);
   return { key: stage.key, label: stage.label, icon: meta.icon, iconTone: meta.fg };
@@ -128,7 +118,7 @@ function RequestCard({ request }: { request: any }) {
             return (
               <div
                 key={item.id}
-                className={`grid grid-cols-12 items-center gap-2 rounded-xl border p-3 text-xs ${
+                className={`grid grid-cols-12 items-center gap-2 rounded-lg border p-3 text-xs ${
                   itemRejected ? 'border-red-100 bg-red-50/60' : 'border-slate-100 bg-slate-50'
                 }`}
               >
@@ -218,9 +208,6 @@ export default function HistoryPage() {
     items: history.filter((r) => getGroupKey(r) === group.key),
   }));
 
-  // พอโหลดข้อมูลเสร็จ ถ้าแท็บที่ active อยู่ (ค่าเริ่มต้น = แท็บแรกสุด) ดันไม่มี
-  // รายการเลย ให้สลับไปแท็บแรกที่มีรายการจริงให้อัตโนมัติ กันเปิดมาแล้วเจอ
-  // หน้าว่างทั้งที่จริงๆ มีคำร้องอยู่ในสถานะอื่น
   useEffect(() => {
     if (loading) return;
     const current = tabs.find((t) => t.key === activeKey);
@@ -233,9 +220,6 @@ export default function HistoryPage() {
 
   const activeTab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
 
-  // สถิติ dashboard — คำนวณต่อจาก tabs ที่มีอยู่แล้ว ไม่นับสถานะซ้ำเป็นชุดใหม่
-  // กันไม่ให้ตัวเลขใน dashboard กับใน tab bar เพี้ยนไปคนละทางถ้าใครมาแก้
-  // logic การจัดกลุ่มทีหลังแล้วลืมแก้อีกจุด
   const completedCount = tabs.find((t) => t.key === 'completed')?.items.length ?? 0;
   const rejectedCount = tabs.find((t) => t.key === 'rejected')?.items.length ?? 0;
   const inProgressCount = history.length - completedCount - rejectedCount;
@@ -314,9 +298,6 @@ export default function HistoryPage() {
         </div>
       ) : (
         <>
-          {/* Tab bar — เรียงตามไทม์ไลน์เดียวกับ GROUP_ORDER (ต้องดำเนินการ →
-              รับคำร้อง → อนุมัติ → ตรวจรับ/ขนส่ง → เสร็จสิ้น) เลื่อนแนวนอนได้
-              บนจอแคบ */}
           <div
             role="tablist"
             aria-label="กรองประวัติตามสถานะ"
@@ -341,7 +322,9 @@ export default function HistoryPage() {
                   {tab.label}
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                      active ? 'bg-teal-50 text-teal-700' : 'bg-slate-100 text-slate-500'
+                      active
+                        ? 'bg-teal-50 text-teal-700'
+                        : 'bg-slate-100 text-slate-500'
                     }`}
                   >
                     {tab.items.length}
@@ -351,7 +334,6 @@ export default function HistoryPage() {
             })}
           </div>
 
-          {/* ผลลัพธ์เฉพาะแท็บที่เลือก */}
           {activeTab && activeTab.items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-200 py-16 text-center">
               <Inbox className="h-7 w-7 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
