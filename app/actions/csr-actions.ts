@@ -8,7 +8,7 @@ async function getCSRSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
 
-  if (session.department !== 'csr') {
+  if (session.department !== 'csr' && session.department !== 'manager') {
     throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
   }
   return session;
