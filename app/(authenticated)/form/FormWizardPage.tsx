@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createReturnRequest } from '@/app/actions/form-actions';
 import Step1Info from './components/Step1Info';
 import Step2Items from './components/Step2Items';
@@ -17,8 +17,18 @@ const STEPS = [
   { id: 5, label: 'ตรวจสอบ' },
 ];
 
+// map ค่าจาก query param → label ที่ Step1Info ใช้จริงใน TYPES
+// ต้อง whitelist แบบนี้เท่านั้น ห้าม trust ค่าจาก URL ตรงๆ
+const REQUEST_TYPE_MAP: Record<string, string> = {
+  exchange: 'รับคืนแลกเปลี่ยน',
+  'debt-reduction': 'รับคืนลดหนี้',
+};
+
 export default function FormWizardPage({ session }: { session?: any }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialRequestType = REQUEST_TYPE_MAP[searchParams.get('type') || ''] || '';
+
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     sender: session || {},
@@ -54,16 +64,13 @@ export default function FormWizardPage({ session }: { session?: any }) {
   };
 
   return (
-    // ลบ max-w และ wrapper กล่องขาวออก ให้ layout.tsx จัดการ padding แทน
     <div className="py-4 md:py-8">
 
-      {/* Header */}
       <div className="mb-6 px-1">
         <h1 className="text-xl md:text-2xl font-black text-slate-800">แบบขอคืน / แลกเปลี่ยนยา</h1>
         <p className="text-sm font-bold text-teal-700">องค์การเภสัชกรรม สาขาภาคใต้</p>
       </div>
 
-      {/* Stepper — scroll ได้บน mobile ถ้า step เยอะ */}
       <div className="mb-6 md:mb-10 overflow-x-auto">
         <div className="flex justify-between min-w-[280px] px-2">
           {STEPS.map((s) => (
@@ -85,8 +92,9 @@ export default function FormWizardPage({ session }: { session?: any }) {
         </div>
       </div>
 
-      {/* Step content — ไม่มีกล่องขาวครอบ ให้แต่ละ Step component จัดการ card เอง */}
-      {step === 1 && <Step1Info next={nextStep} updateData={setFormData} />}
+      {step === 1 && (
+        <Step1Info next={nextStep} updateData={setFormData} initialRequestType={initialRequestType} />
+      )}
       {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
       {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
       {step === 4 && <Step4Sign next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}

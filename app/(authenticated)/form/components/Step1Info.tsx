@@ -8,6 +8,7 @@ import { getCustomerSession } from '@/app/actions/auth-actions';
 interface Step1Props {
   next: () => void;
   updateData: React.Dispatch<React.SetStateAction<any>>;
+  initialRequestType?: string;
 }
 
 const TYPES = [
@@ -30,8 +31,8 @@ const InfoBox = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-export default function Step1Info({ next, updateData }: Step1Props) {
-  const [selectedType, setSelectedType] = useState('');
+export default function Step1Info({ next, updateData, initialRequestType }: Step1Props) {
+  const [selectedType, setSelectedType] = useState(initialRequestType || '');
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
   const [docNumber, setDocNumber] = useState('กำลังโหลด...');

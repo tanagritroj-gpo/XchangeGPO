@@ -106,7 +106,7 @@ export default function WelcomePage() {
 
         {/* ── Info Grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <a href="/policy" className="group block bg-white rounded-3xl border border-slate-100 shadow-sm p-7 hover:shadow-xl hover:border-teal-200 transition-all duration-300 transform hover:-translate-y-1">
+          <a href="/return-policy" className="group block bg-white rounded-3xl border border-slate-100 shadow-sm p-7 hover:shadow-xl hover:border-teal-200 transition-all duration-300 transform hover:-translate-y-1">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-teal-50 text-xl group-hover:bg-teal-600 group-hover:text-white transition-colors">📋</div>
