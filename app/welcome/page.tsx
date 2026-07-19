@@ -125,7 +125,7 @@ export default function WelcomePage() {
                 <h3 className="text-sm font-black text-slate-800">คู่มือการใช้งานระบบ (Manual)</h3>
               </div>
             </div>
-            <p className="text-xs text-slate-500 leading-relaxed mb-4">อ่านคู่มือการใช้งานฉบับสมบูรณ์ สำหรับโรงพยาบาลและหน่วยงานที่ใช้บริการ ไม่ต้องดาวน์โหลดไฟล์</p>
+            <p className="text-xs text-slate-500 leading-relaxed mb-4">อ่านคู่มือการใช้งานฉบับสมบูรณ์ สำหรับโรงพยาบาลและหน่วยงานที่ใช้บริการ</p>
             <div className="text-teal-600 font-bold text-xs bg-teal-50 w-fit px-3 py-1.5 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors">เปิดอ่านคู่มือ</div>
           </a>
         </div>
