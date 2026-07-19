@@ -3,7 +3,17 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trackMyRequestByRefId } from '@/app/actions/tracking-actions';
-import { ArrowLeft, Search, Copy, Check, Printer, RefreshCw, Pill, FileText } from 'lucide-react';
+import {
+  Search,
+  Copy,
+  Check,
+  Printer,
+  RefreshCw,
+  Pill,
+  FileText,
+  AlertCircle,
+  PackageSearch,
+} from 'lucide-react';
 import {
   STAGES,
   getStatusLabel,
@@ -39,12 +49,14 @@ function TrackingContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const performSearch = async (id: string) => {
     if (!id.trim()) return;
     setLoading(true);
     setError(null);
     setData(null);
+    setHasSearched(true);
 
     try {
       const result = await trackMyRequestByRefId(id);
@@ -89,33 +101,34 @@ function TrackingContent() {
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-6 print:py-0 print:px-0">
-      {/* ปุ่มกลับหน้าหลัก */}
-      <div className="mb-6 print:hidden">
-        <a
-          href="/welcome"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-teal-700 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          กลับหน้าหลัก
-        </a>
+      {/* หัวข้อ — icon badge เข้าชุดกับหน้าประวัติการแลกเปลี่ยน */}
+      <div className="flex items-center gap-3.5 mb-1 print:hidden">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-600 to-teal-700 text-white shadow-lg shadow-teal-200">
+          <Search className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-slate-800">ติดตามสถานะคำร้องของฉัน</h1>
+          <p className="text-sm font-medium text-slate-400">
+            ดูรายละเอียดคำร้องคืนสินค้าของคุณแบบเต็มรูปแบบ รวมมูลค่าและหมายเหตุจากเจ้าหน้าที่
+          </p>
+        </div>
       </div>
-
-      <h1 className="text-2xl font-black text-slate-800 mb-1">ติดตามสถานะคำร้องของฉัน</h1>
-      <p className="text-sm text-slate-500 font-medium mb-6 print:hidden">
-        ดูรายละเอียดคำร้องคืนสินค้าของคุณแบบเต็มรูปแบบ รวมมูลค่าและหมายเหตุจากเจ้าหน้าที่
-      </p>
+      {/* หัวข้อสำหรับตอนพิมพ์ — ไม่มี icon/คำอธิบายรอง เอาแค่ข้อความ */}
+      <h1 className="hidden print:block text-2xl font-black text-slate-800 mb-4">
+        ติดตามสถานะคำร้องของฉัน
+      </h1>
 
       <form
         onSubmit={(e) => {
           e.preventDefault();
           performSearch(refId);
         }}
-        className="mb-8 flex flex-col md:flex-row gap-3 print:hidden"
+        className="mt-8 mb-8 flex flex-col md:flex-row gap-3 print:hidden"
       >
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
           <input
-            className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-200 focus:border-teal-500 outline-none transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-800 focus:border-teal-500 focus:ring-4 focus:ring-teal-50 outline-none transition-all"
             placeholder="กรอกเลขอ้างอิง (Ref ID)..."
             value={refId}
             onChange={(e) => setRefId(e.target.value.toUpperCase())}
@@ -127,15 +140,20 @@ function TrackingContent() {
           disabled={loading || !refId.trim()}
           className={`px-6 rounded-xl font-bold transition-all py-3 md:py-0 ${
             !refId.trim()
-              ? 'bg-slate-300 cursor-not-allowed'
-              : 'bg-teal-700 text-white hover:bg-teal-800'
+              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              : 'bg-teal-700 text-white shadow-md shadow-teal-200 hover:bg-teal-800 active:scale-[0.98]'
           }`}
         >
           {loading ? 'กำลังค้นหา...' : 'ติดตามงาน'}
         </button>
       </form>
 
-      {error && <p className="text-red-500 font-bold text-center py-4">{error}</p>}
+      {error && (
+        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 print:hidden">
+          <AlertCircle className="h-5 w-5 shrink-0 text-red-500" strokeWidth={2} aria-hidden="true" />
+          <p className="text-sm font-semibold text-red-700">{error}</p>
+        </div>
+      )}
 
       {loading && !data && (
         <div className="space-y-4 animate-pulse">
@@ -145,15 +163,26 @@ function TrackingContent() {
         </div>
       )}
 
+      {/* Empty state — ก่อนค้นหาครั้งแรก ไม่ปล่อยพื้นที่ว่างเปล่าไว้เฉยๆ */}
+      {!hasSearched && !loading && (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white/60 py-16 text-center print:hidden">
+          <PackageSearch className="h-9 w-9 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
+          <p className="text-sm font-bold text-slate-500">กรอกเลขอ้างอิงด้านบนเพื่อติดตามสถานะ</p>
+          <p className="max-w-xs text-xs text-slate-400">
+            เลขอ้างอิง (Ref ID) จะได้รับทางอีเมลทันทีหลังยื่นคำร้องคืนสินค้าสำเร็จ
+          </p>
+        </div>
+      )}
+
       {data && (
         <div className="space-y-8 animate-in fade-in duration-500">
           {/* ส่วนแสดงหัวข้อใบงาน + stepper */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:shadow-none print:border-slate-300">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-xs text-slate-400 font-medium mb-1">ใบงานเลขที่</p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black text-slate-800">{data.ref_id}</h2>
+                  <h2 className="text-xl font-black text-slate-800 font-mono tracking-wide">{data.ref_id}</h2>
                   <button
                     onClick={handleCopy}
                     aria-label="คัดลอกเลขอ้างอิง"
@@ -182,7 +211,7 @@ function TrackingContent() {
                   <div key={stage.key} className="flex items-center flex-1 last:flex-none">
                     <div className="flex flex-col items-center flex-1">
                       <div
-                        className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                        className={`w-6 h-6 rounded-full flex items-center justify-center ring-4 ring-white ${
                           i < currentStageIndex
                             ? 'bg-emerald-500'
                             : i === currentStageIndex
@@ -190,7 +219,7 @@ function TrackingContent() {
                             : 'bg-slate-200'
                         }`}
                       >
-                        {i < currentStageIndex && <Check className="w-3.5 h-3.5 text-white" />}
+                        {i < currentStageIndex && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
                       </div>
                       <p
                         className={`text-[11px] mt-1.5 text-center ${
@@ -214,7 +243,7 @@ function TrackingContent() {
           </div>
 
           {/* รายละเอียดคำร้อง — เห็นได้เฉพาะฝั่ง login เข้ามาเท่านั้น */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:shadow-none print:border-slate-300">
             <p className="text-sm font-bold text-slate-500 mb-4">รายละเอียดคำร้อง</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <InfoRow label="โรงพยาบาล / ร้านยา" value={data.hospital_name} />
@@ -232,7 +261,7 @@ function TrackingContent() {
 
           {/* รายการยา พร้อมมูลค่าต่อรายการ (private only) */}
           {data.drug_items?.length > 0 && (
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm print:shadow-none print:border-slate-300">
               <div className="flex items-center gap-2 mb-4">
                 <Pill className="w-4 h-4 text-slate-400" />
                 <p className="text-sm font-bold text-slate-500">รายการยา</p>
@@ -289,7 +318,7 @@ function TrackingContent() {
                 return (
                   <div key={index} className="relative pl-8">
                     <div
-                      className={`absolute -left-[17px] top-0 w-8 h-8 rounded-full ${meta.bg} flex items-center justify-center shadow-sm`}
+                      className={`absolute -left-[17px] top-0 w-8 h-8 rounded-full ring-4 ring-white ${meta.bg} flex items-center justify-center`}
                     >
                       <Icon className={`w-4 h-4 ${meta.fg}`} />
                     </div>

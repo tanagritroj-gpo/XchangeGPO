@@ -68,6 +68,81 @@ function formatExp(value: string | null) {
   return new Date(value).toLocaleDateString('th-TH', { month: '2-digit', year: '2-digit' });
 }
 
+/** แถวรายการยา 1 ตัว — แยก 2 เลย์เอาต์ชัดเจน:
+ *  มือถือ: ซ้อนกันเป็นบรรทัด (ชื่อยา → badge Lot/Exp/จำนวน แบบ wrap ได้ → มูลค่า)
+ *  sm ขึ้นไป: grid-cols-12 แนวนอนแบบเดิม
+ *  เดิมใช้ grid-cols-12 ตัวเดียวกันทุกขนาดจอ พอมือถือแคบ 5 คอลัมน์ (ชื่อยา/
+ *  จำนวน/Lot/Exp/มูลค่า) ถูกบีบจนตัวอักษรชนกัน โดยเฉพาะ Lot ที่มี icon Hash
+ *  + font-mono กับ Exp ที่มี icon Calendar ในคอลัมน์แคบเกินไป */
+function DrugItemRow({ item }: { item: any }) {
+  const itemRejected = item.current_status === REJECTED_STATUS;
+  const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-slate-100 bg-slate-50';
+
+  return (
+    <div className={`rounded-lg border p-3 text-xs ${rowTone}`}>
+      {/* ── มือถือ: ซ้อนกัน (ซ่อนบน sm ขึ้นไป) ── */}
+      <div className="space-y-2 sm:hidden">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {itemRejected && (
+              <XCircle
+                className="h-3.5 w-3.5 shrink-0 text-red-500"
+                strokeWidth={2.5}
+                aria-label="รายการนี้ถูกปฏิเสธ"
+              />
+            )}
+            <span className="truncate font-bold text-slate-700">{item.drug_name}</span>
+          </div>
+          <span className="shrink-0 font-bold text-teal-600">
+            {formatCurrency(item.value_amount) ?? '-'}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+          <span className="font-medium text-slate-600">
+            {item.qty} {item.unit}
+          </span>
+          <span className="flex items-center gap-1 font-mono">
+            <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+            {item.lot_number ?? '-'}
+          </span>
+          <span className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+            {formatExp(item.exp_date)}
+          </span>
+        </div>
+      </div>
+
+      {/* ── sm ขึ้นไป: grid แนวนอนเหมือนเดิม (ซ่อนบนมือถือ) ── */}
+      <div className="hidden sm:grid sm:grid-cols-12 sm:items-center sm:gap-2">
+        <div className="col-span-4 flex min-w-0 items-center gap-1.5">
+          {itemRejected && (
+            <XCircle
+              className="h-3.5 w-3.5 shrink-0 text-red-500"
+              strokeWidth={2.5}
+              aria-label="รายการนี้ถูกปฏิเสธ"
+            />
+          )}
+          <span className="truncate font-bold text-slate-700">{item.drug_name}</span>
+        </div>
+        <div className="col-span-1 font-medium text-slate-600">
+          {item.qty} {item.unit}
+        </div>
+        <div className="col-span-2 flex items-center gap-1 font-mono text-slate-500">
+          <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+          {item.lot_number ?? '-'}
+        </div>
+        <div className="col-span-2 flex items-center gap-1 text-slate-500">
+          <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
+          {formatExp(item.exp_date)}
+        </div>
+        <div className="col-span-3 text-right font-bold text-teal-600">
+          {formatCurrency(item.value_amount) ?? '-'}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RequestCard({ request }: { request: any }) {
   const tone = getCardTone(request);
 
@@ -96,7 +171,8 @@ function RequestCard({ request }: { request: any }) {
       </div>
 
       <div className="mb-5 space-y-2">
-        <div className="grid grid-cols-12 gap-2 px-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+        {/* หัวคอลัมน์โชว์เฉพาะ sm ขึ้นไป เพราะมือถือใช้ label แบบ inline ในแต่ละแถวแทน */}
+        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:px-3 sm:pb-1 sm:text-[9px] sm:font-bold sm:uppercase sm:tracking-widest sm:text-slate-400">
           <div className="col-span-4">ชื่อยา</div>
           <div className="col-span-1">จำนวน</div>
           <div className="col-span-2">Lot</div>
@@ -105,42 +181,9 @@ function RequestCard({ request }: { request: any }) {
         </div>
 
         <div className="space-y-2">
-          {request.drug_items?.map((item: any) => {
-            const itemRejected = item.current_status === REJECTED_STATUS;
-            return (
-              <div
-                key={item.id}
-                className={`grid grid-cols-12 items-center gap-2 rounded-lg border p-3 text-xs ${
-                  itemRejected ? 'border-red-100 bg-red-50/60' : 'border-slate-100 bg-slate-50'
-                }`}
-              >
-                <div className="col-span-4 flex min-w-0 items-center gap-1.5">
-                  {itemRejected && (
-                    <XCircle
-                      className="h-3.5 w-3.5 shrink-0 text-red-500"
-                      strokeWidth={2.5}
-                      aria-label="รายการนี้ถูกปฏิเสธ"
-                    />
-                  )}
-                  <span className="truncate font-bold text-slate-700">{item.drug_name}</span>
-                </div>
-                <div className="col-span-1 font-medium text-slate-600">
-                  {item.qty} {item.unit}
-                </div>
-                <div className="col-span-2 flex items-center gap-1 font-mono text-slate-500">
-                  <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-                  {item.lot_number ?? '-'}
-                </div>
-                <div className="col-span-2 flex items-center gap-1 text-slate-500">
-                  <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-                  {formatExp(item.exp_date)}
-                </div>
-                <div className="col-span-3 text-right font-bold text-teal-600">
-                  {formatCurrency(item.value_amount) ?? '-'}
-                </div>
-              </div>
-            );
-          })}
+          {request.drug_items?.map((item: any) => (
+            <DrugItemRow key={item.id} item={item} />
+          ))}
         </div>
       </div>
 
