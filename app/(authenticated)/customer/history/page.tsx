@@ -24,14 +24,6 @@ import {
   formatCurrency,
 } from '@/lib/tracking-status';
 
-/**
- * ── สถานะ/สี/กลุ่ม — ใช้ lib/tracking-status.ts เป็นแหล่งความจริงเดียว ──
- * getStatusMeta() จับคำจาก "ข้อความไทย" ผ่าน regex ไม่ใช่ raw enum อังกฤษ
- * จึงต้อง getStatusLabel(status) ให้ได้ข้อความไทยก่อน แล้วค่อยส่งเข้า
- * getStatusMeta() ต่อ — องค์ประกอบนี้คือวิธีที่ถูกต้องเดียวกับที่หน้า
- * tracking ใช้กับ timeline (log.status_name ก็เป็นข้อความไทยเช่นกัน)
- * ──────────────────────────────────────────────────────────────────── */
-
 const hasRejectedItem = (items: any[]) =>
   items?.some((item) => item.current_status === REJECTED_STATUS);
 
@@ -52,7 +44,7 @@ type Group = { key: string; label: string; icon: LucideIcon; iconTone: string };
 
 const REJECTED_GROUP: Group = {
   key: 'rejected',
-  label: 'ต้องดำเนินการ',
+  label: 'ปฏิเสธคำร้อง',
   icon: XCircle,
   iconTone: 'text-red-600',
 };
