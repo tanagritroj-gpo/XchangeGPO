@@ -1,5 +1,7 @@
 import { getStaffSession } from '@/app/actions/auth-staff';
 import { redirect } from 'next/navigation';
+import { StaffChatWidget } from '@/components/StaffChatWidget';
+import { ChatWidgetErrorBoundary } from '@/components/ChatWidgetErrorBoundary';
 
 export default async function CsrLayout({ children }: { children: React.ReactNode }) {
   const session = await getStaffSession();
@@ -10,5 +12,17 @@ export default async function CsrLayout({ children }: { children: React.ReactNod
     redirect('/');
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+
+      {/* ปุ่มแชทลอยสำหรับ CSR — mount ที่ layout นี้จุดเดียว ครอบคลุมทั้ง
+          CsrHubPage และ CSRDashboard ไม่ต้องแปะซ้ำทีละหน้า ห่อด้วย error
+          boundary กัน bug ในแชทไม่ให้ทำหน้า CSR อื่นพังไปด้วย (เหมือนที่ทำ
+          ไว้กับฝั่ง manager) */}
+      <ChatWidgetErrorBoundary>
+        <StaffChatWidget />
+      </ChatWidgetErrorBoundary>
+    </>
+  );
 }
