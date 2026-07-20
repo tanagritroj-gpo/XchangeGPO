@@ -3,7 +3,6 @@ import fontkit from '@pdf-lib/fontkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-// เปลี่ยนมารับ Parameter เป็น request object ที่ถูกดึงข้อมูลมาเรียบร้อยแล้ว
 export async function buildReturnFormPdf(request: any) {
   
   // 1. โหลด Template และ Font
@@ -15,7 +14,7 @@ export async function buildReturnFormPdf(request: any) {
     fs.readFile(fontPath),
   ]);
 
-  // 2. สร้างและวาดข้อมูลลง PDF
+  // 2. สร้างและเตรียม PDF
   const pdfDoc = await PDFDocument.load(existingPdfBytes);
   pdfDoc.registerFontkit(fontkit);
   const customFont = await pdfDoc.embedFont(fontBytes);
@@ -25,6 +24,25 @@ export async function buildReturnFormPdf(request: any) {
     if (text) page.drawText(text, { x, y, size, font: customFont, color: rgb(0, 0, 0) });
   };
 
+  // ==========================================
+  // ส่วนที่เพิ่มเข้ามา: ตีเส้น Grid และตัวเลขพิกัด
+  // ==========================================
+  const { width, height } = page.getSize();
+  const gridColor = rgb(0.7, 0.7, 0.7); // ใช้สีเทาให้มองเห็นตัวเลขชัดเจน
+  
+  // ตีเส้นแนวนอน (แกน Y) สีแดง
+  for (let y = 0; y < height; y += 25) { // ปรับให้ถี่ขึ้นทุก 25 pt จะได้หาพิกัดง่าย
+    page.drawLine({ start: { x: 0, y }, end: { x: width, y }, thickness: 0.5, color: gridColor });
+    page.drawText(`${y}`, { x: 5, y: y + 2, size: 8, font: customFont, color: rgb(1, 0, 0) });
+  }
+  // ตีเส้นแนวตั้ง (แกน X) สีน้ำเงิน
+  for (let x = 0; x < width; x += 25) {
+    page.drawLine({ start: { x, y: 0 }, end: { x, y: height }, thickness: 0.5, color: gridColor });
+    page.drawText(`${x}`, { x: x + 2, y: 5, size: 8, font: customFont, color: rgb(0, 0, 1) });
+  }
+  // ==========================================
+
+  // วาดข้อมูลเดิมที่กิตทำไว้แล้ว
   drawText(request.doc_number, 122.55, 591.24, 12);
   drawText(request.hospital_name, 225.99, 573.29, 12);
   drawText(request.province, 424.44, 574.06, 12);
@@ -48,7 +66,7 @@ export async function buildReturnFormPdf(request: any) {
 
   drawText(request.total_value?.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 465, 320, 12);
 
-  // วาดลายเซ็น (เพิ่มเข้ามาให้สมบูรณ์)
+  // วาดลายเซ็น
   if (request.signature_url) {
     try {
       const sigRes = await fetch(request.signature_url);
@@ -68,6 +86,6 @@ export async function buildReturnFormPdf(request: any) {
     }
   }
 
-  // ส่งกลับเป็น Uint8Array
+  // 3. คืนค่าไฟล์ PDF ที่มีตารางพิกัด
   return await pdfDoc.save();
 }

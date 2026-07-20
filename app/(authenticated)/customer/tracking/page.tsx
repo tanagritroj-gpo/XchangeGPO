@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trackMyRequestByRefId } from '@/app/actions/tracking-actions';
+import { pingRequestAttention, getPingStatus } from '@/app/actions/ping-actions';
 import {
   Search,
   Copy,
@@ -13,6 +14,8 @@ import {
   FileText,
   AlertCircle,
   PackageSearch,
+  Bell,
+  BellRing,
 } from 'lucide-react';
 import {
   STAGES,
@@ -42,6 +45,75 @@ function InfoRow({
   );
 }
 
+/** ปุ่มกระดิ่งเร่งงาน — 3 สถานะ: กดได้ / cooldown (เพิ่งกดไป) / ซ่อนไปเลยถ้างานจบ
+ *  ไอคอนจาก lucide-react เข้าชุดกับทั้งระบบ (Bell = กดได้, BellRing = เพิ่งแจ้งไป) */
+function PingButton({
+  requestId,
+  pingState,
+  onPinged,
+}: {
+  requestId: number;
+  pingState: {
+    canPing: boolean;
+    onCooldown: boolean;
+    cooldownRemainingHours: number;
+  } | null;
+  onPinged: (result: { canPing: boolean; onCooldown: boolean; cooldownRemainingHours: number }) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!pingState) return null; // ยังโหลดสถานะไม่เสร็จ — ไม่โชว์อะไรเลยกันกระพริบ
+
+  const handlePing = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await pingRequestAttention(requestId);
+      if (!result.success) {
+        setError(result.error ?? 'เกิดข้อผิดพลาด');
+        return;
+      }
+      // กดสำเร็จ — สลับเป็นสถานะ cooldown ทันทีโดยไม่ต้องรอ fetch ใหม่
+      onPinged({ canPing: false, onCooldown: true, cooldownRemainingHours: 6 });
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (pingState.onCooldown) {
+    return (
+      <div className="print:hidden">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+          <BellRing className="h-3.5 w-3.5" />
+          แจ้งแล้ว
+        </span>
+        <p className="mt-1 text-[11px] text-slate-400">
+          แจ้งซ้ำได้ในอีกประมาณ {pingState.cooldownRemainingHours} ชม.
+        </p>
+      </div>
+    );
+  }
+
+  if (!pingState.canPing) return null; // งานจบแล้ว — ไม่มีเหตุผลให้เห็นปุ่มค้างอยู่
+
+  return (
+    <div className="print:hidden">
+      <button
+        onClick={handlePing}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 rounded-full border-2 border-amber-200 px-3 py-1.5 text-xs font-bold text-amber-700 transition-all hover:bg-amber-50 disabled:opacity-50"
+      >
+        <Bell className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} />
+        {loading ? 'กำลังแจ้ง...' : 'เร่งงาน'}
+      </button>
+      {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
+    </div>
+  );
+}
+
 function TrackingContent() {
   const searchParams = useSearchParams();
   const [refId, setRefId] = useState(searchParams.get('ref') || '');
@@ -50,12 +122,18 @@ function TrackingContent() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [pingState, setPingState] = useState<{
+    canPing: boolean;
+    onCooldown: boolean;
+    cooldownRemainingHours: number;
+  } | null>(null);
 
   const performSearch = async (id: string) => {
     if (!id.trim()) return;
     setLoading(true);
     setError(null);
     setData(null);
+    setPingState(null);
     setHasSearched(true);
 
     try {
@@ -65,6 +143,19 @@ function TrackingContent() {
         setError(result.error ?? 'เกิดข้อผิดพลาด');
       } else {
         setData(result.data);
+        // เรียกเช็คสถานะกระดิ่งทันทีที่ค้นหาสำเร็จ ไม่ต้องรอลูกค้ากดอะไรเพิ่ม
+        // — ถ้าเพิ่งกดกระดิ่งไปจากรอบก่อนแล้วปิดหน้าไปเปิดใหม่ ปุ่มจะขึ้น
+        // "แจ้งแล้ว" ให้เองตั้งแต่โหลดเสร็จ
+        if (result.data?.id) {
+          const status = await getPingStatus(result.data.id);
+          if (status.success) {
+            setPingState({
+              canPing: status.canPing ?? false,
+              onCooldown: status.onCooldown ?? false,
+              cooldownRemainingHours: status.cooldownRemainingHours ?? 0,
+            });
+          }
+        }
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
@@ -192,17 +283,22 @@ function TrackingContent() {
                   </button>
                 </div>
               </div>
-              <span
-                className={`text-xs font-bold px-3 py-1.5 rounded-full ${
-                  isRejected
-                    ? 'bg-red-50 text-red-700'
-                    : data.current_status === 'completed'
-                    ? 'bg-emerald-50 text-emerald-700'
-                    : 'bg-amber-50 text-amber-700'
-                }`}
-              >
-                {getStatusLabel(data.current_status)}
-              </span>
+              <div className="flex flex-col items-end gap-2">
+                <span
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full ${
+                    isRejected
+                      ? 'bg-red-50 text-red-700'
+                      : data.current_status === 'completed'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  {getStatusLabel(data.current_status)}
+                </span>
+                {data.id && (
+                  <PingButton requestId={data.id} pingState={pingState} onPinged={setPingState} />
+                )}
+              </div>
             </div>
 
             {currentStageIndex >= 0 && (

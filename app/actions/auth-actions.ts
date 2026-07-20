@@ -32,8 +32,12 @@ export async function sendOTP(email: string) {
   }
   const cleanEmail = parsedEmail.data;
 
-  const allowed = await checkRateLimit(`otp-request:${cleanEmail}`, 300, 3);
-  if (!allowed) return { success: false, error: 'ขอ OTP ถี่เกินไป กรุณารอสักครู่' };
+  // แก้แล้ว: (1) สลับ param ให้ตรง signature จริง (key, limit, windowSeconds)
+  // เดิมเขียน (key, 300, 3) = ตีความว่า limit 300 ครั้ง/3 วิ ผิดจากที่ตั้งใจ
+  // (2) เข้าถึง .allowed จาก object ผลลัพธ์ — เดิมเช็ค `if (!allowed)` ทั้งที่
+  // allowed เป็น object ทั้งก้อน (truthy เสมอ) ทำให้ไม่เคยบล็อกอะไรเลย
+  const rateLimit = await checkRateLimit(`otp-request:${cleanEmail}`, 3, 300);
+  if (!rateLimit.allowed) return { success: false, error: 'ขอ OTP ถี่เกินไป กรุณารอสักครู่' };
 
   const { data: customer } = await supabaseAdmin
     .from('b2b_customers').select('id').eq('email', cleanEmail).maybeSingle();
@@ -75,8 +79,9 @@ export async function verifyOTP(email: string, otp: string) {
   }
   const cleanOtp = parsedOtp.data;
 
-  const allowed = await checkRateLimit(`otp-verify:${cleanEmail}`, 300, 5);
-  if (!allowed) return { success: false, error: 'ลองยืนยันถี่เกินไป กรุณารอสักครู่' };
+  // แก้แล้วเหมือนกับ sendOTP ด้านบน — สลับ param + เข้าถึง .allowed จริงๆ
+  const rateLimit = await checkRateLimit(`otp-verify:${cleanEmail}`, 5, 300);
+  if (!rateLimit.allowed) return { success: false, error: 'ลองยืนยันถี่เกินไป กรุณารอสักครู่' };
 
   const { data: log } = await supabaseAdmin
     .from('otp_logs')

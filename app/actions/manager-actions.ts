@@ -13,11 +13,14 @@ async function getManagerSession() {
 }
 
 // ── ใช้เฉพาะกับ action ที่ต้องเปิดให้ทั้ง manager และ csr อ่านได้
-// (ตอนนี้มีแค่ getManagerStatusLogs สำหรับ staff-chat bot) ──
+// (getManagerStatusLogs สำหรับ staff-chat bot, และตอนนี้ staff-ping-actions.ts
+// สำหรับกระดิ่งเร่งงาน) ──
 // เช็คจาก session.department แทน session.role สำหรับฝั่ง CSR เพราะ staff
 // ทุกแผนกที่ไม่ใช่ manager จะมี role = 'staff' เสมอ (ดู registerStaff ใน
 // auth-staff.ts) แผนกจริงอยู่ที่ department เท่านั้น
-async function getManagerOrCsrSession() {
+// ── export ออกมาแล้ว (เดิมเป็น private function) เพื่อให้ไฟล์อื่นที่ต้อง
+// เช็คสิทธิ์แบบเดียวกัน (manager หรือ csr) import ไปใช้ได้ ไม่ต้องเขียนซ้ำ
+export async function getManagerOrCsrSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
   if (session.role !== 'manager' && session.department !== 'csr') {
