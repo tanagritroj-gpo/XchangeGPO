@@ -42,7 +42,7 @@ export async function searchB2BCustomers(query: string) {
   if (cleaned.length > 100) return { success: false, error: 'คำค้นหายาวเกินไป' };
 
   const allowed = await checkRateLimit(`search-customer:${session.id}`, 60, 30);
-  if (!allowed) return { success: false, error: 'ค้นหาถี่เกินไป กรุณารอสักครู่' };
+  if (!allowed.allowed) return { success: false, error: 'ค้นหาถี่เกินไป กรุณารอสักครู่' };
 
   // ค้นจากหลายฟิลด์พร้อมกัน — ilike แบบ escape เบื้องต้นกัน wildcard injection จากผู้ใช้
   const escaped = cleaned.replace(/[%_]/g, (m) => `\\${m}`);
@@ -81,7 +81,7 @@ export async function createStaffReturnRequest(formData: any) {
   const session = await requireCsrSession();
 
   const allowed = await checkRateLimit(`create-staff-request:${session.id}`, 3600, 30);
-  if (!allowed) {
+  if (!allowed.allowed) {
     throw new Error('สร้างคำร้องถี่เกินไป กรุณาลองใหม่ภายหลัง');
   }
 
@@ -183,7 +183,7 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
   const session = await requireCsrSession();
 
   const allowed = await checkRateLimit(`pdf-staff:${session.id}`, 60, 5);
-  if (!allowed) {
+  if (!allowed.allowed) {
     return { success: false, error: 'มีการเรียกดูเอกสารถี่เกินไป กรุณารอสักครู่' };
   }
 
@@ -268,7 +268,7 @@ export async function sendStaffPdfEmailAction(requestId: number) {
     const session = await requireCsrSession();
 
     const allowed = await checkRateLimit(`send-staff-email:${session.id}`, 3600, 20);
-    if (!allowed) {
+    if (!allowed.allowed) {
       return { success: false, error: 'ส่งอีเมลถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
 

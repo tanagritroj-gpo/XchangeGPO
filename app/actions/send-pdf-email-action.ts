@@ -17,7 +17,7 @@ export async function sendPdfEmailAction(requestId: number) {
 
     // ★ 2. Rate limit กัน email bombing
     const allowed = await checkRateLimit(`send-email:${session.id}`, 3600, 5);
-    if (!allowed) {
+    if (!allowed.allowed) {
       return { success: false, error: 'ส่งอีเมลถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
 
