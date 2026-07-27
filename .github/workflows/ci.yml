@@ -33,6 +33,9 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
+      - name: Unit tests
+        run: npm test
+
       # Not blocking yet: the codebase has ~200 pre-existing lint errors
       # (mostly @typescript-eslint/no-explicit-any) unrelated to any single
       # PR. Surfaced here for visibility; flip continue-on-error off once

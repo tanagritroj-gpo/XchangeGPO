@@ -14,9 +14,15 @@ async function getCSRSession() {
   return session;
 }
 
-export async function withCSRAuth<T>(action: (session: any) => Promise<T>): Promise<T> {
-  const session = await getCSRSession();
-  return action(session);
+export async function withCSRAuth<T>(
+  action: (session: any) => Promise<T>
+): Promise<T | { success: false; error: string }> {
+  try {
+    const session = await getCSRSession();
+    return await action(session);
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 export async function getCSRDashboardData() {
