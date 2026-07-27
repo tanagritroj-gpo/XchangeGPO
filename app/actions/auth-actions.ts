@@ -178,6 +178,11 @@ export async function getCustomerSession() {
   }
 
   if (!data || new Date(data.expires_at) < new Date()) {
+    console.warn('getCustomerSession: no matching session, logging out', {
+      tokenPrefix: token.slice(0, 8),
+      found: !!data,
+      expiresAt: data?.expires_at ?? null,
+    });
     await logoutCustomer();
     return null;
   }
