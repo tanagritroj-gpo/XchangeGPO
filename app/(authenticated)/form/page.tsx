@@ -4,7 +4,7 @@ import FormWizardClientWrapper from './FormWizardClientWrapper';
 
 export default async function Page() {
   const session = await getCustomerSession();
-  if (!session) redirect('/auth/login');
+  if (!session) redirect('/');
 
   return <FormWizardClientWrapper session={session} />;
 }

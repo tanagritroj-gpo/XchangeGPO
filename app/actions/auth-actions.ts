@@ -20,6 +20,57 @@ function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
 }
 
+// สร้าง session จริงของแอป (ตาราง `sessions` + cookie httpOnly) ให้ลูกค้าที่ยืนยันตัวตนแล้ว
+// ใช้ร่วมกันทั้ง verifyOTP และ loginCustomerByVerifiedEmail (Google OAuth) เพื่อให้มี
+// จุดเดียวที่ออก session จริงของระบบ ไม่กระจายลอจิกซ้ำ
+async function createCustomerSession(customerId: number) {
+  const { data: session, error } = await supabaseAdmin
+    .from('sessions')
+    .insert({
+      actor_type: 'customer',
+      customer_id: customerId,
+      expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+    })
+    .select('token')
+    .single();
+
+  if (error || !session) return false;
+
+  (await cookies()).set('customer_session', session.token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 3600,
+    path: '/',
+  });
+
+  return true;
+}
+
+// ล็อกอินลูกค้าด้วยอีเมลที่ยืนยันตัวตนแล้วจากภายนอก (เช่น Google OAuth ผ่าน Supabase Auth)
+// เจตนา: ผูก "identity ที่ verify แล้ว" เข้ากับ session จริงของแอปทันที ไม่ปล่อยให้ Supabase
+// Auth session ค้างอยู่คู่ขนาน — ต้องเป็นอีเมลที่ตรงกับ b2b_customers ที่ CSR อนุมัติแล้วเท่านั้น
+// (สอดคล้องกับโมเดล approval-gated เดียวกับ flow OTP ปกติ ไม่เปิดให้สมัครอัตโนมัติผ่าน Google)
+export async function loginCustomerByVerifiedEmail(email: string) {
+  const parsedEmail = EmailSchema.safeParse(email);
+  if (!parsedEmail.success) {
+    return { success: false, error: 'อีเมลจากบัญชี Google ไม่ถูกต้อง' };
+  }
+  const cleanEmail = parsedEmail.data;
+
+  const { data: customer } = await supabaseAdmin
+    .from('b2b_customers').select('id').eq('email', cleanEmail).maybeSingle();
+
+  if (!customer) {
+    return { success: false, error: 'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมลนี้ กรุณาลงทะเบียนหรือเข้าสู่ระบบด้วย OTP ก่อน' };
+  }
+
+  const created = await createCustomerSession(customer.id);
+  if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
+
+  return { success: true };
+}
+
 // 1. ส่ง OTP
 export async function sendOTP(email: string) {
   // ★ เช็ค format ก่อนทุกอย่าง — ไม่เกี่ยวกับ enumeration เพราะยังไม่ได้ query ว่ามี/ไม่มีในระบบ
@@ -103,25 +154,8 @@ export async function verifyOTP(email: string, otp: string) {
   const { data: customer } = await supabaseAdmin
     .from('b2b_customers').select('id').eq('email', cleanEmail).single();
 
-  const { data: session, error: sessErr } = await supabaseAdmin
-    .from('sessions')
-    .insert({
-      actor_type: 'customer',
-      customer_id: customer!.id,
-      expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
-    })
-    .select('token')
-    .single();
-
-  if (sessErr || !session) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-
-  (await cookies()).set('customer_session', session.token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 3600,
-    path: '/',
-  });
+  const created = await createCustomerSession(customer!.id);
+  if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
 
   return { success: true };
 }

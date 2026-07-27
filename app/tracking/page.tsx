@@ -96,7 +96,7 @@ function TrackingContent() {
       <h1 className="text-2xl font-black text-slate-800 mb-1">ตรวจสอบสถานะคำร้อง</h1>
       <p className="text-sm text-slate-500 font-medium mb-6 print:hidden">
         กรอกเลขอ้างอิงที่ได้รับทางอีเมลเพื่อดูสถานะล่าสุด หากต้องการข้อมูลในรายละเอียดโปรด{' '}
-        <a href="/auth/login" className="text-teal-700 font-semibold hover:underline">
+        <a href="/" className="text-teal-700 font-semibold hover:underline">
           เข้าสู่ระบบ
         </a>
       </p>

@@ -72,11 +72,8 @@ export async function POST(req: NextRequest) {
   if (!geminiRes.ok || !geminiRes.body) {
     const errText = await geminiRes.text().catch(() => '');
     console.error('Gemini API error:', geminiRes.status, errText);
-    // ⚠️ ชั่วคราวเพื่อ debug — โชว์ error จริงจาก Gemini ให้เห็นในแชทเลย
-    // ต้องเอาบรรทัด detail นี้ออกก่อนใช้งานจริง (ไม่ควรโชว์ error ดิบจาก
-    // backend ให้ผู้ใช้ปลายทางเห็นตรงๆ)
     return Response.json(
-      { error: 'เชื่อมต่อผู้ช่วย AI ไม่สำเร็จ กรุณาลองใหม่', detail: `${geminiRes.status}: ${errText}` },
+      { error: 'เชื่อมต่อผู้ช่วย AI ไม่สำเร็จ กรุณาลองใหม่' },
       { status: 502 },
     );
   }

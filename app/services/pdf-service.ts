@@ -24,23 +24,6 @@ export async function buildReturnFormPdf(request: any) {
     if (text) page.drawText(text, { x, y, size, font: customFont, color: rgb(0, 0, 0) });
   };
 
-  // ==========================================
-  // ส่วนที่เพิ่มเข้ามา: ตีเส้น Grid และตัวเลขพิกัด
-  // ==========================================
-  const { width, height } = page.getSize();
-  const gridColor = rgb(0.7, 0.7, 0.7); // ใช้สีเทาให้มองเห็นตัวเลขชัดเจน
-  
-  // ตีเส้นแนวนอน (แกน Y) สีแดง
-  for (let y = 0; y < height; y += 25) { // ปรับให้ถี่ขึ้นทุก 25 pt จะได้หาพิกัดง่าย
-    page.drawLine({ start: { x: 0, y }, end: { x: width, y }, thickness: 0.5, color: gridColor });
-    page.drawText(`${y}`, { x: 5, y: y + 2, size: 8, font: customFont, color: rgb(1, 0, 0) });
-  }
-  // ตีเส้นแนวตั้ง (แกน X) สีน้ำเงิน
-  for (let x = 0; x < width; x += 25) {
-    page.drawLine({ start: { x, y: 0 }, end: { x, y: height }, thickness: 0.5, color: gridColor });
-    page.drawText(`${x}`, { x: x + 2, y: 5, size: 8, font: customFont, color: rgb(0, 0, 1) });
-  }
-  // ==========================================
 
   // วาดข้อมูลเดิมที่กิตทำไว้แล้ว
   drawText(request.doc_number, 122.55, 591.24, 12);

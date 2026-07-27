@@ -1,14 +1,39 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Building2, User, Search, BookOpen } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
 import { sendOTP, verifyOTP } from '@/app/actions/auth-actions';
 
+const GOOGLE_LOGIN_ERRORS: Record<string, string> = {
+  'auth-failed': 'เชื่อมต่อกับ Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
+  'google-not-registered':
+    'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมล Google นี้ กรุณาเข้าสู่ระบบด้วย OTP หรือลงทะเบียนก่อน',
+};
+
 export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error && GOOGLE_LOGIN_ERRORS[error]) {
+      alert(GOOGLE_LOGIN_ERRORS[error]);
+      router.replace('/');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [activeTab, setActiveTab] = useState<'customer' | 'staff'>('customer');
   const [loadingLogin, setLoadingLogin] = useState(false);
   const [isOtpStep, setIsOtpStep] = useState(false);
