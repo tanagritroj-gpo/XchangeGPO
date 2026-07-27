@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, RLS_supabase]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # Build-time only placeholder values — no real service is contacted during
+    # `next build`/`tsc`. Real secrets live in Vercel and are never needed here.
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      RESEND_API_KEY: re_ci_placeholder
+      GEMINI_API_KEY: ci-placeholder-gemini-key
+      OTP_PEPPER: ci-placeholder-otp-pepper
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      # Not blocking yet: the codebase has ~200 pre-existing lint errors
+      # (mostly @typescript-eslint/no-explicit-any) unrelated to any single
+      # PR. Surfaced here for visibility; flip continue-on-error off once
+      # that backlog is cleaned up.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Build
+        run: npm run build
