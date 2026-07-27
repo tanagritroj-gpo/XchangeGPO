@@ -45,6 +45,16 @@ function HomePageContent() {
 
   const isCustomer = activeTab === 'customer';
 
+  const handleGoogleLogin = async () => {
+    setLoadingLogin(true);
+    try {
+      await loginWithGoogle();
+    } catch (err) {
+      alert('เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่');
+      setLoadingLogin(false);
+    }
+  };
+
   const handleLogin = async () => {
     setLoadingLogin(true);
     try {
@@ -180,9 +190,10 @@ function HomePageContent() {
                         <span className="flex-shrink mx-4 text-slate-400 text-[10px] uppercase">หรือ</span>
                         <div className="flex-grow border-t border-slate-200"></div>
                       </div>
-                      <button 
-                        onClick={() => loginWithGoogle()}
-                        className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98]"
+                      <button
+                        onClick={handleGoogleLogin}
+                        disabled={loadingLogin}
+                        className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Image 
                           src="/web_light_rd_SI@2x.png" 
