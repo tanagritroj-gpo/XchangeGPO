@@ -3,26 +3,18 @@ import fontkit from '@pdf-lib/fontkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-export async function generateReturnFormFromDB(requestId: number, supabase: any) {
-  // 1. ดึงข้อมูล request พร้อม drug_items
-  const { data: request, error: dbError } = await supabase
-    .from('requests')
-    .select('*, drug_items(*)')
-    .eq('id', requestId)
-    .single();
-
-  if (dbError) throw new Error(`Supabase query failed: ${dbError.message}`);
-  if (!request) throw new Error(`ไม่พบ request id: ${requestId}`);
-
-  // 2. โหลด Template และ Font
+export async function buildReturnFormPdf(request: any) {
+  
+  // 1. โหลด Template และ Font
   const templatePath = path.join(process.cwd(), 'public', 'forms', 'FM-AJJ0-008_Return_rev.02.pdf');
-  const fontPath = path.join(process.cwd(), 'public', 'font', 'THSarabunNew.ttf');
+  const fontPath = path.join(process.cwd(), 'public', 'font', 'Sarabun-Regular.ttf');
+  
   const [existingPdfBytes, fontBytes] = await Promise.all([
     fs.readFile(templatePath),
     fs.readFile(fontPath),
   ]);
 
-  // 3. สร้างและวาดข้อมูลลง PDF
+  // 2. สร้างและเตรียม PDF
   const pdfDoc = await PDFDocument.load(existingPdfBytes);
   pdfDoc.registerFontkit(fontkit);
   const customFont = await pdfDoc.embedFont(fontBytes);
@@ -32,6 +24,8 @@ export async function generateReturnFormFromDB(requestId: number, supabase: any)
     if (text) page.drawText(text, { x, y, size, font: customFont, color: rgb(0, 0, 0) });
   };
 
+
+  // วาดข้อมูลเดิมที่กิตทำไว้แล้ว
   drawText(request.doc_number, 122.55, 591.24, 12);
   drawText(request.hospital_name, 225.99, 573.29, 12);
   drawText(request.province, 424.44, 574.06, 12);
@@ -55,42 +49,26 @@ export async function generateReturnFormFromDB(requestId: number, supabase: any)
 
   drawText(request.total_value?.toLocaleString('th-TH', { minimumFractionDigits: 2 }), 465, 320, 12);
 
-  const pdfBuffer = await pdfDoc.save();
+  // วาดลายเซ็น
+  if (request.signature_url) {
+    try {
+      const sigRes = await fetch(request.signature_url);
+      if (sigRes.ok) {
+        const sigBytes = new Uint8Array(await sigRes.arrayBuffer());
+        const sigImage = await pdfDoc.embedPng(sigBytes);
+        const sigDims = sigImage.scale(0.25);
+        const sigX = 350; 
+        const sigY = 150; 
 
-  // 4. อัปโหลดและเก็บ Record ลง DB (ส่ง requestId และ refId ครบถ้วน)
-  await uploadPdfToStorage(supabase, requestId, request.ref_id, Buffer.from(pdfBuffer));
-
-  return pdfBuffer;
-}
-
-export async function uploadPdfToStorage(
-  supabase: any,
-  requestId: number,
-  refId: string,
-  pdfBuffer: Buffer
-) {
-  const filePath = `requests/${refId}/form-${Date.now()}.pdf`;
-
-  // อัปโหลดไฟล์
-  const { data: uploadData, error: uploadError } = await supabase.storage
-    .from('FM-AJJ0-008-form')
-    .upload(filePath, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-
-  if (uploadError) throw new Error(`อัปโหลดไฟล์ไม่สำเร็จ: ${uploadError.message}`);
-
-  // บันทึก Path ลงตาราง ตาม Schema ที่กิตวางไว้
-  const { error: dbError } = await supabase
-    .from('document_attachments')
-    .insert({
-      request_id: requestId, // ผูกกับ ID
-      ref_id: refId,         // ผูกกับ REF_ID
-      file_path: uploadData.path,
-    });
-
-  if (dbError) {
-    await supabase.storage.from('FM-AJJ0-008-form').remove([uploadData.path]);
-    throw new Error(`บันทึกข้อมูลไฟล์ลงตารางไม่สำเร็จ: ${dbError.message}`);
+        page.drawImage(sigImage, { x: sigX, y: sigY, width: sigDims.width, height: sigDims.height });
+        drawText(`(${request.signer_name ?? ''})`, sigX, sigY - 15, 10);
+        drawText(request.signer_position ?? '', sigX, sigY - 30, 9);
+      }
+    } catch (err) {
+      console.warn('Embed signature image failed:', err);
+    }
   }
 
-  return uploadData.path;
+  // 3. คืนค่าไฟล์ PDF ที่มีตารางพิกัด
+  return await pdfDoc.save();
 }

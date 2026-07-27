@@ -1,42 +1,21 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import { getCustomerSession } from './auth-actions';
 
-export async function getCustomerExchangeHistory(b2bCustomerId: string) {
-  const supabase = await createClient();
+export async function getCustomerExchangeHistory() {
+  // ★ ไม่รับ b2bCustomerId จากภายนอกอีกต่อไป ดึงจาก session ที่ verify แล้วเท่านั้น
+  const session = await getCustomerSession();
+  if (!session) return [];
 
-  // แปลง string เป็น number (bigint) ให้ชัวร์ก่อน Query
-  const numericId = parseInt(b2bCustomerId, 10);
-
-  const { data, error } = await supabase
-    .from('requests')
-    .select(`
-      id,
-      ref_id,
-      created_at,
-      current_status,
-      request_type,
-      drug_items (
-        id, 
-        drug_name, 
-        current_status, 
-        qty, 
-        unit, 
-        lot_number, 
-        exp_date, 
-        value_amount
-      )
-    `)
-    .eq('b2b_customer_id', numericId) 
-    .order('created_at', { ascending: false });
+  const { data, error } = await supabaseAdmin.rpc('get_customer_history', {
+    p_customer_id: session.id,
+  });
 
   if (error) {
-    console.error('Error fetching history:', error);
+    console.error('Error fetching history via RPC:', error);
     return [];
   }
-
-  // Log ออกมาดูอีกครั้งใน Terminal ว่าสรุปแล้ว data คืออะไร
-  console.log('Result for ID', numericId, ':', data);
 
   return data || [];
 }

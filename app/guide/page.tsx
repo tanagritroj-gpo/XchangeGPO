@@ -1,131 +1,631 @@
-'use client';
-import React, { useState } from 'react';
-import { Mail, BarChart3, FileText, HelpCircle, ChevronDown, AlertTriangle, Phone, Clock, Monitor, CheckCircle, ArrowLeft } from 'lucide-react';
+"use client";
 
-export default function XchangeGuide() {
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+import { useState, Fragment } from "react";
+import {
+  FileText,
+  Mail,
+  PenTool,
+  MapPin,
+  History,
+  Smartphone,
+  ShieldCheck,
+  CheckCircle2,
+  ChevronDown,
+  UserPlus,
+  ClipboardList,
+  ListChecks,
+  Signature,
+  PackageCheck,
+  Search,
+  Phone,
+  Clock,
+  Monitor,
+  Home,
+  ArrowLeft,
+  ArrowRight,
+  ClipboardCheck,
+  Truck,
+  Warehouse,
+  Lock,
+  Unlock,
+  MessageCircle,
+} from "lucide-react";
 
+// ---------------------------------------------------------------------------
+// ข้อมูลเนื้อหา (แยกจาก UI เพื่อแก้ไขง่ายในอนาคต)
+// ---------------------------------------------------------------------------
+
+const WHY_POINTS = [
+  {
+    title: "ลดเวลาดำเนินการจากหลักวันเหลือหลักนาที",
+    desc: "จากเดิมที่ต้องกรอกฟอร์มกระดาษ ส่งไปรษณีย์/แฟกซ์ และรอการติดต่อกลับ ระบบช่วยให้ยื่นคำร้องคืนสินค้าและได้รับเอกสารยืนยันภายในไม่กี่นาที",
+  },
+  {
+    title: "ตรวจสอบสถานะได้เองตลอดเวลา",
+    desc: "ไม่ต้องโทรถามเจ้าหน้าที่ว่าคำร้องไปถึงไหนแล้ว เช็คสถานะได้เองทุกที่ทุกเวลาผ่านรหัสอ้างอิง",
+  },
+  {
+    title: "เอกสารถูกต้อง ครบถ้วน ทุกครั้ง",
+    desc: "ระบบสร้างเอกสารตามแบบฟอร์มมาตรฐาน FM-AJJ0-008 ให้อัตโนมัติ ลดความผิดพลาดจากการกรอกมือ",
+  },
+  {
+    title: "ตรวจสอบย้อนหลังได้ ข้อมูลไม่หาย",
+    desc: "ทุกคำร้องถูกบันทึกเป็นประวัติดิจิทัล ค้นหาย้อนหลังได้ทันที ไม่ต้องเก็บเอกสารกระดาษเอง",
+  },
+];
+
+const STEPS = [
+  {
+    icon: UserPlus,
+    title: "1. สมัครสมาชิก / เข้าสู่ระบบ",
+    desc: "สมัครด้วยอีเมลหน่วยงาน หรือเข้าสู่ระบบด้วยบัญชี Google ได้ทันที ใช้เวลาไม่ถึง 2 นาที",
+  },
+  {
+    icon: ClipboardList,
+    title: "2. กรอกข้อมูลหน่วยงาน",
+    desc: "กรอกข้อมูลผู้ยื่นคำร้องและหน่วยงาน ระบบจะจดจำไว้ใช้ในครั้งถัดไป",
+  },
+  {
+    icon: ListChecks,
+    title: "3. เลือกรายการสินค้า/ยาที่ต้องการคืน",
+    desc: "ระบุรายการ จำนวน และเหตุผลการคืนแต่ละรายการ พร้อมระบบตรวจสอบข้อมูลเบื้องต้นให้อัตโนมัติ",
+  },
+  {
+    icon: Signature,
+    title: "4. เซ็นชื่อยืนยันและยินยอม PDPA",
+    desc: "เซ็นชื่อผ่านหน้าจอ (มือถือ/คอมพิวเตอร์) และกดยอมรับเงื่อนไขความยินยอมข้อมูลส่วนบุคคล",
+  },
+  {
+    icon: PackageCheck,
+    title: "5. รับเอกสารยืนยันอัตโนมัติ",
+    desc: "รับรหัสอ้างอิงทันทีในหน้าเว็บ พร้อมอีเมลแนบไฟล์ PDF ส่งเข้ากล่องจดหมายภายในไม่กี่นาที",
+  },
+  {
+    icon: Search,
+    title: "6. ติดตามสถานะจนเสร็จสิ้น",
+    desc: "ใช้รหัสอ้างอิงเช็คสถานะได้ทันทีไม่ต้องล็อกอิน หรือล็อกอินเพื่อดูรายละเอียดเชิงลึกกว่า",
+  },
+];
+
+const FEATURES = [
+  {
+    icon: FileText,
+    title: "ระบบสร้างเอกสาร PDF อัตโนมัติ",
+    tag: "PDF Auto-Generate",
+    benefit:
+      "ทุกคำร้องจะถูกแปลงเป็นเอกสารทางการ (แบบฟอร์ม FM-AJJ0-008) โดยอัตโนมัติ พร้อมข้อมูลครบถ้วนถูกต้อง รองรับภาษาไทยเต็มรูปแบบ ไม่ต้องพิมพ์เอกสารเองอีกต่อไป ใช้เป็นหลักฐานยื่นหน่วยงาน/ตรวจสอบภายในได้ทันที",
+  },
+  {
+    icon: Mail,
+    title: "แจ้งเตือนทางอีเมลอัตโนมัติ",
+    tag: "Email Notification",
+    benefit:
+      "ทันทีที่ยื่นคำร้องสำเร็จ ระบบจะส่งอีเมลแนบไฟล์ PDF ให้ทันที และจะแจ้งเตือนอีกครั้งเมื่อสถานะคำร้องเปลี่ยนแปลง ทำให้ไม่พลาดความเคลื่อนไหวของคำร้องแม้ไม่ได้เปิดเว็บไซต์ค้างไว้",
+  },
+  {
+    icon: PenTool,
+    title: "เซ็นเอกสารผ่านหน้าจอได้ทันที",
+    tag: "Digital Signature",
+    benefit:
+      "ไม่ต้องพิมพ์เอกสารเพื่อเซ็นด้วยปากกาอีกต่อไป เซ็นชื่อได้ทั้งจากคอมพิวเตอร์และมือถือ ลายเซ็นถูกจัดเก็บอย่างปลอดภัยและแนบไปกับเอกสารโดยอัตโนมัติ",
+  },
+  {
+    icon: MapPin,
+    title: "ติดตามสถานะได้ 2 ระดับ",
+    tag: "Real-time Tracking",
+    benefit:
+      "ติดตามแบบสาธารณะด้วยรหัสอ้างอิงโดยไม่ต้องล็อกอิน เหมาะสำหรับเช็คด่วน หรือล็อกอินเพื่อดูรายละเอียดเชิงลึก เช่น หมายเหตุจากเจ้าหน้าที่ผู้ดูแลคำร้อง",
+  },
+  {
+    icon: History,
+    title: "ประวัติการคืนสินค้าครบถ้วน",
+    tag: "Request History",
+    benefit:
+      "ดูย้อนหลังคำร้องทั้งหมดที่เคยยื่นได้ทุกเมื่อ ไม่ต้องเก็บเอกสารกระดาษเอง สะดวกเวลาต้องอ้างอิงหรือสรุปรายงานภายในหน่วยงาน",
+  },
+  {
+    icon: Smartphone,
+    title: "ใช้งานได้ดีบนมือถือ",
+    tag: "Mobile Friendly",
+    benefit:
+      "ออกแบบมาให้ใช้งานสะดวกทั้งบนคอมพิวเตอร์และมือถือ มีเมนูนำทางด้านล่างจอ (Bottom Navigation) กดใช้งานง่ายด้วยนิ้วเดียว",
+  },
+];
+
+const FAQS = [
+  {
+    q: "หากลืมรหัสผ่านต้องทำอย่างไร?",
+    a: "กดลิงก์ 'ลืมรหัสผ่าน' ที่หน้าล็อกอิน ระบบจะส่งอีเมล/OTP ให้ตั้งรหัสผ่านใหม่ด้วยตัวเองได้ทันที ไม่ต้องติดต่อเจ้าหน้าที่",
+  },
+  {
+    q: "ต้องล็อกอินทุกครั้งเพื่อดูสถานะคำร้องหรือไม่?",
+    a: "ไม่จำเป็น สามารถใช้รหัสอ้างอิงที่ได้รับตอนยื่นคำร้องเช็คสถานะได้ทันทีที่หน้า 'ติดตามสถานะ' โดยไม่ต้องล็อกอิน แต่หากล็อกอินจะเห็นรายละเอียดเพิ่มเติม",
+  },
+  {
+    q: "เอกสาร PDF ที่ได้รับใช้แทนเอกสารตัวจริงได้หรือไม่?",
+    a: "เอกสารที่ระบบสร้างให้เป็นไปตามแบบฟอร์มมาตรฐาน FM-AJJ0-008 สามารถใช้เป็นหลักฐานอ้างอิงได้ กรณีต้องการเอกสารต้นฉบับลงนามเพิ่มเติมให้ตรวจสอบเงื่อนไขกับเจ้าหน้าที่ผู้ดูแล",
+  },
+  {
+    q: "หากกรอกข้อมูลผิดหลังส่งคำร้องแล้วแก้ไขเองได้หรือไม่?",
+    a: "ไม่สามารถแก้ไขข้อมูลที่ยื่นแล้วได้ด้วยตนเอง กรุณาติดต่อเจ้าหน้าที่ CSR ผ่านช่องทางที่ระบุในอีเมลยืนยัน พร้อมแจ้งรหัสอ้างอิงของคำร้อง",
+  },
+];
+
+// flow สถานะของคำร้อง ที่ลูกค้าจะเห็นในหน้า "ติดตามสถานะ"
+const STATUS_FLOW = [
+  {
+    icon: ClipboardList,
+    title: "ส่งคำร้องสำเร็จ",
+    desc: "ได้รับรหัสอ้างอิงทันที ใช้เช็คสถานะได้จากจุดนี้เป็นต้นไป",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "รอตรวจสอบ (CSR)",
+    desc: "เจ้าหน้าที่ตรวจสอบความถูกต้องของคำร้องและอนุมัติเบื้องต้น",
+  },
+  {
+    icon: Truck,
+    title: "อยู่ระหว่างขนส่ง",
+    desc: "ทีมขนส่งดำเนินการรับ/ส่งสินค้าตามที่แจ้งไว้ในคำร้อง",
+  },
+  {
+    icon: Warehouse,
+    title: "ตรวจรับที่คลังสินค้า",
+    desc: "ฝ่ายคลังตรวจสอบสภาพสินค้าจริงเทียบกับข้อมูลที่แจ้ง",
+  },
+  {
+    icon: CheckCircle2,
+    title: "ดำเนินการเสร็จสิ้น",
+    desc: "คำร้องเสร็จสมบูรณ์ ระบบแจ้งผลให้ทราบทันที",
+  },
+];
+
+// เปรียบเทียบการติดตามสถานะแบบสาธารณะ vs แบบล็อกอิน
+const TRACKING_COMPARE = [
+  {
+    label: "วิธีเข้าถึง",
+    isPublic: "กรอกรหัสอ้างอิง",
+    isPrivate: "ล็อกอินด้วยบัญชีของคุณ",
+  },
+  {
+    label: "เห็นสถานะปัจจุบัน",
+    isPublic: true,
+    isPrivate: true,
+  },
+  {
+    label: "เห็นหมายเหตุจากเจ้าหน้าที่",
+    isPublic: false,
+    isPrivate: true,
+  },
+  {
+    label: "เห็นประวัติคำร้องทั้งหมด",
+    isPublic: false,
+    isPrivate: true,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function SectionEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    // เพิ่ม font-sans ให้แน่ใจว่าเป็น sans-serif
-    <main className="w-full max-w-4xl mx-auto p-4 md:p-6 bg-slate-50 space-y-8 font-sans text-slate-900">
-      
-      {/* Hero & Back Button Section */}
-      <section className="bg-blue-900 p-6 md:p-8 rounded-2xl text-white shadow-lg">
-        <button 
-          onClick={() => window.location.href = '/'}
-          className="mb-6 flex items-center gap-1.5 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg shadow transition-all duration-200"
+    <div className="mb-3 inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#0E7C6B]">
+      <span className="h-1.5 w-1.5 rounded-full bg-[#0E7C6B]" />
+      {children}
+    </div>
+  );
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+      >
+        <span className="text-sm font-semibold text-slate-800">{q}</span>
+        <ChevronDown
+          className={`h-4 w-4 flex-shrink-0 text-[#0E7C6B] transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        />
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600">
+          {a}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Page
+// ---------------------------------------------------------------------------
+
+export default function CustomerGuidePage() {
+  return (
+    <main className="min-h-screen bg-[#F5F6F2] font-sans text-slate-800">
+      {/* ================= TOP BAR (กลับสู่หน้าหลัก) ================= */}
+      <div className="border-b border-slate-200 bg-white px-6 py-3">
+        <div className="mx-auto max-w-5xl">
+          <a
+            href="/"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-[#0E7C6B]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            กลับสู่หน้าหลัก
+          </a>
+        </div>
+      </div>
+
+      {/* ================= HERO ================= */}
+      <section className="relative overflow-hidden bg-[#0E1622] px-6 py-10 text-white sm:py-14">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, #ffffff 1px, transparent 1px)",
+            backgroundSize: "22px 22px",
+          }}
+        />
+
+        <div className="relative mx-auto max-w-3xl text-center">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#5FD1B4]">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            GPO Xchange Portal
+          </div>
+          <h1 className="text-3xl font-bold leading-tight sm:text-4xl">
+            คู่มือการใช้งานระบบ
+            <span className="text-[#5FD1B4]">สำหรับลูกค้า</span>
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base">
+            ระบบยื่นคำร้องคืนสินค้า/ยาแบบครบวงจร ยื่นเรื่อง เซ็นชื่อ รับเอกสาร
+            และติดตามสถานะได้ด้วยตัวเอง ไม่ต้องเดินทางหรือรอสายโทรศัพท์อีกต่อไป
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="/form"
+              className="rounded-lg bg-[#0E7C6B] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:bg-[#0c6a5c]"
+            >
+              เข้าระบบเพื่อยื่นคำร้อง
+            </a>
+            <a
+              href="/tracking"
+              className="rounded-lg border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              ติดตามสถานะคำร้อง
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= ทำไมต้องมีระบบนี้ ================= */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <SectionEyebrow>เหตุผลความจำเป็น</SectionEyebrow>
+        <h2 className="mb-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+          ทำไม GPO Xchange Portal ถึงจำเป็นสำหรับคุณ
+        </h2>
+        <p className="mb-10 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
+          กระบวนการคืนสินค้า/ยาแบบเดิมใช้เอกสารกระดาษ ส่งทางไปรษณีย์หรือแฟกซ์
+          ทำให้ใช้เวลานาน ตรวจสอบสถานะไม่ได้ และเสี่ยงเอกสารสูญหาย ระบบนี้ถูกสร้างขึ้นเพื่อแก้ปัญหาดังกล่าวโดยตรง
+        </p>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {WHY_POINTS.map((item) => (
+            <div
+              key={item.title}
+              className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5"
+            >
+              <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0E7C6B]" />
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {item.title}
+                </h3>
+                <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                  {item.desc}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ================= ขั้นตอนการใช้งาน ================= */}
+      <section className="bg-white px-6 py-16">
+        <div className="mx-auto max-w-5xl">
+          <SectionEyebrow>ขั้นตอนการใช้งาน</SectionEyebrow>
+          <h2 className="mb-10 text-2xl font-bold text-slate-900 sm:text-3xl">
+            เริ่มต้นใช้งานใน 6 ขั้นตอนง่ายๆ
+          </h2>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {STEPS.map((step, i) => {
+              const Icon = step.icon;
+              return (
+                <div
+                  key={step.title}
+                  className="relative rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5"
+                >
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B]/10">
+                    <Icon className="h-5 w-5 text-[#0E7C6B]" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {step.title}
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                    {step.desc}
+                  </p>
+                  {i < STEPS.length - 1 && (
+                    <div className="mt-4 h-px w-full bg-slate-200 sm:hidden" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= สิ่งที่ลูกค้าจะได้รับ ================= */}
+      <section className="mx-auto max-w-5xl px-6 py-16">
+        <SectionEyebrow>สิ่งที่คุณจะได้รับ</SectionEyebrow>
+        <h2 className="mb-10 text-2xl font-bold text-slate-900 sm:text-3xl">
+          ฟีเจอร์และประโยชน์ในแต่ละส่วนของระบบ
+        </h2>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {FEATURES.map((f) => {
+            const Icon = f.icon;
+            return (
+              <div
+                key={f.title}
+                className="rounded-2xl border border-slate-200 bg-white p-6"
+              >
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B] text-white">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="inline-block rounded-full bg-[#E1F1EC] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0E7C6B]">
+                      {f.tag}
+                    </span>
+                    <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                      {f.title}
+                    </h3>
+                  </div>
+                </div>
+                <p className="text-sm leading-relaxed text-slate-600">
+                  {f.benefit}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ================= FLOW ระบบติดตามสถานะ ================= */}
+      <section className="bg-white px-6 py-16">
+        <div className="mx-auto max-w-5xl">
+          <SectionEyebrow>ทำความเข้าใจระบบติดตาม</SectionEyebrow>
+          <h2 className="mb-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+            คำร้องของคุณเดินทางผ่านขั้นตอนอะไรบ้าง
+          </h2>
+          <p className="mb-10 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
+            ทุกคำร้องที่ยื่นเข้ามาจะถูกติดตามเป็นสถานะแบบเรียลไทม์ 5 ขั้นตอน
+            ตั้งแต่ยื่นคำร้องจนถึงเสร็จสิ้น คุณสามารถเช็คได้เองว่าตอนนี้คำร้องอยู่ขั้นตอนไหนแล้ว
+          </p>
+
+          {/* Flow แนวนอน (จอใหญ่) / แนวตั้ง (มือถือ) */}
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-2">
+            {STATUS_FLOW.map((step, i) => {
+              const Icon = step.icon;
+              return (
+                <Fragment key={step.title}>
+                  <div className="flex flex-1 flex-col items-center gap-2 text-center">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#0E7C6B] bg-[#E1F1EC]">
+                      <Icon className="h-5 w-5 text-[#0E7C6B]" />
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                      ขั้นตอนที่ {i + 1}
+                    </span>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {step.title}
+                    </h3>
+                    <p className="max-w-[11rem] text-xs leading-relaxed text-slate-600">
+                      {step.desc}
+                    </p>
+                  </div>
+                  {i < STATUS_FLOW.length - 1 && (
+                    <div className="flex items-center justify-center py-1 sm:pt-5">
+                      <ArrowRight className="hidden h-4 w-4 flex-shrink-0 text-slate-300 sm:block" />
+                      <div className="h-6 w-px bg-slate-200 sm:hidden" />
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
+
+          {/* เปรียบเทียบ Public vs Private Tracking */}
+          <div className="mt-14 grid gap-5 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Unlock className="h-4 w-4 text-[#0E7C6B]" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  ติดตามแบบสาธารณะ (ไม่ต้องล็อกอิน)
+                </h3>
+              </div>
+              <p className="text-xs leading-relaxed text-slate-600">
+                กรอกรหัสอ้างอิงที่หน้า{" "}
+                <span className="font-semibold text-[#0E7C6B]">
+                  /tracking
+                </span>{" "}
+                เพื่อเช็คสถานะได้ทันที เหมาะสำหรับเช็คด่วนโดยไม่ต้องเสียเวลาล็อกอิน
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Lock className="h-4 w-4 text-[#0E7C6B]" />
+                <h3 className="text-sm font-semibold text-slate-900">
+                  ติดตามแบบล็อกอิน (ดูรายละเอียดเต็ม)
+                </h3>
+              </div>
+              <p className="text-xs leading-relaxed text-slate-600">
+                ล็อกอินเข้าบัญชีของคุณเพื่อดูรายละเอียดเชิงลึก เช่น หมายเหตุจากเจ้าหน้าที่
+                และประวัติคำร้องทั้งหมดของหน่วยงานคุณ
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+            <table className="w-full border-collapse text-left text-xs sm:text-sm">
+              <thead>
+                <tr className="bg-[#0E1622] text-white">
+                  <th className="px-4 py-3 font-semibold">รายการ</th>
+                  <th className="px-4 py-3 font-semibold">
+                    ติดตามแบบสาธารณะ
+                  </th>
+                  <th className="px-4 py-3 font-semibold">
+                    ติดตามแบบล็อกอิน
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {TRACKING_COMPARE.map((row, i) => (
+                  <tr
+                    key={row.label}
+                    className={i % 2 === 0 ? "bg-white" : "bg-slate-50"}
+                  >
+                    <td className="px-4 py-3 font-medium text-slate-700">
+                      {row.label}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {typeof row.isPublic === "boolean" ? (
+                        row.isPublic ? (
+                          <CheckCircle2 className="h-4 w-4 text-[#0E7C6B]" />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )
+                      ) : (
+                        row.isPublic
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {typeof row.isPrivate === "boolean" ? (
+                        row.isPrivate ? (
+                          <CheckCircle2 className="h-4 w-4 text-[#0E7C6B]" />
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )
+                      ) : (
+                        row.isPrivate
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <a
+              href="/tracking"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#0E7C6B] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/10 transition hover:bg-[#0c6a5c]"
+            >
+              <Search className="h-4 w-4" />
+              ไปที่หน้าติดตามสถานะ
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= FAQ ================= */}
+      <section className="bg-white px-6 py-16">
+        <div className="mx-auto max-w-3xl">
+          <SectionEyebrow>คำถามที่พบบ่อย</SectionEyebrow>
+          <h2 className="mb-8 text-2xl font-bold text-slate-900 sm:text-3xl">
+            ยังมีข้อสงสัยอยู่ใช่ไหม?
+          </h2>
+          <div className="flex flex-col gap-3">
+            {FAQS.map((item) => (
+              <FaqItem key={item.q} q={item.q} a={item.a} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ================= CTA / ช่องทางการติดต่อ ปิดท้าย ================= */}
+      <section className="px-6 py-10">
+        <div className="mx-auto max-w-4xl rounded-2xl bg-[#0E1622] px-6 py-8 text-center text-white">
+          <h2 className="text-xl font-bold sm:text-2xl">
+            📞 ช่องทางการติดต่อ
+          </h2>
+          <p className="mx-auto mt-2 max-w-xl text-xs leading-relaxed text-white/70 sm:text-sm">
+            หากพบปัญหาการใช้งานหรือมีข้อสงสัยเพิ่มเติม ติดต่อทีมงาน GPO Xchange
+            Portal ได้ตามช่องทางด้านล่างนี้
+          </p>
+
+          {/* ข้อมูลช่องทางการติดต่อ — แสดงตรงนี้เลย ไม่ต้องคลิกเข้าไปดู */}
+          <div className="mx-auto mt-6 grid max-w-2xl grid-cols-1 gap-3 text-center text-xs font-medium text-white/90 sm:grid-cols-3">
+            <a
+              href="tel:074230547"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3.5 transition hover:border-[#5FD1B4]/50 hover:bg-white/10"
+            >
+              <Phone size={17} className="text-[#5FD1B4]" />
+              <span>โทรศัพท์</span>
+              <span className="font-mono text-[13px] font-semibold text-white">
+                074-230547
+              </span>
+            </a>
+            <a
+              href="mailto:gposouthhdy@gmail.com"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3.5 transition hover:border-[#5FD1B4]/50 hover:bg-white/10"
+            >
+              <Mail size={17} className="text-[#5FD1B4]" />
+              <span>อีเมล</span>
+              <span className="break-all text-[13px] font-semibold text-white">
+                gposouthhdy@gmail.com
+              </span>
+            </a>
+            <a
+              href="https://line.me/R/ti/p/@gpoofficial"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3.5 transition hover:border-[#5FD1B4]/50 hover:bg-white/10"
+            >
+              <MessageCircle size={17} className="text-[#5FD1B4]" />
+              <span>LINE OA</span>
+              <span className="text-[13px] font-semibold text-white">
+                @gpoofficial
+              </span>
+            </a>
+          </div>
+
+          <div className="mx-auto mt-3 flex max-w-2xl flex-wrap items-center justify-center gap-4 text-[11px] text-white/60">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock size={13} className="text-[#5FD1B4]" />
+              จ–ศ 8:00–16:00 น.
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Monitor size={13} className="text-[#5FD1B4]" />
+              ระบบออนไลน์ 24 ชม.
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <MapPin size={13} className="text-[#5FD1B4]" />
+              GPO สาขาภาคใต้
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= ปุ่มกลับสู่หน้าหลัก (ท้ายเพจ) ================= */}
+      <div className="flex justify-center pb-10">
+        <a
+          href="/"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#0E7C6B] hover:text-[#0E7C6B]"
         >
-          <ArrowLeft size={16} /> กลับหน้าหลัก
-        </button>
-
-        <div className="inline-block bg-blue-800 text-[11px] px-3 py-1 rounded-full mb-3 tracking-wide">คู่มือการใช้งาน · สำหรับลูกค้า GPO สาขาภาคใต้</div>
-        <h1 className="text-3xl md:text-4xl font-bold leading-tight">ระบบ Xchange Portal</h1>
-        <p className="text-blue-100 mt-3 text-sm md:text-base leading-relaxed">ยกระดับการแลกเปลี่ยนสินค้าสู่ระบบดิจิทัลที่แม่นยำและตรวจสอบได้ตลอด 24 ชั่วโมง</p>
-        <div className="flex gap-2 mt-6 flex-wrap">
-          {['Email อัตโนมัติ 3 ช่วง', 'Tracking 7 ระดับ', 'PDF อัตโนมัติ < 5 นาที', 'PDPA-Ready'].map(t => (
-            <span key={t} className="px-3 py-1.5 bg-white/10 rounded-lg text-xs font-medium">{t}</span>
-          ))}
-        </div>
-      </section>
-
-      {/* Part 1: Email Flow */}
-      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-slate-800"><Mail className="text-blue-600" size={20}/> ส่วนที่ 1 — ระบบ Email แจ้งเตือนอัตโนมัติ 3 ช่วง</h2>
-        <div className="space-y-5">
-          {[
-            { n: 1, title: "ส่งแบบฟอร์มสำเร็จ · Email ยืนยันทันที", desc: "รับรหัสอ้างอิงสำหรับติดตามสถานะ", code: "REF-XXXXXXX", tag: "Auto · ทันที" },
-            { n: 2, title: "ภายใน 5 นาที · PDF FM-AJJ0-008 อัตโนมัติ", desc: "ระบบสร้างและส่งไฟล์ PDF ที่กรอกข้อมูลครบถ้วน พร้อมพิมพ์แนบสินค้าได้ทันที", tag: "PDF Auto · < 5 นาที" },
-            { n: 3, title: "ดำเนินการเสร็จสิ้น · Email แจ้งปิดงาน", desc: "รับ Email ยืนยัน 'แลกเปลี่ยนสำเร็จ' เป็นหลักฐานปิดรายการอย่างเป็นทางการ", tag: "ปิดงาน · สมบูรณ์" }
-          ].map((item) => (
-            <div key={item.n} className="flex gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 items-start">
-              <div className="w-10 h-10 bg-blue-700 text-white rounded-full flex items-center justify-center shrink-0 font-bold text-sm">{item.n}</div>
-              <div>
-                <h3 className="font-semibold text-sm md:text-base text-slate-800">{item.title}</h3>
-                <p className="text-xs md:text-sm text-slate-600 mt-1 mb-2 leading-relaxed">{item.desc}</p>
-                {item.code && <div className="text-xs font-mono bg-blue-100 px-2 py-1 mb-2 rounded inline-block text-blue-900">{item.code}</div>}
-                <div className="text-[11px] font-medium bg-white border border-slate-200 px-2 py-1 rounded inline-block text-slate-700">{item.tag}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-5 p-4 bg-amber-50 text-amber-900 text-xs md:text-sm rounded-lg border border-amber-200 flex items-start gap-3 leading-relaxed">
-          <AlertTriangle size={18} className="shrink-0 mt-0.5"/> กรุณาตรวจสอบ Email ในโฟลเดอร์ Spam/Junk หากไม่พบ Email ภายใน 5 นาที กรุณาติดต่อเจ้าหน้าที่พร้อมแจ้งรหัสอ้างอิง
-        </div>
-      </section>
-
-      {/* Part 2: Tracking */}
-      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><BarChart3 className="text-green-600" size={20}/> ส่วนที่ 2 — ติดตามสถานะ 7 ระดับ (Real-time)</h2>
-        <div className="p-4 bg-blue-50 text-blue-900 text-xs md:text-sm rounded-lg mb-6">นำ <strong>รหัสอ้างอิง REF-XXXXXXX</strong> ไปกรอกที่เมนู "ตรวจสอบสถานะ" เพื่อดูความคืบหน้า</div>
-        <div className="space-y-4">
-          {[
-            { id: 1, title: "รอตรวจสอบหลักเกณฑ์", desc: "เจ้าหน้าที่ CSR พิจารณาความสอดคล้องกับนโยบายการรับคืนสินค้า", who: "CSR" },
-            { id: 2, title: "อนุมัติให้แลกเปลี่ยนได้", desc: "ผ่านการตรวจสอบเบื้องต้น ระบบพร้อมรับสินค้าคืนตามรายการ", who: "CSR" },
-            { id: 3, title: "รถขนส่งกำลังไปรับคืน", desc: "เจ้าหน้าที่กำลังเดินทางไปรับสินค้า ณ จุดนัดหมายที่ระบุ", who: "ขนส่ง" },
-            { id: 4, title: "สินค้ากลับคืนคลังแล้ว", desc: "สินค้าส่งถึงคลัง GPO สาขาภาคใต้เรียบร้อย รอตรวจสอบ", who: "ขนส่ง" },
-            { id: 5, title: "ตรวจสอบสินค้ารับคืน", desc: "เจ้าหน้าที่คลังตรวจสภาพ จำนวน และความถูกต้องกับเอกสาร", who: "คลัง" },
-            { id: 6, title: "อยู่ในขั้นตอนแลกเปลี่ยน", desc: "ระบบเบิกจ่ายสินค้าใหม่เพื่อแลกเปลี่ยนตามรายการที่อนุมัติ", who: "คลัง" },
-            { id: 7, title: "แลกเปลี่ยนสำเร็จ ✓", desc: "สินค้าใหม่ถูกส่งมอบเรียบร้อย รายการนี้ปิดสมบูรณ์ — ระบบส่ง Email ยืนยัน", who: "Auto Email" }
-          ].map((s) => (
-            <div key={s.id} className="flex gap-4 border-b border-slate-100 pb-4 last:border-0 last:pb-0">
-              <div className="w-7 h-7 bg-slate-800 text-white rounded-full flex items-center justify-center text-xs font-bold shrink-0">{s.id}</div>
-              <div>
-                <h4 className="text-sm md:text-base font-semibold text-slate-800">{s.title}</h4>
-                <p className="text-xs md:text-sm text-slate-600 mt-0.5 leading-relaxed">{s.desc}</p>
-                <span className="text-[10px] md:text-xs bg-slate-100 px-2 py-0.5 rounded text-slate-600 font-medium mt-1 inline-block">{s.who}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Part 3: Form Steps & Receive */}
-      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="font-bold text-lg mb-6 flex items-center gap-2 text-slate-800"><FileText className="text-amber-600" size={20}/> ส่วนที่ 3 — วิธีกรอกแบบฟอร์ม 4 ขั้นตอน</h2>
-        <div className="grid md:grid-cols-2 gap-6 text-sm leading-relaxed text-slate-700">
-          <div className="space-y-3">
-            <p><strong>Step 1: ข้อมูลเบื้องต้น</strong><br/>ประเภทรายการ, ชื่อ รพ./ร้านยา, จังหวัด, เบอร์โทร, Email (สำคัญ!)</p>
-            <p><strong>Step 2: รายการยาและเวชภัณฑ์</strong><br/>ชื่อยา, Lot No., วันหมดอายุ, จำนวน, มูลค่า</p>
-            <p><strong>Step 3: เหตุผลและวิธีส่งคืน</strong><br/>เหตุผล, สินค้าที่แลก, วิธีส่งคืน (ขนส่ง/ผู้แทน)</p>
-            <p><strong>Step 4: ลงนามดิจิทัล</strong><br/>เซ็นผ่านจอ, ชื่อ-สกุล ผู้ลงนาม, ตำแหน่ง</p>
-            <div className="p-3 bg-red-50 border border-red-200 text-red-900 rounded-lg text-xs font-bold mt-4">⚠️ Final Review: ตรวจสอบก่อนกดยืนยัน (ยินยอม PDPA) — แก้ไขไม่ได้หลังส่ง!</div>
-          </div>
-          
-          <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-            <h3 className="font-bold text-slate-800 mb-3">สิ่งที่จะได้รับ</h3>
-            <ul className="space-y-2 text-slate-600 text-xs md:text-sm">
-              <li><CheckCircle size={16} className="inline text-green-600 mr-2"/> ทันที: Email ยืนยัน + รหัสอ้างอิง</li>
-              <li><CheckCircle size={16} className="inline text-green-600 mr-2"/> 5 นาที: PDF FM-AJJ0-008 อัตโนมัติ</li>
-              <li><CheckCircle size={16} className="inline text-green-600 mr-2"/> ตลอดกระบวนการ: Tracking 7 ระดับ Real-time</li>
-              <li><CheckCircle size={16} className="inline text-green-600 mr-2"/> เสร็จสิ้น: Email ปิดงาน "แลกเปลี่ยนสำเร็จ"</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ & Contact */}
-      <section className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-        <h2 className="font-bold text-lg mb-4 text-slate-800">คำถามที่พบบ่อย</h2>
-        {[
-          { q: "ไม่ได้รับ Email ภายใน 5 นาที?", a: "ตรวจสอบ Spam หรือติดต่อเจ้าหน้าที่" },
-          { q: "ยื่นมากกว่า 5 รายการต่อครั้งได้ไหม?", a: "แบบฟอร์ม 1 ฉบับรับ 5 รายการ หากเกินให้ยื่นหลายฟอร์ม" },
-          { q: "ลายมือชื่อดิจิทัลมีผลทางกฎหมายไหม?", a: "มีผลตาม พ.ร.บ. ว่าด้วยธุรกรรมทางอิเล็กทรอนิกส์" },
-          { q: "แก้ไขข้อมูลหลังส่งได้ไหม?", a: "ไม่ได้ กรุณาตรวจสอบให้ดีก่อนกดส่ง" },
-          { q: "ข้อมูลส่วนบุคคลถูกจัดเก็บอย่างไร?", a: "รองรับ PDPA ข้อมูลเข้ารหัสและจัดเก็บตามกำหนด" }
-        ].map((f, i) => (
-          <div key={i} className="border-b border-slate-100 py-3">
-            <button className="flex w-full justify-between items-center font-bold text-sm text-slate-700" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
-              {f.q} <ChevronDown size={18} className="text-slate-400"/></button>
-            {openFaq === i && <p className="mt-2 text-slate-600 text-xs md:text-sm leading-relaxed">{f.a}</p>}
-          </div>
-        ))}
-      </section>
-
-      {/* Footer Contact */}
-      <div className="grid grid-cols-3 gap-3 text-[11px] md:text-xs text-center p-4 bg-slate-200/50 rounded-xl font-medium text-slate-700">
-        <div className="flex flex-col items-center gap-1"><Phone size={18}/> GPO สาขาภาคใต้</div>
-        <div className="flex flex-col items-center gap-1"><Clock size={18}/> จ–ศ 8:00–16:00 น.</div>
-        <div className="flex flex-col items-center gap-1"><Monitor size={18}/> ออนไลน์ 24 ชม.</div>
+          <Home className="h-4 w-4" />
+          กลับสู่หน้าหลัก
+        </a>
       </div>
     </main>
   );

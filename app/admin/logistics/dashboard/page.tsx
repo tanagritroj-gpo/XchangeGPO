@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getLogisticsDashboardData, updateLogisticsStatus, updateItemStatus, rejectItemStatus, confirmLogisticsBatch } from '@/app/actions/logistics-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
+import { getLogisticsDashboardData, updateLogisticsStatus, confirmLogisticsBatch } from '@/app/actions/logistics-actions';
+import LOGDrugRow from './component/LOGDrugrow';
 
 const LOGISTICS_STATUS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   approved:     { label: 'อนุมัติรับคืนสินค้า',  color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     dot: 'bg-blue-500'   },
@@ -18,76 +18,6 @@ function StatusBadge({ status }: { status: string }) {
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       {cfg.label}
     </span>
-  );
-}
-
-function DrugItemRow({ item, reqStatus, onUpdate }: {
-  item: any;
-  reqStatus: string;
-  onUpdate: (itemId: number, newStatus: 'at_warehouse' | 'rejected') => void;
-}) {
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleAction = async (action: 'at_warehouse' | 'rejected') => {
-    const remark = prompt(`ระบุหมายเหตุการ${action === 'at_warehouse' ? 'ตรวจรับ' : 'ปฏิเสธ'}:`);
-    if (remark === null) return;
-    setIsProcessing(true);
-    try {
-      const session = await getStaffSession();
-      if (!session?.id) throw new Error('ไม่พบ Session');
-      const res = action === 'at_warehouse'
-        ? await updateItemStatus(item.id, session.id, 'at_warehouse', remark || '')
-        : await rejectItemStatus(item.id, session.id, remark || '');
-      if (res.success) { onUpdate(item.id, action); }
-      else alert('บันทึกไม่สำเร็จ: ' + (res as any).error);
-    } catch (err) { console.error('Error:', err); alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); }
-    finally { setIsProcessing(false); }
-  };
-
-return (
-    // ปรับ grid ให้รองรับทั้งสองขนาด
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
-      {/* ชื่อยา (4 ส่วนบน Desktop) */}
-      <div className="col-span-1 md:col-span-4 font-semibold text-slate-800 truncate">
-        {item.drug_name}
-      </div>
-      
-      {/* ข้อมูลยาอื่นๆ */}
-      <div className="col-span-1 md:col-span-2 text-slate-500 font-medium">
-        <span className="md:hidden text-[10px] text-slate-400">จำนวน: </span>
-        {item.qty} {item.unit}
-      </div>
-      
-      <div className="col-span-1 md:col-span-2 text-slate-400 font-mono truncate">
-        <span className="md:hidden text-[10px] text-slate-400">LOT: </span>
-        {item.lot_number ?? '—'}
-      </div>
-      
-{/* Action Buttons */}
-      <div className="col-span-1 md:col-span-2 flex justify-end gap-1.5 mt-2 md:mt-0">
-        {isProcessing ? (
-          <div className="flex items-center gap-1.5 text-slate-500">
-            <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[9px] font-bold">กำลังบันทึก...</span>
-          </div>
-        ) : (
-          <>
-            {reqStatus === 'in_transit' &&
-             item.current_status !== 'at_warehouse' &&
-             item.current_status !== 'rejected' && (
-              <>
-                <button onClick={() => handleAction('at_warehouse')}
-                  className="px-2.5 py-1.5 bg-teal-600 text-white rounded-lg text-[10px] font-bold hover:bg-teal-700 transition-all">ตรวจรับ</button>
-                <button onClick={() => handleAction('rejected')}
-                  className="px-2.5 py-1.5 bg-red-500 text-white rounded-lg text-[10px] font-bold hover:bg-red-600 transition-all">ปฏิเสธ</button>
-              </>
-            )}
-            {item.current_status === 'at_warehouse' && <span className="text-[10px] text-teal-600 font-bold">ถึงคลังแล้ว</span>}
-            {item.current_status === 'rejected'     && <span className="text-[10px] text-red-500 font-bold">ปฏิเสธแล้ว</span>}
-          </>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -113,9 +43,7 @@ export default function LogisticsDashboard() {
     if (remark === null) return;
     setProcessingReqId(id);
     try {
-      const session = await getStaffSession();
-      if (!session?.id) { alert('กรุณาล็อกอินใหม่'); return; }
-      const res = await updateLogisticsStatus(id, session.id, nextStatus, remark || '');
+      const res = await updateLogisticsStatus(id, nextStatus, remark || '');
       if (res.success) {
         if (nextStatus === 'at_warehouse') {
           setRequests(prev => prev.filter(req => req.id !== id));
@@ -150,12 +78,10 @@ export default function LogisticsDashboard() {
   };
 
   const handleConfirmBatch = async (requestId: number) => {
-    const session = await getStaffSession();
-    if (!session?.id) return;
     const actions = Object.entries(pendingActions).map(([itemId, val]) => ({
       itemId: Number(itemId), status: val.status, remark: val.remark
     }));
-    const res = await confirmLogisticsBatch(requestId, session.id, actions);
+    const res = await confirmLogisticsBatch(requestId, actions);
     if (res.success) {
       setRequests(prevRequests => {
         let shouldRemove = false;
@@ -322,7 +248,7 @@ export default function LogisticsDashboard() {
                         </div>
                         <div className="space-y-1.5">
                           {req.drug_items.map((item: any) => (
-                            <DrugItemRow
+                            <LOGDrugRow
                               key={item.id}
                               item={item}
                               reqStatus={req.current_status}

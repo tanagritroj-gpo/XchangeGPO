@@ -71,6 +71,17 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
   const [addrProvince, setAddrProvince]   = useState(formData?.addr_province || '');
   const [agentInfo, setAgentInfo]         = useState(formData?.agent_info || '');
 
+  const canProceed = Boolean(
+    reason &&
+    (reason !== 'อื่นๆ' || reasonOther.trim()) &&
+    (!isExchange || (
+      exchangeMode &&
+      (exchangeMode !== 'รายการเดิม' || checkedItems.length > 0) &&
+      (exchangeMode !== 'อื่นๆ' || exchangeOtherText.trim())
+    )) &&
+    deliveryType
+  );
+
   const toggleItem = (name: string) =>
     setCheckedItems(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
 
@@ -128,6 +139,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                 value={reasonOther}
                 onChange={e => setReasonOther(e.target.value)}
                 placeholder="พิมพ์รายละเอียดเหตุผล..."
+                maxLength={500}
                 className={`${textareaCls} animate-in fade-in slide-in-from-top-2 duration-200`}
               />
             )}
@@ -252,8 +264,9 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
         <button
           type="button"
           onClick={handleNext}
+          disabled={!canProceed}
           className="group py-4 rounded-2xl font-black text-white text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
-          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 10px 25px -8px rgba(26,122,69,0.45)' }}
+          style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
           ดำเนินการต่อ <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
         </button>

@@ -3,10 +3,10 @@
 import { logoutCustomer } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Home, History, Building2, LogOut } from 'lucide-react';
 
 export default function Sidebar({ customer }: { customer: any }) {
   const router = useRouter();
-  const customerId = customer?.id || '';
 
   return (
     <aside className="h-full w-full flex flex-col p-6 bg-white border-r border-slate-100">
@@ -33,7 +33,7 @@ export default function Sidebar({ customer }: { customer: any }) {
             <div className="space-y-1">
               <p className="text-[11px] font-bold text-slate-400 uppercase">หน่วยงาน</p>
               <div className="flex items-center gap-2 text-[12px] font-bold text-teal-700 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100">
-                <span className="shrink-0">🏥</span>
+                <Building2 className="w-4 h-4 shrink-0" />
                 <span className="leading-tight">{customer?.hospital_name}</span>
               </div>
             </div>
@@ -43,19 +43,19 @@ export default function Sidebar({ customer }: { customer: any }) {
 
       <nav className="flex-1 space-y-2">
         <Link href="/welcome" className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold bg-teal-50 text-teal-700 transition-all">
-          <span className="text-base">🏠</span> หน้าหลัก
+          <Home className="w-4 h-4" /> หน้าหลัก
         </Link>
         <Link
-          href={`/customer/${customerId}/history`}
+          href="/customer/history"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-teal-700 transition-all"
         >
-          <span className="text-base">🔄</span> ประวัติการแลกเปลี่ยน
+          <History className="w-4 h-4" /> ประวัติการแลกเปลี่ยน
         </Link>
         <button
           onClick={async () => { await logoutCustomer(); router.push('/'); }}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black text-red-600 bg-red-50 hover:bg-red-500 hover:text-white border border-red-100 transition-all duration-300 active:scale-95"
         >
-          <span className="text-sm">❌</span> ออกจากระบบ
+          <LogOut className="w-3.5 h-3.5" /> ออกจากระบบ
         </button>
       </nav>
 

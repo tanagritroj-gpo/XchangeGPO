@@ -1,180 +1,122 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 
+// ดึง Session เพื่อเช็คว่าเป็น Logistics หรือ Manager
+async function getLogisticsSession() {
+  const session = await getStaffSession();
+  if (!session) throw new Error("ไม่ได้ Login");
+
+  if (session.department !== 'log' && session.role !== 'manager') {
+    throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
+  }
+  return session;
+}
+
 export async function getLogisticsDashboardData() {
-  const supabase = await createClient();
-  
-  // กรองเฉพาะสถานะที่ Logistics ต้องรับผิดชอบ: 
-  // 'approved' (รอขนส่ง) และ 'in_transit' (ระหว่างขนส่ง)
-  const { data, error } = await supabase
-    .from('requests')
-    .select(`
-      *,
-      drug_items (*)
-    `)
-    .in('current_status', ['approved', 'in_transit'])
-    .order('created_at', { ascending: false });
+  try {
+    await getLogisticsSession();
 
-  if (error) {
-    console.error("Error fetching logistics data:", error);
-    return { success: false, requests: [], error: error.message };
+    const { data, error } = await supabaseAdmin
+      .from('requests')
+      .select(`*, drug_items (*)`)
+      .in('current_status', ['approved', 'in_transit'])
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching logistics data:", error);
+      return { success: false, requests: [], error: error.message };
+    }
+
+    if (data) {
+      const filteredRequests = data.map(req => ({
+        ...req,
+        drug_items: req.drug_items.filter((item: any) => item.current_status !== 'rejected')
+      })).filter(req => req.drug_items.length > 0);
+
+      return { success: true, requests: filteredRequests };
+    }
+
+    return { success: true, requests: [] };
+  } catch (e: any) {
+    return { success: false, requests: [], error: e.message };
   }
-
-  if (data) {
-    // กรอง item ที่ rejected ออกจากแต่ละใบงาน
-    const filteredRequests = data.map(req => ({
-      ...req,
-      drug_items: req.drug_items.filter((item: any) => item.current_status !== 'rejected')
-    })).filter(req => req.drug_items.length > 0);
-    
-    return { success: true, requests: filteredRequests };
-  }
-
-  return { success: true, requests: [] };
 }
 
 export async function updateLogisticsStatus(
   requestId: number,
-  staffId: string,
   newStatus: 'in_transit' | 'at_warehouse',
   remark: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
+  try {
+    const session = await getLogisticsSession();
 
-  // 1. ดึงรายการยาของใบงานนี้มาทั้งหมด
-  const { data: items } = await supabase
-    .from('drug_items')
-    .select('id')
-    .eq('request_id', requestId);
-
-  // 2. บันทึก Log แยกรายรายการยา (Loop) 
-  // วิธีนี้จะทำให้ drug_item_id ไม่เป็น null อีกต่อไปครับ!
-  const logs = items?.map(item => ({
-    request_id: requestId,
-    staff_id: staffId,
-    department: 'logistics',
-    status_name: newStatus,
-    staff_remark: remark,
-    drug_item_id: item.id // <--- ใส่ id ของยาเข้าไปทุกแถว
-  })) || [];
-
-  if (logs.length > 0) {
-    await supabase.from('status_logs').insert(logs);
-  }
-
-  // 2. อัปเดตตาราง requests
-  await supabase
-    .from('requests')
-    .update({
-      current_status: newStatus,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', requestId);
-
-  // 3. อัปเดต drug_items แบบป้องกันการทับสถานะเดิม
-  if (newStatus === 'at_warehouse') {
-    // กรณีถึงคลัง: อัปเดตเฉพาะอันที่ยังไม่ถูกจัดการ (ไม่ใช่ rejected และไม่ใช่ at_warehouse)
-    await supabase
+    const { data: items } = await supabaseAdmin
       .from('drug_items')
-      .update({ current_status: 'at_warehouse' })
-      .eq('request_id', requestId)
-      .neq('current_status', 'rejected'); // ✅ ใส่ตรงนี้ครับ!
-  } else {
-    // กรณี in_transit: อัปเดตเฉพาะอันที่ยังไม่มีสถานะ หรือเป็นสถานะเริ่มต้น
-    await supabase
-      .from('drug_items')
-      .update({ current_status: newStatus })
-      .eq('request_id', requestId)
-      .neq('current_status', 'rejected'); // ✅ ใส่ตรงนี้ด้วย!
-  }
+      .select('id')
+      .eq('request_id', requestId);
 
-  revalidatePath('/admin/logistics/dashboard');
-  return { success: true };
+    const logs = items?.map(item => ({
+      request_id: requestId,
+      staff_id: session.id,
+      department: 'logistics',
+      status_name: newStatus,
+      staff_remark: remark,
+      drug_item_id: item.id
+    })) || [];
+
+    if (logs.length > 0) {
+      await supabaseAdmin.from('status_logs').insert(logs);
+    }
+
+    await supabaseAdmin
+      .from('requests')
+      .update({ current_status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', requestId);
+
+    if (newStatus === 'at_warehouse') {
+      await supabaseAdmin
+        .from('drug_items')
+        .update({ current_status: 'at_warehouse' })
+        .eq('request_id', requestId)
+        .neq('current_status', 'rejected');
+    } else {
+      await supabaseAdmin
+        .from('drug_items')
+        .update({ current_status: newStatus })
+        .eq('request_id', requestId)
+        .neq('current_status', 'rejected');
+    }
+
+    revalidatePath('/admin/logistics/dashboard');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
-// 3. อัปเดตสถานะรายชิ้น (ตรวจรับเข้าคลัง)
+// อัปเดตสถานะรายชิ้น (ตรวจรับเข้าคลัง)
 export async function updateItemStatus(
   itemId: number,
-  staffId: string,
   nextStatus: 'at_warehouse',
   remark: string
 ) {
-  const supabase = await createClient();
+  try {
+    const session = await getLogisticsSession();
 
-  const { data: item, error: fetchErr } = await supabase
-    .from('drug_items')
-    .select('request_id')
-    .eq('id', itemId)
-    .single();
+    const { data: item, error: fetchErr } = await supabaseAdmin
+      .from('drug_items')
+      .select('request_id')
+      .eq('id', itemId)
+      .single();
 
-  if (fetchErr) throw new Error("หาข้อมูลยาไม่พบ");
+    if (fetchErr) throw new Error("หาข้อมูลยาไม่พบ");
 
-  // 1. อัปเดตสถานะยาเป็น at_warehouse
-  await supabase.from('drug_items').update({ current_status: nextStatus }).eq('id', itemId);
+    await supabaseAdmin.from('drug_items').update({ current_status: nextStatus }).eq('id', itemId);
 
-  // 2. ดึงสถานะของทุกรายการยามาเช็คเพื่อปิดใบงาน
-  const { data: allItems } = await supabase
-    .from('drug_items')
-    .select('id, current_status')
-    .eq('request_id', item.request_id);
-
-  const hasAccepted = allItems?.some(i => i.current_status === 'at_warehouse');
-  const isAllProcessed = allItems?.every(i => ['at_warehouse', 'rejected'].includes(i.current_status));
-
-  // 3. กำหนดสถานะใบงานตามเงื่อนไขที่กิตต้องการ
-  if (isAllProcessed) {
-    const finalRequestStatus = hasAccepted ? 'at_warehouse' : 'rejected';
-    
-    await supabase
-      .from('requests')
-      .update({ 
-        current_status: finalRequestStatus, 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', item.request_id);
-  }
-
-  // 4. บันทึก Log
-  await supabase.from('status_logs').insert({
-    request_id: item.request_id,
-    staff_id: staffId,
-    department: 'logistics',
-    status_name: nextStatus,
-    staff_remark: remark,
-    drug_item_id: itemId // <--- ใส่ได้เลยครับ เพราะเรารู้ itemId อยู่แล้ว
-  });
-
-  revalidatePath('/admin/logistics/dashboard');
-  return { success: true };
-}
-
-// 4. ปฏิเสธรายการรายชิ้น
-export async function rejectItemStatus(
-  itemId: number,
-  staffId: string,
-  remark: string
-) {
-  const supabase = await createClient();
-
-  const { data: item } = await supabase
-    .from('drug_items')
-    .select('request_id')
-    .eq('id', itemId)
-    .single();
-
-  // 1. อัปเดตสถานะยาเป็น rejected
-  const { error: updateError } = await supabase
-    .from('drug_items')
-    .update({ current_status: 'rejected' })
-    .eq('id', itemId);
-
-  if (updateError) throw new Error("ปฏิเสธรายการยาไม่สำเร็จ");
-
-  // 2. เช็คสถานะเพื่อปิดใบงานแบบแยกกรณี (at_warehouse vs rejected)
-  if (item?.request_id) {
-    const { data: allItems } = await supabase
+    const { data: allItems } = await supabaseAdmin
       .from('drug_items')
       .select('id, current_status')
       .eq('request_id', item.request_id);
@@ -183,82 +125,125 @@ export async function rejectItemStatus(
     const isAllProcessed = allItems?.every(i => ['at_warehouse', 'rejected'].includes(i.current_status));
 
     if (isAllProcessed) {
-      // ถ้ามีอย่างน้อย 1 รายการผ่าน ให้เป็น at_warehouse, ถ้าไม่เลยให้เป็น rejected
       const finalRequestStatus = hasAccepted ? 'at_warehouse' : 'rejected';
-      
-      await supabase
+      await supabaseAdmin
         .from('requests')
-        .update({ 
-          current_status: finalRequestStatus, 
-          updated_at: new Date().toISOString() 
-        })
+        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
         .eq('id', item.request_id);
     }
+
+    await supabaseAdmin.from('status_logs').insert({
+      request_id: item.request_id,
+      staff_id: session.id,
+      department: 'logistics',
+      status_name: nextStatus,
+      staff_remark: remark,
+      drug_item_id: itemId
+    });
+
+    revalidatePath('/admin/logistics/dashboard');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
+}
 
-  // 3. บันทึก Log
-  await supabase.from('status_logs').insert({
-    request_id: item?.request_id,
-    staff_id: staffId,
-    department: 'logistics',
-    status_name: 'rejected',
-    staff_remark: remark || `ปฏิเสธรายการยา ID: ${itemId}`,
-    drug_item_id: itemId // <--- เพิ่มตรงนี้ครับ
-  });
+// ปฏิเสธรายการรายชิ้น
+export async function rejectItemStatus(
+  itemId: number,
+  remark: string
+) {
+  try {
+    const session = await getLogisticsSession();
 
-  revalidatePath('/admin/logistics/dashboard');
-  return { success: true };
+    const { data: item } = await supabaseAdmin
+      .from('drug_items')
+      .select('request_id')
+      .eq('id', itemId)
+      .single();
+
+    const { error: updateError } = await supabaseAdmin
+      .from('drug_items')
+      .update({ current_status: 'rejected' })
+      .eq('id', itemId);
+
+    if (updateError) throw new Error("ปฏิเสธรายการยาไม่สำเร็จ");
+
+    if (item?.request_id) {
+      const { data: allItems } = await supabaseAdmin
+        .from('drug_items')
+        .select('id, current_status')
+        .eq('request_id', item.request_id);
+
+      const hasAccepted = allItems?.some(i => i.current_status === 'at_warehouse');
+      const isAllProcessed = allItems?.every(i => ['at_warehouse', 'rejected'].includes(i.current_status));
+
+      if (isAllProcessed) {
+        const finalRequestStatus = hasAccepted ? 'at_warehouse' : 'rejected';
+        await supabaseAdmin
+          .from('requests')
+          .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
+          .eq('id', item.request_id);
+      }
+    }
+
+    await supabaseAdmin.from('status_logs').insert({
+      request_id: item?.request_id,
+      staff_id: session.id,
+      department: 'logistics',
+      status_name: 'rejected',
+      staff_remark: remark || `ปฏิเสธรายการยา ID: ${itemId}`,
+      drug_item_id: itemId
+    });
+
+    revalidatePath('/admin/logistics/dashboard');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
 }
 
 export async function confirmLogisticsBatch(
   requestId: number,
-  staffId: string,
   actions: { itemId: number, status: 'at_warehouse' | 'rejected', remark: string }[]
 ) {
-  const supabase = await createClient();
+  try {
+    const session = await getLogisticsSession();
 
-  // 1. อัปเดตรายรายการยา
-  for (const action of actions) {
-    await supabase.from('drug_items').update({ current_status: action.status }).eq('id', action.itemId);
+    for (const action of actions) {
+      await supabaseAdmin.from('drug_items').update({ current_status: action.status }).eq('id', action.itemId);
 
-    // 2. บันทึก Log แยกตามรายการ
-    await supabase.from('status_logs').insert({
-      request_id: requestId,
-      staff_id: staffId,
-      department: 'logistics',
-      status_name: action.status,
-      staff_remark: action.remark,
-      drug_item_id: action.itemId // <--- เพิ่มตรงนี้ครับ
-    });
+      await supabaseAdmin.from('status_logs').insert({
+        request_id: requestId,
+        staff_id: session.id,
+        department: 'logistics',
+        status_name: action.status,
+        staff_remark: action.remark,
+        drug_item_id: action.itemId
+      });
+    }
+
+    const { data: allItems } = await supabaseAdmin
+      .from('drug_items')
+      .select('id, current_status')
+      .eq('request_id', requestId);
+
+    const hasAccepted = allItems?.some(i => i.current_status === 'at_warehouse');
+    const isAllProcessed = allItems?.every(i => ['at_warehouse', 'rejected'].includes(i.current_status));
+
+    let finalRequestStatus = 'rejected';
+    if (hasAccepted) finalRequestStatus = 'at_warehouse';
+
+    if (isAllProcessed) {
+      await supabaseAdmin
+        .from('requests')
+        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
+        .eq('id', requestId);
+    }
+
+    revalidatePath('/admin/logistics/dashboard');
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
-
-  // 3. ดึงสถานะของทุกรายการยาในใบงานนี้มาเช็ค
-  const { data: allItems } = await supabase
-    .from('drug_items')
-    .select('id, current_status')
-    .eq('request_id', requestId); // ✅ ใช้ requestId ตรงๆ
-
-  // 4. เช็คเงื่อนไข
-  const hasAccepted = allItems?.some(i => i.current_status === 'at_warehouse');
-  const isAllProcessed = allItems?.every(i => ['at_warehouse', 'rejected'].includes(i.current_status));
-
-  // 5. กำหนดสถานะใบงาน
-  let finalRequestStatus = 'rejected'; 
-  if (hasAccepted) {
-    finalRequestStatus = 'at_warehouse'; 
-  }
-
-  // 6. ถ้าจบกระบวนการครบ ค่อยอัปเดตสถานะใบงานหลัก
-  if (isAllProcessed) {
-    await supabase
-      .from('requests')
-      .update({ 
-        current_status: finalRequestStatus, 
-        updated_at: new Date().toISOString() 
-      })
-      .eq('id', requestId); // ✅ ใช้ requestId ตรงๆ
-  }
-
-  revalidatePath('/admin/logistics/dashboard');
-  return { success: true };
 }

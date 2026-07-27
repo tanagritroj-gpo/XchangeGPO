@@ -10,7 +10,7 @@ function Loading() {
 
 async function ProtectedContent({ children }: { children: React.ReactNode }) {
   const session = await getCustomerSession();
-  if (!session) redirect('/auth');
+  if (!session) redirect('/');
   return <>{children}</>;
 }
 

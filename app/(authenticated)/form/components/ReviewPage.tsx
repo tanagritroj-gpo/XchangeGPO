@@ -1,12 +1,19 @@
 'use client';
 
 import { useState } from 'react';
-import { generatePdfAction } from '@/app/actions/generate-pdf-action';
+import { ReviewSuccessCard } from './ReviewSuccessCard';
 
 interface StepProps {
   back:     () => void;
   formData: any;
   onSubmit: () => Promise<any>;
+  // ── เพิ่มใหม่: ทั้งหมด optional พร้อม default ตรงกับพฤติกรรมเดิมของฝั่งลูกค้าทุกประการ ──
+  stepNumber?: number;   // เลขขั้นตอนที่แสดงบน badge — ฝั่งลูกค้า 5 ขั้น, ฝั่ง staff 4 ขั้น (ไม่มี step เซ็น)
+  allowEmail?: boolean;  // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "ส่งเข้าอีเมล"
+  showTrackingLink?: boolean; // ส่งต่อไป ReviewSuccessCard ควบคุมลิงก์ "ติดตามสถานะคำร้องนี้" แยกจาก allowEmail
+  homeHref?: string;     // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "กลับหน้าหลัก"
+  generatePdfActionFn?: (requestId: number) => Promise<any>; // override เป็น generateStaffPdfAction ฝั่ง staff
+  sendEmailActionFn?: (requestId: number) => Promise<any>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
 }
 
 // ── Helper สำหรับแสดงผลรายการยา ──
@@ -53,7 +60,17 @@ function ReviewCard({ title, gradient, children }: { title: string; gradient: st
   );
 }
 
-export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
+export default function ReviewPage({
+  back,
+  formData,
+  onSubmit,
+  stepNumber = 5,
+  allowEmail = true,
+  showTrackingLink = true,
+  homeHref = '/welcome',
+  generatePdfActionFn,
+  sendEmailActionFn,
+}: StepProps) {
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
   const [refId,   setRefId]   = useState('');
@@ -66,6 +83,11 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other 
   } = formData;
 
+  // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
+  //   fallback ไปใช้ข้อมูลผู้ติดต่อของลูกค้าที่เลือกไว้ใน sender แทน กันการ์ด "ข้อมูลหน่วยงาน" ขาดชื่อไปเงียบๆ
+  const displaySignerName = signer_name || sender?.contact_name;
+  const displaySignerPosition = signer_position || sender?.position;
+
   const deliveryDetail = delivery_type === 'ขนส่ง'
     ? `${addr_street || ''} ต.${addr_sub || ''} อ.${addr_district || ''} จ.${addr_province || ''}`
     : agent_info || '-';
@@ -76,7 +98,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     try {
       const result = await onSubmit();
       setRefId(result?.refId || 'N/A');
-      setCurrentRequestId(result?.id); // เก็บ ID ลงใน state ของคอมโพเนนต์นี้แทน
+      setCurrentRequestId(result?.id);
       setStatus('success');
     } catch (error: any) {
       console.error("Error:", error);
@@ -87,64 +109,22 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
     }
   };
 
-// ── Success state ──
-  if (status === 'success') {
-    const handleDownload = async () => {
-      if (!currentRequestId) return;
-      setLoading(true);
-      try {
-        const result = await generatePdfAction(currentRequestId);
-        
-        if (result.success && result.data) {
-          const pdfBytes = new Uint8Array(result.data);
-          const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `FM-AJJ0-008_${refId}.pdf`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          alert(result.error);
-        }
-      } catch (err) {
-        alert("เกิดข้อผิดพลาดในการดาวน์โหลด");
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // ── ส่วนนี้คือการเช็ค Success แล้วตัดจบด้วย Component ใหม่ ──
+if (status === 'success') {
+  if (!currentRequestId) {
+    return <div className="text-center text-red-500 py-10">เกิดข้อผิดพลาด ไม่พบเลขที่คำร้อง</div>;
+  } 
     return (
-      <div className="w-full max-w-lg mx-auto flex flex-col items-center justify-center gap-6 py-16 px-8 text-center bg-white rounded-3xl shadow-xl border border-slate-100">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-lg" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>✅</div>
-        <div>
-          <h2 className="text-xl font-black text-slate-900 mb-1.5">ส่งแบบฟอร์มสำเร็จ!</h2>
-          <p className="text-sm text-slate-500">บันทึกข้อมูลเรียบร้อยแล้ว</p>
-        </div>
-        
-        <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl px-10 py-5">
-          <p className="text-[11px] font-black text-teal-600 uppercase tracking-widest mb-1.5">เลขที่อ้างอิง</p>
-          <p className="text-2xl font-black text-teal-700 font-mono">{refId}</p>
-        </div>
-
-        {/* ── ปุ่มดำเนินการต่อ ── */}
-        <div className="grid grid-cols-1 gap-3 w-full">
-          <button
-            onClick={handleDownload}
-            disabled={loading}
-            className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? "กำลังสร้าง PDF..." : "📥 ดาวน์โหลดใบรับคืน (PDF)"}
-          </button>
-          <button
-            onClick={() => window.location.href = '/'} // กลับหน้าหลัก
-            className="py-4 rounded-2xl font-black text-sm text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
-          >
-            กลับหน้าหลัก
-          </button>
-        </div>
-      </div>
+      <ReviewSuccessCard
+        requestId={currentRequestId}
+        refId={refId} 
+        customerEmail={formData.sender?.email}
+        allowEmail={allowEmail}
+        showTrackingLink={showTrackingLink}
+        homeHref={homeHref}
+        generatePdfActionFn={generatePdfActionFn}
+        sendEmailActionFn={sendEmailActionFn}
+      />
     );
   }
 
@@ -153,7 +133,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">5</span>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">{stepNumber}</span>
         <p className="text-xs font-bold text-slate-400">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
       </div>
 
@@ -161,8 +141,8 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
       <ReviewCard title="📋 ข้อมูลหน่วยงาน" gradient="linear-gradient(90deg,#0f5132,#1a7a45)">
         <ReviewRow label="ประเภทรายการ" value={sender?.request_type} />
         <ReviewRow label="หน่วยงาน" value={sender?.hospital_name} />
-        <ReviewRow label="ผู้ส่งคืน" value={signer_name} />
-        <ReviewRow label="ตำแหน่ง" value={signer_position} />
+        <ReviewRow label="ผู้ส่งคืน" value={displaySignerName} />
+        <ReviewRow label="ตำแหน่ง" value={displaySignerPosition} />
       </ReviewCard>
 
       {/* ══ รายการยา ══ */}
@@ -190,7 +170,7 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
           ))}
           <div className="flex justify-between items-center pt-3.5 mt-1 border-t-2 border-dashed border-slate-100">
             <span className="text-xs font-black text-slate-400 uppercase tracking-widest">รวมมูลค่า</span>
-            <span className="text-xl font-black text-teal-600">{(totalValue || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
           </div>
         </div>
       </div>
@@ -216,25 +196,23 @@ export default function ReviewPage({ back, formData, onSubmit }: StepProps) {
         <ReviewRow label="รายละเอียด" value={deliveryDetail} />
       </ReviewCard>
 
-      {/* ══ ลายมือชื่อ ══ */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
-        <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
-          ✍️ ลายมือชื่อผู้ส่งคืน
+      {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}
+      {signature_url && (
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
+          <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
+            ✍️ ลายมือชื่อผู้ส่งคืน
+          </div>
+          <div className="px-6 py-6 flex flex-col items-center gap-2">
+            <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
+              <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
+            </div>
+            <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
+              <p className="text-sm font-black text-slate-800">({signer_name})</p>
+              <p className="text-xs text-slate-500 font-medium">{signer_position}</p>
+            </div>
+          </div>
         </div>
-        <div className="px-6 py-6 flex flex-col items-center gap-2">
-          {signature_url && (
-            <>
-              <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
-                <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
-              </div>
-              <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
-                <p className="text-sm font-black text-slate-800">({signer_name})</p>
-                <p className="text-xs text-slate-500 font-medium">{signer_position}</p>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* ══ Navigation ══ */}
       <div className="grid grid-cols-2 gap-4">

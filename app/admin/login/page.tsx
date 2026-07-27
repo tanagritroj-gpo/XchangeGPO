@@ -19,9 +19,11 @@ export default function LoginPage() {
 
     if (res.success) {
       // Mapping Department ไปยังหน้าปลายทาง
+      // 'csr' ชี้ไปหน้า hub (/admin/csr) แทนที่จะเข้า dashboard ตรงๆ
+      // เพื่อให้เลือกได้ระหว่าง "กรอกแบบฟอร์มแทนลูกค้า" กับ "CSR Dashboard"
       const departmentRoutes: Record<string, string> = {
         'manager': '/admin/manager/staff-approvals',
-        'csr': '/admin/csr/dashboard',
+        'csr': '/admin/csr',
         'log': '/admin/logistics/dashboard',
         'wh': '/admin/wh/dashboard'
       };

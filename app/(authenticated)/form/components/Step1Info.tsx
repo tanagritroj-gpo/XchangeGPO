@@ -1,20 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { ReturnRepository } from '../../../repositories/ReturnRepository';
+import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
+import { getNextDocNumber } from '@/app/actions/form-actions';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 
 interface Step1Props {
   next: () => void;
   updateData: React.Dispatch<React.SetStateAction<any>>;
+  initialRequestType?: string;
 }
 
 const TYPES = [
-  { label: 'รับคืนลดหนี้',     icon: '💰' },
-  { label: 'รับคืน Recall',    icon: '⚠️' },
-  { label: 'รับคืนแลกเปลี่ยน', icon: '🔄' },
-  { label: 'อื่นๆ',            icon: '⋯'  },
+  { label: 'รับคืนลดหนี้',     icon: <ReceiptText size={24} className="text-emerald-600" /> },
+  { label: 'รับคืน CCR',    icon: <AlertTriangle size={24} className="text-red-600" /> },
+  { label: 'รับคืนแลกเปลี่ยน', icon: <ArrowLeftRight size={24} className="text-blue-600" /> },
+  { label: 'อื่นๆ',            icon: <MoreHorizontal size={24} className="text-slate-500" /> },
 ] as const;
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
@@ -30,8 +31,8 @@ const InfoBox = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-export default function Step1Info({ next, updateData }: Step1Props) {
-  const [selectedType, setSelectedType] = useState('');
+export default function Step1Info({ next, updateData, initialRequestType }: Step1Props) {
+  const [selectedType, setSelectedType] = useState(initialRequestType || '');
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
   const [docNumber, setDocNumber] = useState('กำลังโหลด...');
@@ -40,30 +41,36 @@ export default function Step1Info({ next, updateData }: Step1Props) {
   useEffect(() => {
     const init = async () => {
       const session = await getCustomerSession();
-      if (!session) return;
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('b2b_customers')
-        .select('*')
-        .eq('id', session.id)
-        .single();
-      if (data) setClientData(data);
+      if (!session) {
+        setDocNumber('กรุณาเข้าสู่ระบบใหม่');
+        return;
+      } 
+
+      // ★ session ที่ verify แล้วมีข้อมูลครบอยู่แล้ว ไม่ต้อง query ซ้ำจาก browser
+      setClientData(session);
+
       try {
-        setDocNumber(await ReturnRepository.getNextDocNumber());
-      } catch { setDocNumber('S001/2026'); }
+        const nextDoc = await getNextDocNumber();
+        setDocNumber(nextDoc);
+      } catch (err) {
+        console.error("Failed to load doc number:", err);
+        setDocNumber('Error');
+      }
     };
+    
     init();
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
+    const latestDocNumber = await getNextDocNumber();
     updateData((prev: any) => ({
       ...prev,
       sender: {
         ...prev.sender,
-        doc_number: docNumber,
+        doc_number: latestDocNumber,
         request_type: selectedType,
         return_reason: selectedType === 'อื่นๆ' ? otherDetail : selectedType,
         hospital_name: clientData?.hospital_name,
@@ -95,7 +102,6 @@ export default function Step1Info({ next, updateData }: Step1Props) {
           ประเภทการส่งคืน
         </h2>
 
-        {/* Mobile: 2 cols / Desktop: 4 cols */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5 sm:mb-6">
           {TYPES.map((t) => {
             const active = selectedType === t.label;
@@ -112,7 +118,7 @@ export default function Step1Info({ next, updateData }: Step1Props) {
                 {active && (
                   <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[9px] flex items-center justify-center font-black">✓</span>
                 )}
-                <span className={`text-2xl transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{t.icon}</span>
+                <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{t.icon}</span>
                 <span className={`text-[12px] font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-slate-500'}`}>{t.label}</span>
               </button>
             );
@@ -154,7 +160,6 @@ export default function Step1Info({ next, updateData }: Step1Props) {
           {!clientData && <span className="ml-auto text-[10px] font-bold text-slate-300 animate-pulse">กำลังโหลด...</span>}
         </h2>
 
-        {/* Mobile: 1 col / Desktop: 2 cols */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 sm:gap-y-5">
           <div className="sm:col-span-2">
             <FieldLabel>ชื่อหน่วยงาน (โรงพยาบาล)</FieldLabel>
@@ -182,7 +187,10 @@ export default function Step1Info({ next, updateData }: Step1Props) {
       {/* ══ ปุ่มดำเนินการต่อ ══ */}
       <button
         onClick={handleNext}
-        className="group w-full py-4 rounded-2xl font-black text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-2xl"
+        disabled={!selectedType}
+        className={`group w-full py-4 rounded-2xl font-black text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-2xl ${
+          !selectedType ? 'opacity-50 cursor-not-allowed grayscale' : 'opacity-100'
+        }`}
         style={{
           background: 'linear-gradient(135deg,#0f5132 0%,#1a7a45 60%,#16a085 100%)',
           boxShadow: '0 12px 28px -8px rgba(26,122,69,0.45)',
