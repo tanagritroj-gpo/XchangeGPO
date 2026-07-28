@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
-import { uploadSignature } from '@/lib/storage';
 
 const registerSchema = z.object({
   hospital_name: z.string().min(1, "กรุณากรอกชื่อหน่วยงาน"),
@@ -35,16 +34,9 @@ export function RegisterForm() {
       return; 
     }
     setLoading(true);
-    
+
     try {
-      const response = await fetch(signature);
-      const blob = await response.blob();
-      const file = new File([blob], `${Date.now()}_signature.png`, { type: 'image/png' });
-
-      const { url, error: uploadError } = await uploadSignature(file);
-      if (uploadError) throw new Error(uploadError);
-
-      const payload = { ...data, signature_url: url };
+      const payload = { ...data, signature_url: signature };
       const result = await registerCustomer(payload);
       
       if (result.success) alert("ลงทะเบียนสำเร็จ!");
