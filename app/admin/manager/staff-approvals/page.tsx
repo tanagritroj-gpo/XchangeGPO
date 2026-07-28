@@ -14,10 +14,11 @@ import {
   MapPin,
   ShieldCheck,
   BarChart3,
+  HelpCircle,
 } from 'lucide-react';
 import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
-import { getManagerStatusLogs } from '@/app/actions/manager-actions';
+import { getManagerStatusLogs, getUnansweredChatbotQuestions } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
 
 // ── Status config: ใช้ชุดสีเดียวกับ CSR Dashboard ให้ทั้งระบบสอดคล้องกัน ──
@@ -194,8 +195,9 @@ export default function StaffApprovalPage() {
   const [pendingStaff, setPendingStaff] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [statusLogs, setStatusLogs] = useState<any[]>([]);
+  const [unansweredQuestions, setUnansweredQuestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'staff' | 'history' | 'all' | 'insights'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'history' | 'all' | 'insights' | 'chatbot'>('staff');
 
   useEffect(() => {
     fetchData();
@@ -203,10 +205,11 @@ export default function StaffApprovalPage() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    const [staffResult, dashboardResult, statusLogsResult] = await Promise.all([
+    const [staffResult, dashboardResult, statusLogsResult, unansweredResult] = await Promise.all([
       getPendingStaff(),
       getCSRDashboardData(), // manager มีสิทธิ์เรียกอยู่แล้ว (getCSRSession อนุญาต department 'manager')
       getManagerStatusLogs(), // manager-only — ใช้คำนวณเวลาเฉลี่ยแต่ละขั้นตอน + เหตุผลปฏิเสธ
+      getUnansweredChatbotQuestions(), // manager-only — คำถามที่บอทลูกค้าตอบ "ไม่แน่ใจ"
     ]);
 
     if (staffResult.success) {
@@ -225,6 +228,12 @@ export default function StaffApprovalPage() {
       setStatusLogs(statusLogsResult.data || []);
     } else {
       console.error("Error fetching status logs:", statusLogsResult.error);
+    }
+
+    if (unansweredResult.success) {
+      setUnansweredQuestions(unansweredResult.data || []);
+    } else {
+      console.error("Error fetching unanswered chatbot questions:", unansweredResult.error);
     }
 
     setIsLoading(false);
@@ -315,6 +324,11 @@ export default function StaffApprovalPage() {
                 active={activeTab === 'insights'} onClick={() => setActiveTab('insights')}
                 accentBg="bg-purple-100" accentColor="text-purple-600"
               />
+              <TabButton
+                icon={HelpCircle} label="คำถามที่บอทตอบไม่ได้" count={unansweredQuestions.length}
+                active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')}
+                accentBg="bg-teal-100" accentColor="text-teal-600"
+              />
             </nav>
           </aside>
 
@@ -403,6 +417,48 @@ export default function StaffApprovalPage() {
             {/* ── Tab 4: ภาพรวม & สถิติ (Visual Dashboard) — แยกไฟล์ ManagerInsights.tsx ── */}
             {activeTab === 'insights' && (
               <ManagerInsights requests={requests} statusLogs={statusLogs} />
+            )}
+
+            {/* ── Tab 5: คำถามที่บอทลูกค้าตอบ "ไม่แน่ใจ" — ดูว่าควรเพิ่มเข้า FAQ_ENTRIES ไหม ── */}
+            {activeTab === 'chatbot' && (
+              <section>
+                <div className="flex items-center gap-2.5 mb-3 px-1">
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
+                    <HelpCircle size={16} className="text-teal-600" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-800">คำถามที่บอทตอบไม่ได้</h2>
+                    <p className="text-[11px] text-slate-400">
+                      {unansweredQuestions.length} คำถามล่าสุดที่บอทลูกค้าตอบว่า "ไม่แน่ใจ" — ถ้าเจอคำถามซ้ำๆ ควรเพิ่มเข้า FAQ ใน lib/chatbot-knowledge.ts
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                  {unansweredQuestions.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <HelpCircle className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
+                      <p className="text-sm text-slate-400 font-medium">ยังไม่มีคำถามที่บอทตอบไม่ได้</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {unansweredQuestions.map((q) => (
+                        <div key={q.id} className="px-4 md:px-6 py-4 space-y-1.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-sm font-semibold text-slate-800">{q.question}</p>
+                            <span className="text-[10px] text-slate-400 shrink-0 whitespace-nowrap">
+                              {new Date(q.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
+                            </span>
+                          </div>
+                          {q.answer && (
+                            <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{q.answer}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
           </div>

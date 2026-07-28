@@ -5,7 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:chatbot": "vitest run --config vitest.eval.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

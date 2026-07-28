@@ -65,7 +65,7 @@ export function StaffChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'assistant', text: GREETING }]);
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -113,68 +113,44 @@ export function StaffChatWidget() {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || streaming) return;
+    if (!text || isLoading) return;
 
     setError(null);
     setInput('');
     const nextMessages: ChatMessage[] = [...messages, { role: 'user', text }];
     setMessages([...nextMessages, { role: 'assistant', text: '' }]);
-    setStreaming(true);
+    setIsLoading(true);
 
     try {
+      // ไม่ใช่ streaming แล้ว (ต่างจาก ChatWidget ของลูกค้า) — route นี้อาจต้อง
+      // เรียก Gemini 2 รอบเวลาบอทขอเรียก tool ดึงข้อมูลสด (ดู reason ที่
+      // app/api/staff-chat/route.ts) จึงรอผลลัพธ์สุดท้ายเป็น JSON ก้อนเดียว
       const res = await fetch('/api/staff-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: nextMessages }),
       });
 
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
         throw new Error(data?.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let assistantText = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const piece = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (piece) {
-              assistantText += piece;
-              setMessages((prev) => {
-                const copy = [...prev];
-                copy[copy.length - 1] = { role: 'assistant', text: assistantText };
-                return copy;
-              });
-            }
-          } catch {
-            // chunk ยังไม่ครบ JSON — ข้ามไปรอบถัดไป
-          }
-        }
-      }
-
+      const assistantText: string = data?.text ?? '';
       if (!assistantText.trim()) {
         throw new Error('ผู้ช่วยไม่ได้ตอบกลับ กรุณาลองใหม่');
       }
+
+      setMessages((prev) => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { role: 'assistant', text: assistantText };
+        return copy;
+      });
     } catch (err: any) {
       setError(err?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
       setMessages((prev) => (prev[prev.length - 1]?.text === '' ? prev.slice(0, -1) : prev));
     } finally {
-      setStreaming(false);
+      setIsLoading(false);
     }
   };
 
@@ -233,17 +209,17 @@ export function StaffChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="ถามเรื่องสถิติ..."
-              disabled={streaming}
+              disabled={isLoading}
               maxLength={500}
               className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-purple-400 disabled:bg-slate-50"
             />
             <button
               type="submit"
-              disabled={streaming || !input.trim()}
+              disabled={isLoading || !input.trim()}
               aria-label="ส่งข้อความ"
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {streaming ? (
+              {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} aria-hidden="true" />
               ) : (
                 <Send className="h-4 w-4" strokeWidth={2} aria-hidden="true" />

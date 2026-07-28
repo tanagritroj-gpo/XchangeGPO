@@ -63,6 +63,38 @@ class FakeQueryBuilder {
     return this;
   }
 
+  gte(col: string, val: any) {
+    this.filters.push((r) => r[col] >= val);
+    return this;
+  }
+
+  gt(col: string, val: any) {
+    this.filters.push((r) => r[col] > val);
+    return this;
+  }
+
+  lte(col: string, val: any) {
+    this.filters.push((r) => r[col] <= val);
+    return this;
+  }
+
+  lt(col: string, val: any) {
+    this.filters.push((r) => r[col] < val);
+    return this;
+  }
+
+  ilike(col: string, pattern: string) {
+    // แปลง SQL LIKE pattern (%..%) เป็น regex ง่ายๆ พอสำหรับ test — รองรับ
+    // เฉพาะ %wildcard% ที่โค้ดจริงในโปรเจกต์ใช้ ไม่ใช่ full LIKE syntax
+    const escaped = pattern
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/%/g, '.*')
+      .replace(/_/g, '.');
+    const re = new RegExp(`^${escaped}$`, 'i');
+    this.filters.push((r) => typeof r[col] === 'string' && re.test(r[col]));
+    return this;
+  }
+
   order(..._args: any[]) {
     return this;
   }

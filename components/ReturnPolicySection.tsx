@@ -8,6 +8,7 @@ import {
   Clock,
   Download,
 } from "lucide-react";
+import { RETURN_CASES, EXCLUDED_ITEMS, CONDITIONS, EXCEPTION_NOTE, type ReturnCase } from "@/lib/return-policy";
 
 /**
  * ── ทำไมรีดีไซน์รอบนี้ต่างจากทุกรอบก่อนหน้า ──────────────────────────
@@ -38,64 +39,39 @@ type RuleRow = {
 
 const SCALE_MAX_MONTHS = 7;
 
-const gpoOwnRows: RuleRow[] = [
-  {
-    icon: RefreshCw,
-    title: "รับคืนเพื่อแลกเปลี่ยน",
-    body: "สินค้าหมดอายุ ให้ส่งแลกเปลี่ยนภายในกำหนด นับจากวันที่สินค้าหมดอายุ",
-    months: 6,
-    anchorLabel: "นับจากวันหมดอายุ",
-    tone: "teal",
-    formType: "exchange",
-  },
-  {
-    icon: CreditCard,
-    title: "รับคืนเพื่อลดหนี้",
-    body: "ต้องคืนเพื่อลดหนี้ภายในกำหนด นับจากวันที่ได้รับผลิตภัณฑ์",
-    months: 1,
-    anchorLabel: "นับจากวันรับสินค้า",
-    tone: "teal",
-    formType: "debt-reduction",
-  },
-];
-
-const otherManufacturerRow: RuleRow = {
-  icon: Building2,
-  title: "ผลิตภัณฑ์ผู้ผลิตอื่น",
-  body: "ต้องคืนก่อนวันหมดอายุตามกำหนด (องค์การเภสัชกรรมส่งต่อบริษัทผู้ผลิต)",
-  months: 7,
-  anchorLabel: "ก่อนวันหมดอายุ",
-  tone: "amber",
+// การตกแต่งเฉพาะฝั่ง UI (ไอคอน/สี/ลิงก์ฟอร์ม/label สั้นไว้แปะข้างแถบสัดส่วน)
+// เนื้อหาจริง (ชื่อกรณี ตัวเลขเดือน เงื่อนไข) มาจาก lib/return-policy.ts
+// ทั้งหมดแล้ว ไม่มีอะไรพิมพ์ซ้ำในไฟล์นี้อีก แก้นโยบายที่ lib/return-policy.ts
+// ที่เดียวจบ ทั้งหน้านี้กับ chatbot จะเห็นข้อมูลตรงกันเสมอ
+const CASE_DISPLAY: Record<
+  ReturnCase["id"],
+  { icon: typeof RefreshCw; tone: "teal" | "amber"; anchorShort: string; formType?: "exchange" | "debt-reduction" }
+> = {
+  exchange: { icon: RefreshCw, tone: "teal", anchorShort: "นับจากวันหมดอายุ", formType: "exchange" },
+  "debt-reduction": { icon: CreditCard, tone: "teal", anchorShort: "นับจากวันรับสินค้า", formType: "debt-reduction" },
+  "other-manufacturer": { icon: Building2, tone: "amber", anchorShort: "ก่อนวันหมดอายุ" },
 };
 
-const excludedItems: string[] = [
-  "ยาและผลิตภัณฑ์แช่เย็น (−20°C และ 2−8°C)",
-  "ชุดช่วยเหลือผู้ประสบภัย · ชีววัตถุ · Oseltamivir · Favipiravir · Molnupiravir",
-  "ยากัญชาหยดลิ้น 4 สูตร (CBD, THC, CBD:THC 1:1, THC FORTE)",
-  "ยาเสพติด · วัตถุออกฤทธิ์ต่อจิตประสาท (Diazepam 2,5,10 mg // Diazepam inj. // Phenobarbital 30, 60 mg // Brown mixture 180, 450 ml)",
-  "เครื่องสำอาง",
-  "เฉพาะผลิตภัณฑ์ผู้ผลิตอื่น ไม่รับคืนแลกเปลี่ยน ยากำพร้า · กลุ่มยาต้านไวรัสเอดส์",
-  'รายการสินค้าที่ระบุ "ไม่รับเปลี่ยนคืนสินค้า" ในใบส่งของ',
-];
+function toRuleRow(c: ReturnCase): RuleRow {
+  const display = CASE_DISPLAY[c.id];
+  return {
+    icon: display.icon,
+    title: c.title,
+    body: c.note,
+    months: c.months,
+    anchorLabel: display.anchorShort,
+    tone: display.tone,
+    formType: display.formType,
+  };
+}
 
-const conditions: { title: string; text: string }[] = [
-  {
-    title: "สินค้าต้องอยู่ในสภาพสมบูรณ์ ไม่ชำรุด",
-    text: "บรรจุอยู่เต็มขนาดบรรจุ โดยแต่ละขนาดบรรจุต้องเป็นรุ่นการผลิตเดียวกัน พร้อมแนบเอกสารใบส่งของหรือหลักฐานการรับสินค้า",
-  },
-  {
-    title: "สินค้าที่ได้รับจากการแลกเปลี่ยน",
-    text: "Billing No. ขึ้นต้นด้วย 30X7 ไม่สามารถนำกลับมาแลกเปลี่ยนได้อีก",
-  },
-  {
-    title: "สินค้าส่งเสริมการขายหรือรางวัลการขาย",
-    text: "Billing No. ขึ้นต้นด้วย 30X8 ไม่สามารถแลกเปลี่ยนได้",
-  },
-  {
-    title: "ในการรับคืนสินค้า",
-    text: "องค์การเภสัชกรรม จะรับคืนสินค้าเฉพาะจากผู้ที่สั่งซื้อโดยตรงจากองค์การเภสัชกรรมเท่านั้น",
-  },
-];
+const gpoOwnRows: RuleRow[] = RETURN_CASES.filter((c) => c.group === "gpo-own").map(toRuleRow);
+const otherManufacturerRow: RuleRow = toRuleRow(
+  RETURN_CASES.find((c) => c.id === "other-manufacturer")!
+);
+
+const excludedItems = EXCLUDED_ITEMS;
+const conditions = CONDITIONS;
 
 const toneText = { teal: "text-[#0F6D63]", amber: "text-[#B5651D]" } as const;
 const toneBar = { teal: "bg-[#0F6D63]", amber: "bg-[#B5651D]" } as const;
@@ -279,9 +255,7 @@ export function ReturnPolicySection() {
         {/* ข้อยกเว้น */}
         <footer className="rounded-lg border border-[#E7E5E2] bg-[#FCFBF9] px-6 py-5">
           <p className="font-serif text-[15px] italic leading-relaxed text-[#12181B]/80">
-            <span className="not-italic font-semibold text-[#12181B]">ข้อยกเว้น</span> —
-            หากเป็นเหตุผิดพลาดอันเกิดจากองค์การเภสัชกรรม
-            ให้รับคืนหรือแลกเปลี่ยนสินค้าได้แล้วแต่กรณี
+            <span className="not-italic font-semibold text-[#12181B]">ข้อยกเว้น</span> — {EXCEPTION_NOTE}
           </p>
         </footer>
       </div>

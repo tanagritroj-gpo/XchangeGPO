@@ -29,6 +29,25 @@ export async function getManagerOrCsrSession() {
   return session;
 }
 
+// คำถามที่บอทลูกค้า (app/api/chat) ตอบว่า "ไม่แน่ใจ" — เก็บไว้ให้ manager ทบทวน
+// ว่าควรเพิ่มเข้า FAQ_ENTRIES (lib/chatbot-knowledge.ts) ไหม ดู app/api/chat/route.ts
+export async function getUnansweredChatbotQuestions(limit: number = 50) {
+  try {
+    await getManagerSession();
+
+    const { data, error } = await supabaseAdmin
+      .from('chatbot_unanswered_questions')
+      .select('id, question, answer, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data || [] };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 // ดึง status_logs ทั้งหมด — ใช้คำนวณ "เวลาเฉลี่ยแต่ละขั้นตอน" และ "เหตุผลการปฏิเสธยอดนิยม"
 // (ใช้ทั้งใน ManagerInsights.tsx และ staff-chat bot — เปิดให้ CSR อ่านได้ด้วยแล้ว)
 export async function getManagerStatusLogs() {
