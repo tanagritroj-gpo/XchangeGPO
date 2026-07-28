@@ -214,7 +214,12 @@ ${statsSummary}
         systemInstruction: { parts: [{ text: systemPrompt }] },
         contents: [
           ...baseContents,
-          { role: 'model', parts: [{ functionCall: { name, args } }] },
+          // ★ ส่ง parts ทั้งก้อนที่โมเดลตอบกลับมาเป๊ะๆ (ไม่ใช่แค่ {name, args}
+          // ที่ดึงมาสร้างใหม่เอง) — โมเดลรุ่น 3.x แนบ thought_signature มากับ
+          // functionCall part ด้วย ถ้าสร้าง part ใหม่เองจะหลุด signature นี้
+          // ไป แล้ว Gemini จะตอบ 400 "missing a thought_signature" ตอนส่ง
+          // functionResponse กลับไปรอบถัดไป
+          { role: 'model', parts },
           { role: 'function', parts: [{ functionResponse: { name, response: toolResult } }] },
         ],
         tools: TOOLS,
