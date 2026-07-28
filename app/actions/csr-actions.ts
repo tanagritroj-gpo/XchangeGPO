@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
+import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 
 async function getCSRSession() {
   const session = await getStaffSession();
@@ -126,20 +127,27 @@ export async function approveRequest(requestId: number, remark?: string) {
   });
 }
 
-export async function rejectDrugItem(drugItemId: number, requestId: number, remark?: string) {
+export async function rejectDrugItem(drugItemId: number, requestId: number, reasonCode: string, detail: string = '') {
   return withCSRAuth(async (session) => {
-    await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected', staff_remark: remark || 'ปฏิเสธยา', drug_item_id: drugItemId });
+    if (!isRejectionReasonCode(reasonCode)) {
+      return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
+    }
+    await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: buildRejectionRemark(reasonCode, detail), drug_item_id: drugItemId });
     await supabaseAdmin.from('drug_items').update({ current_status: 'rejected' }).eq('id', drugItemId);
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
   });
 }
 
-export async function rejectRequest(requestId: number, remark: string) {
+export async function rejectRequest(requestId: number, reasonCode: string, detail: string = '') {
   return withCSRAuth(async (session) => {
-    await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected', staff_remark: remark });
+    if (!isRejectionReasonCode(reasonCode)) {
+      return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
+    }
+    const remark = buildRejectionRemark(reasonCode, detail);
+    await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: remark });
     const { data: items } = await supabaseAdmin.from('drug_items').select('id').eq('request_id', requestId);
-    if (items) await supabaseAdmin.from('status_logs').insert(items.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: 'rejected', staff_remark: `ปฏิเสธใบงาน: ${remark}` })));
+    if (items) await supabaseAdmin.from('status_logs').insert(items.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: `ปฏิเสธใบงาน: ${remark}` })));
     await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
     await supabaseAdmin.from('drug_items').update({ current_status: 'rejected' }).eq('request_id', requestId);
     revalidatePath('/admin/csr/dashboard');

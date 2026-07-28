@@ -105,10 +105,18 @@ describe('rejectItemStatus — the all-rejected edge case', () => {
       { id: 2, current_status: 'in_transit' },
     ], 'in_transit');
 
-    const res = await rejectItemStatus(2, 'damaged in transit');
+    const res = await rejectItemStatus(2, 'damaged', 'damaged in transit');
 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+    expect(fakeAdmin.rows('status_logs')[0].rejection_reason_code).toBe('damaged');
+  });
+
+  it('refuses to reject without a valid structured reason', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'in_transit' }], 'in_transit');
+    const res = await rejectItemStatus(1, 'not-a-real-reason', 'whatever');
+    expect(res).toEqual({ success: false, error: 'กรุณาเลือกเหตุผลที่ปฏิเสธ' });
+    expect(fakeAdmin.rows('drug_items')[0].current_status).toBe('in_transit');
   });
 
   it('keeps the request alive as at_warehouse if something else already arrived', async () => {
@@ -117,7 +125,7 @@ describe('rejectItemStatus — the all-rejected edge case', () => {
       { id: 2, current_status: 'in_transit' },
     ], 'in_transit');
 
-    const res = await rejectItemStatus(2, 'damaged in transit');
+    const res = await rejectItemStatus(2, 'damaged', 'damaged in transit');
 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('at_warehouse');
@@ -133,7 +141,7 @@ describe('confirmLogisticsBatch — mixed accept/reject in one submission', () =
 
     const res = await confirmLogisticsBatch(1, [
       { itemId: 1, status: 'at_warehouse', remark: 'ok' },
-      { itemId: 2, status: 'rejected', remark: 'damaged' },
+      { itemId: 2, status: 'rejected', remark: 'damaged', reasonCode: 'damaged' },
     ]);
 
     expect(res.success).toBe(true);
@@ -150,8 +158,8 @@ describe('confirmLogisticsBatch — mixed accept/reject in one submission', () =
     ], 'in_transit');
 
     const res = await confirmLogisticsBatch(1, [
-      { itemId: 1, status: 'rejected', remark: 'damaged' },
-      { itemId: 2, status: 'rejected', remark: 'damaged' },
+      { itemId: 1, status: 'rejected', remark: 'damaged', reasonCode: 'damaged' },
+      { itemId: 2, status: 'rejected', remark: 'damaged', reasonCode: 'damaged' },
     ]);
 
     expect(res.success).toBe(true);

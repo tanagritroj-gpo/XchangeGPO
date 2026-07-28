@@ -53,21 +53,37 @@ export function getCurrentStageIndex(currentStatus: string = '') {
   return STATUS_TO_STAGE_INDEX[currentStatus] ?? -1;
 }
 
-// status_name ใน timeline เป็น free-text ที่อาจเป็นภาษาไทยที่ staff พิมพ์เอง จึงยังใช้ keyword matching ตรงนี้
+type StatusMeta = { icon: typeof Clock; bg: string; fg: string };
+
+const RED: StatusMeta = { icon: XCircle, bg: 'bg-red-50', fg: 'text-red-600' };
+const GREEN_CHECK: StatusMeta = { icon: Check, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
+const GREEN_APPROVE: StatusMeta = { icon: FileCheck, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
+const AMBER: StatusMeta = { icon: Truck, bg: 'bg-amber-50', fg: 'text-amber-600' };
+const DEFAULT: StatusMeta = { icon: Clock, bg: 'bg-sky-50', fg: 'text-sky-600' };
+
+// ทุกค่าที่โค้ดใน app/actions/*.ts เขียนลง status_logs.status_name จริง ณ วันที่เขียนไฟล์นี้
+// (ยืนยันด้วย grep ทั้ง repo) — ค่าที่ไม่อยู่ใน list นี้ (เช่น remark ที่พนักงานพิมพ์เป็นประโยคไทยเอง
+// ในบาง flow) จะ fallback ไป DEFAULT แทนการเดาด้วย regex เหมือนเดิม
+const STATUS_META: Record<string, StatusMeta> = {
+  rejected: RED,
+  completed: GREEN_CHECK,
+  approved: GREEN_APPROVE,
+  checked_in: AMBER,
+  checked_in_confirmed: AMBER,
+  receiving: AMBER,
+  at_warehouse: AMBER,
+  in_transit: AMBER,
+  exchanging: AMBER,
+  document_generated: DEFAULT,
+  email_sent: DEFAULT,
+  // ไม่ใช่ status_logs.status_name จริง แต่เป็น key ของ STAGES (4-step stepper) —
+  // ใส่ไว้ในตารางเดียวกันเพราะ customer/history/page.tsx เรียก getStatusMeta(stage.key)
+  pending_review: DEFAULT,
+  processing: AMBER,
+};
+
 export function getStatusMeta(statusName: string = '') {
-  if (/ปฏิเสธ|ยกเลิก|ไม่อนุมัติ/.test(statusName)) {
-    return { icon: XCircle, bg: 'bg-red-50', fg: 'text-red-600' };
-  }
-  if (/เสร็จสิ้น|สำเร็จ|ปิดงาน/.test(statusName)) {
-    return { icon: Check, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
-  }
-  if (/อนุมัติ/.test(statusName)) {
-    return { icon: FileCheck, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
-  }
-  if (/ตรวจรับ|คลัง|ขนส่ง|จัดส่ง/.test(statusName)) {
-    return { icon: Truck, bg: 'bg-amber-50', fg: 'text-amber-600' };
-  }
-  return { icon: Clock, bg: 'bg-sky-50', fg: 'text-sky-600' };
+  return STATUS_META[statusName] ?? DEFAULT;
 }
 
 export function formatCurrency(value: number | null | undefined) {

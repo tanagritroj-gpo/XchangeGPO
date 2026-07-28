@@ -96,11 +96,19 @@ describe('rejectRequest — cascades to every item regardless of current status'
       { id: 2, current_status: 'pending_review' },
     ]);
 
-    const res = await rejectRequest(1, 'ลูกค้ายกเลิก');
+    const res = await rejectRequest(1, 'customer_cancelled', 'ลูกค้ายกเลิก');
 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
     expect(fakeAdmin.rows('drug_items').every((i) => i.current_status === 'rejected')).toBe(true);
+    expect(fakeAdmin.rows('status_logs')[0].rejection_reason_code).toBe('customer_cancelled');
+  });
+
+  it('refuses to reject without a valid structured reason', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'approved' }]);
+    const res = await rejectRequest(1, 'not-a-real-reason', 'whatever');
+    expect(res).toEqual({ success: false, error: 'กรุณาเลือกเหตุผลที่ปฏิเสธ' });
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('pending_review');
   });
 });
 

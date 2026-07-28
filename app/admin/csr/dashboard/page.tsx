@@ -27,6 +27,7 @@ import {
 } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
+import RejectReasonFields from '@/components/RejectReasonFields';
 
 // ── Status config: คงค่าเดิมทั้งหมด แค่ปรับให้ใช้ token สีสม่ำเสมอขึ้น ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -347,6 +348,7 @@ export default function CSRDashboard() {
   // Modal ยืนยันอนุมัติ/ปฏิเสธใบงาน (พร้อมหมายเหตุ) — เปิดเมื่อรายการยาครบทุกตัวแล้วเท่านั้น
   const [confirmModal, setConfirmModal] = useState<{ requestId: number; action: 'approved' | 'rejected' } | null>(null);
   const [remark, setRemark] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchData = async (opts?: { silent?: boolean }) => {
@@ -383,6 +385,7 @@ export default function CSRDashboard() {
   // เปิด modal ยืนยัน อนุมัติ/ปฏิเสธ ใบงาน (แสดงได้ก็ต่อเมื่อรายการยาครบทุกตัวแล้ว)
   const openConfirmModal = (requestId: number, action: 'approved' | 'rejected') => {
     setRemark('');
+    setReasonCode('');
     setConfirmModal({ requestId, action });
   };
 
@@ -393,7 +396,7 @@ export default function CSRDashboard() {
       const { requestId, action } = confirmModal;
       const res = action === 'approved'
         ? await approveRequest(requestId, remark)
-        : await rejectRequest(requestId, remark);
+        : await rejectRequest(requestId, reasonCode, remark);
 
       if (res.success) {
         setConfirmModal(null);
@@ -586,22 +589,33 @@ export default function CSRDashboard() {
                 </div>
               </div>
 
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                หมายเหตุ {confirmModal.action === 'rejected' && <span className="text-rose-500">*จำเป็น</span>}
-              </label>
-              <textarea
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={confirmModal.action === 'approved' ? 'ระบุหมายเหตุ (ถ้ามี)...' : 'ระบุเหตุผลที่ปฏิเสธ...'}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
-              />
+              {confirmModal.action === 'rejected' ? (
+                <RejectReasonFields
+                  code={reasonCode}
+                  detail={remark}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setRemark}
+                />
+              ) : (
+                <>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    หมายเหตุ
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    placeholder="ระบุหมายเหตุ (ถ้ามี)..."
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                  />
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setConfirmModal(null); setRemark(''); }}
+                  onClick={() => { setConfirmModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
                   className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
@@ -610,7 +624,7 @@ export default function CSRDashboard() {
                 <button
                   type="button"
                   onClick={handleConfirmSubmit}
-                  disabled={isSubmitting || (confirmModal.action === 'rejected' && !remark.trim())}
+                  disabled={isSubmitting || (confirmModal.action === 'rejected' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: confirmModal.action === 'approved'

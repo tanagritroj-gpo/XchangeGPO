@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { CheckCircle2, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { updateItemStatus, rejectItemStatus } from '@/app/actions/logistics-actions';
+import RejectReasonFields from '@/components/RejectReasonFields';
 
 export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   item: any;
@@ -11,11 +12,13 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   // Modal ยืนยันตรวจรับ/ปฏิเสธรายการยา (แทน prompt() เดิม)
   const [actionModal, setActionModal] = useState<'at_warehouse' | 'rejected' | null>(null);
   const [remark, setRemark] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // เปิด modal แทนการเรียก prompt() เดิม
   const openActionModal = (action: 'at_warehouse' | 'rejected') => {
     setRemark('');
+    setReasonCode('');
     setActionModal(action);
   };
 
@@ -25,7 +28,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
     try {
       const res = actionModal === 'at_warehouse'
         ? await updateItemStatus(item.id, 'at_warehouse', remark || '')
-        : await rejectItemStatus(item.id, remark || '');
+        : await rejectItemStatus(item.id, reasonCode, remark);
 
       if (res.success) {
         onUpdate(item.id, actionModal);
@@ -111,22 +114,33 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                 </div>
               </div>
 
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                หมายเหตุ {actionModal === 'rejected' && <span className="text-rose-500">*จำเป็น</span>}
-              </label>
-              <textarea
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={actionModal === 'at_warehouse' ? 'ระบุหมายเหตุการตรวจรับ...' : 'ระบุเหตุผลที่ปฏิเสธ...'}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
-              />
+              {actionModal === 'rejected' ? (
+                <RejectReasonFields
+                  code={reasonCode}
+                  detail={remark}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setRemark}
+                />
+              ) : (
+                <>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    หมายเหตุ
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    placeholder="ระบุหมายเหตุการตรวจรับ..."
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                  />
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setActionModal(null); setRemark(''); }}
+                  onClick={() => { setActionModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
                   className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
@@ -135,7 +149,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                 <button
                   type="button"
                   onClick={submitAction}
-                  disabled={isSubmitting || (actionModal === 'rejected' && !remark.trim())}
+                  disabled={isSubmitting || (actionModal === 'rejected' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: actionModal === 'at_warehouse'

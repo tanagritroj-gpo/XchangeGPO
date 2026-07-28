@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
+import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 
 // ดึง Session เพื่อเช็คว่าเป็น Logistics หรือ Manager
 async function getLogisticsSession() {
@@ -151,9 +152,13 @@ export async function updateItemStatus(
 // ปฏิเสธรายการรายชิ้น
 export async function rejectItemStatus(
   itemId: number,
-  remark: string
+  reasonCode: string,
+  detail: string = ''
 ) {
   try {
+    if (!isRejectionReasonCode(reasonCode)) {
+      return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
+    }
     const session = await getLogisticsSession();
 
     const { data: item } = await supabaseAdmin
@@ -192,7 +197,8 @@ export async function rejectItemStatus(
       staff_id: session.id,
       department: 'logistics',
       status_name: 'rejected',
-      staff_remark: remark || `ปฏิเสธรายการยา ID: ${itemId}`,
+      rejection_reason_code: reasonCode,
+      staff_remark: buildRejectionRemark(reasonCode, detail),
       drug_item_id: itemId
     });
 
@@ -205,12 +211,16 @@ export async function rejectItemStatus(
 
 export async function confirmLogisticsBatch(
   requestId: number,
-  actions: { itemId: number, status: 'at_warehouse' | 'rejected', remark: string }[]
+  actions: { itemId: number, status: 'at_warehouse' | 'rejected', remark: string, reasonCode?: string }[]
 ) {
   try {
     const session = await getLogisticsSession();
 
     for (const action of actions) {
+      if (action.status === 'rejected' && !isRejectionReasonCode(action.reasonCode)) {
+        return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
+      }
+
       await supabaseAdmin.from('drug_items').update({ current_status: action.status }).eq('id', action.itemId);
 
       await supabaseAdmin.from('status_logs').insert({
@@ -218,7 +228,10 @@ export async function confirmLogisticsBatch(
         staff_id: session.id,
         department: 'logistics',
         status_name: action.status,
-        staff_remark: action.remark,
+        rejection_reason_code: action.status === 'rejected' ? action.reasonCode : null,
+        staff_remark: action.status === 'rejected'
+          ? buildRejectionRemark(action.reasonCode!, action.remark)
+          : action.remark,
         drug_item_id: action.itemId
       });
     }

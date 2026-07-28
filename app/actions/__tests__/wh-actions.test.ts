@@ -152,9 +152,17 @@ describe('rejectWHItem — the all-rejected edge case', () => {
 
     // Rejecting the second item means every item in the request is now
     // rejected and none was ever received — the whole request should die.
-    const res = await rejectWHItem(2, 'bad batch');
+    const res = await rejectWHItem(2, 'damaged', 'bad batch');
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+    expect(fakeAdmin.rows('status_logs')[0].rejection_reason_code).toBe('damaged');
+  });
+
+  it('refuses to reject without a valid structured reason', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'at_warehouse' }]);
+    const res = await rejectWHItem(1, 'not-a-real-reason', 'whatever');
+    expect(res).toEqual({ success: false, error: 'กรุณาเลือกเหตุผลที่ปฏิเสธ' });
+    expect(fakeAdmin.rows('drug_items')[0].current_status).toBe('at_warehouse');
   });
 
   it('keeps the request alive as "receiving" if at least one item was received before the rest got rejected', async () => {
@@ -163,7 +171,7 @@ describe('rejectWHItem — the all-rejected edge case', () => {
       { id: 2, current_status: 'checked_in' },
     ], 'checked_in');
 
-    const res = await rejectWHItem(2, 'damaged');
+    const res = await rejectWHItem(2, 'damaged', '');
 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('receiving');

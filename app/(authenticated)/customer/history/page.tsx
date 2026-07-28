@@ -50,7 +50,7 @@ const REJECTED_GROUP: Group = {
 };
 
 const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
-  const meta = getStatusMeta(stage.label);
+  const meta = getStatusMeta(stage.key);
   return { key: stage.key, label: stage.label, icon: meta.icon, iconTone: meta.fg };
 });
 

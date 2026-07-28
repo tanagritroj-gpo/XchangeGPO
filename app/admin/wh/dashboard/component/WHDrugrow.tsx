@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { AlertTriangle, Loader2, Check } from 'lucide-react';
 import { stampCheckedIn, stampReceiving, rejectWHItem } from '@/app/actions/wh-actions';
+import RejectReasonFields from '@/components/RejectReasonFields';
 
 // ── Status Config ──────────────────────────────────────────────
 export const WH_STATUS: Record<string, { label: string; color: string; bg: string; dot: string; border: string }> = {
@@ -27,24 +29,45 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
   onUpdate: (itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected') => void;
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [reasonCode, setReasonCode] = useState('');
+  const [detail, setDetail] = useState('');
 
-  const handleAction = async (action: 'checked_in' | 'receiving' | 'rejected', remark?: string) => {
+  const handleAction = async (action: 'checked_in' | 'receiving') => {
     setIsProcessing(true);
     try {
-
-      let res;
-      if (action === 'checked_in') {
-        res = await stampCheckedIn(item.id, 'ตรวจรับเรียบร้อย');
-      } else if (action === 'receiving') {
-        res = await stampReceiving(item.id, 'จัดเก็บเข้าคลังแล้ว');
-      } else {
-        res = await rejectWHItem(item.id, remark || "ปฏิเสธรายการ");
-      }
+      const res = action === 'checked_in'
+        ? await stampCheckedIn(item.id, 'ตรวจรับเรียบร้อย')
+        : await stampReceiving(item.id, 'จัดเก็บเข้าคลังแล้ว');
 
       if (res?.success) {
         onUpdate(item.id, action);
       } else {
         alert('บันทึกไม่สำเร็จ: ' + (res as any)?.error);
+      }
+    } catch (err) {
+      console.error("Error:", err);
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const openRejectModal = () => {
+    setReasonCode('');
+    setDetail('');
+    setRejectModalOpen(true);
+  };
+
+  const submitReject = async () => {
+    setIsProcessing(true);
+    try {
+      const res = await rejectWHItem(item.id, reasonCode, detail);
+      if (res.success) {
+        onUpdate(item.id, 'rejected');
+        setRejectModalOpen(false);
+      } else {
+        alert('บันทึกไม่สำเร็จ: ' + res.error);
       }
     } catch (err) {
       console.error("Error:", err);
@@ -84,10 +107,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
             {/* ปุ่มปฏิเสธ: แสดงในขั้นตอน at_warehouse และ checked_in (ที่ยังไม่ผ่านจัดเก็บ) */}
             {item.current_status === 'at_warehouse' && (
               <button
-                onClick={() => {
-                  const remark = prompt("ระบุเหตุผลที่ปฏิเสธ:");
-                  if (remark && remark.trim() !== "") handleAction('rejected', remark);
-                }}
+                onClick={openRejectModal}
                 className="px-2 py-1.5 rounded-lg text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all"
               >X ปฏิเสธ</button>
             )}
@@ -127,6 +147,56 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
           </>
         )}
       </div>
+
+      {/* ══ Confirm Modal: ปฏิเสธรายการยา พร้อมเหตุผล ══ */}
+      {rejectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200 col-span-12">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#dc2626,#f87171)' }} />
+
+            <div className="p-7">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#fee2e2' }}>
+                  <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-800">ยืนยันการปฏิเสธรายการ</h3>
+                  <p className="text-xs text-slate-400 mt-0.5 truncate">{item.drug_name}</p>
+                </div>
+              </div>
+
+              <RejectReasonFields
+                code={reasonCode}
+                detail={detail}
+                onCodeChange={setReasonCode}
+                onDetailChange={setDetail}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setRejectModalOpen(false)}
+                  disabled={isProcessing}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={submitReject}
+                  disabled={isProcessing || !reasonCode || (reasonCode === 'other' && !detail.trim())}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(135deg,#dc2626,#f87171)' }}
+                >
+                  {isProcessing
+                    ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
+                    : <><Check size={15} strokeWidth={3} /> ยืนยัน</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

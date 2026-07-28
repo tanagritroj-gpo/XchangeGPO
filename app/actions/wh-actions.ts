@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
+import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 
 // ดึง Session เพื่อเช็คว่าเป็น Warehouse หรือ Manager
 async function getWHSession() {
@@ -214,9 +215,13 @@ export async function stampReceiving(
 
 export async function rejectWHItem(
   itemId: number,
-  remark: string
+  reasonCode: string,
+  detail: string = ''
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!isRejectionReasonCode(reasonCode)) {
+      return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
+    }
     const session = await getWHSession();
 
     const { data: item, error: fetchErr } = await supabaseAdmin
@@ -259,7 +264,8 @@ export async function rejectWHItem(
       staff_id: session.id,
       department: 'warehouse',
       status_name: 'rejected',
-      staff_remark: `ปฏิเสธรายการ: ${remark}`
+      rejection_reason_code: reasonCode,
+      staff_remark: buildRejectionRemark(reasonCode, detail)
     });
 
     revalidatePath('/admin/wh/dashboard');
