@@ -2,7 +2,8 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Loader2, Check, X, Receipt, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
-import RejectReasonFields from '@/components/RejectReasonFields';
+import ReasonSelectFields from '@/components/ReasonSelectFields';
+import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 
 // ── Badge สำหรับแสดงประเภทคำร้อง — สีตรงกับ TYPES ใน Step1Info.tsx ──
 const REQUEST_TYPE_STYLE: Record<string, { icon: any; color: string; bg: string }> = {
@@ -205,7 +206,9 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
               </div>
 
               {actionModal === 'reject' ? (
-                <RejectReasonFields
+                <ReasonSelectFields
+                  label="เหตุผลที่ปฏิเสธ"
+                  options={REJECTION_REASONS}
                   code={reasonCode}
                   detail={remark}
                   onCodeChange={setReasonCode}

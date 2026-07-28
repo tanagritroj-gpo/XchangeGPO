@@ -27,7 +27,18 @@ import {
 } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
-import RejectReasonFields from '@/components/RejectReasonFields';
+import ReasonSelectFields from '@/components/ReasonSelectFields';
+import { REJECTION_REASONS } from '@/lib/rejection-reasons';
+import { resolveQuickNote } from '@/lib/quick-note';
+
+// หมายเหตุตอนเริ่มกระบวนการแลกเปลี่ยน — preset ให้เลือกเร็วๆ (ยังพิมพ์เพิ่มเติมได้
+// ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติใดต้อง group ตามหมายเหตุ
+// ฝั่งนี้ — ดู lib/quick-note.ts
+const START_EXCHANGE_NOTES = [
+  { code: 'debt_reduction', label: 'เริ่มลดหนี้' },
+  { code: 'exchange', label: 'เริ่มแลกเปลี่ยน' },
+  { code: 'other', label: 'อื่นๆ' },
+] as const;
 
 // ── Status config: คงค่าเดิมทั้งหมด แค่ปรับให้ใช้ token สีสม่ำเสมอขึ้น ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -171,7 +182,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging'];
 // ── ส่วนแสดงรายการใบงาน — logic เหมือนกันทุกอย่าง แค่รับ items แยกกันเพื่อแยกหัวข้อ ──
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
-  expandedReq, setExpandedReq, openConfirmModal, handleUpdateStatus, fetchData,
+  expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
   emptyIcon: EmptyIcon, emptyText,
 }: any) {
   return (
@@ -243,7 +254,7 @@ function RequestListSection({
                         )
                       )}
                       {req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => handleUpdateStatus(req.id, 'exchanging')} />
+                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
@@ -285,7 +296,7 @@ function RequestListSection({
                         )
                       )}
                       {req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => handleUpdateStatus(req.id, 'exchanging')} />
+                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
@@ -351,6 +362,11 @@ export default function CSRDashboard() {
   const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Modal ยืนยันเริ่มกระบวนการแลกเปลี่ยน (แทน prompt() เดิม)
+  const [exchangeModal, setExchangeModal] = useState<{ requestId: number } | null>(null);
+  const [exchangeReasonCode, setExchangeReasonCode] = useState('');
+  const [exchangeDetail, setExchangeDetail] = useState('');
+
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
     const data = await getCSRDashboardData();
@@ -368,18 +384,44 @@ export default function CSRDashboard() {
     init();
   }, []);
 
-  // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เริ่มแลกเปลี่ยน / เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
+  // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
+  // "เริ่มแลกเปลี่ยน" แยกไปใช้ exchangeModal ด้านล่างแล้ว (มี dropdown แทน prompt)
   const handleUpdateStatus = async (id: number, newStatus: string) => {
     const remarkInput = prompt('ระบุหมายเหตุ:');
     if (remarkInput === null) return;
     try {
-      let res;
-      if (newStatus === 'exchanging') res = await startExchangeProcess(id, remarkInput || '');
-      else if (newStatus === 'completed') res = await completeRequest(id, remarkInput || '');
-      else { alert('สถานะไม่รู้จัก'); return; }
+      if (newStatus !== 'completed') { alert('สถานะไม่รู้จัก'); return; }
+      const res = await completeRequest(id, remarkInput || '');
       if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
       else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
     } catch (err) { alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); console.error(err); }
+  };
+
+  // เปิด modal เริ่มแลกเปลี่ยน แทนการเรียก prompt() เดิม
+  const openExchangeModal = (requestId: number) => {
+    setExchangeReasonCode('');
+    setExchangeDetail('');
+    setExchangeModal({ requestId });
+  };
+
+  const submitExchangeModal = async () => {
+    if (!exchangeModal) return;
+    setIsSubmitting(true);
+    try {
+      const remarkText = resolveQuickNote(START_EXCHANGE_NOTES, exchangeReasonCode, exchangeDetail);
+      const res = await startExchangeProcess(exchangeModal.requestId, remarkText);
+      if (res.success) {
+        setExchangeModal(null);
+        fetchData();
+      } else {
+        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // เปิด modal ยืนยัน อนุมัติ/ปฏิเสธ ใบงาน (แสดงได้ก็ต่อเมื่อรายการยาครบทุกตัวแล้ว)
@@ -505,6 +547,7 @@ export default function CSRDashboard() {
                   expandedReq={expandedReq}
                   setExpandedReq={setExpandedReq}
                   openConfirmModal={openConfirmModal}
+                  openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
@@ -523,6 +566,7 @@ export default function CSRDashboard() {
                   expandedReq={expandedReq}
                   setExpandedReq={setExpandedReq}
                   openConfirmModal={openConfirmModal}
+                  openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
@@ -543,6 +587,7 @@ export default function CSRDashboard() {
               expandedReq={expandedReq}
               setExpandedReq={setExpandedReq}
               openConfirmModal={openConfirmModal}
+              openExchangeModal={openExchangeModal}
               handleUpdateStatus={handleUpdateStatus}
               fetchData={fetchData}
               emptyIcon={Inbox}
@@ -590,7 +635,9 @@ export default function CSRDashboard() {
               </div>
 
               {confirmModal.action === 'rejected' ? (
-                <RejectReasonFields
+                <ReasonSelectFields
+                  label="เหตุผลที่ปฏิเสธ"
+                  options={REJECTION_REASONS}
                   code={reasonCode}
                   detail={remark}
                   onCodeChange={setReasonCode}
@@ -631,6 +678,60 @@ export default function CSRDashboard() {
                       ? 'linear-gradient(135deg,#059669,#10b981)'
                       : 'linear-gradient(135deg,#dc2626,#f87171)',
                   }}
+                >
+                  {isSubmitting
+                    ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
+                    : <><Check size={15} strokeWidth={3} /> ยืนยัน</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Confirm Modal: เริ่มกระบวนการแลกเปลี่ยน พร้อมหมายเหตุ ══ */}
+      {exchangeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#ea580c,#fb923c)' }} />
+
+            <div className="p-7">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#ffedd5' }}>
+                  <RefreshCw size={22} className="text-orange-600" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">ยืนยันเริ่มกระบวนการแลกเปลี่ยน</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Ref: {requests.find(r => r.id === exchangeModal.requestId)?.ref_id}
+                  </p>
+                </div>
+              </div>
+
+              <ReasonSelectFields
+                label="ประเภทการดำเนินการ"
+                options={START_EXCHANGE_NOTES}
+                code={exchangeReasonCode}
+                detail={exchangeDetail}
+                onCodeChange={setExchangeReasonCode}
+                onDetailChange={setExchangeDetail}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setExchangeModal(null); setExchangeReasonCode(''); setExchangeDetail(''); }}
+                  disabled={isSubmitting}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={submitExchangeModal}
+                  disabled={isSubmitting || !exchangeReasonCode || (exchangeReasonCode === 'other' && !exchangeDetail.trim())}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(135deg,#ea580c,#fb923c)' }}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
