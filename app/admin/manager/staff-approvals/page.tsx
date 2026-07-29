@@ -155,14 +155,20 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
                   <div className="px-4 md:px-6 pb-4">
                     <div className="space-y-1.5">
                       {req.drug_items.map((item: any) => (
-                        <div key={item.id} className="grid grid-cols-12 gap-2 text-xs bg-slate-50 px-3.5 py-2.5 rounded-xl items-center border border-slate-100">
-                          <div className="col-span-4 font-semibold text-slate-700 truncate">{item.drug_name}</div>
-                          <div className="col-span-2 text-slate-500">{item.qty} {item.unit}</div>
-                          <div className="col-span-2 text-slate-400 font-mono text-[10px]">{item.lot_number ?? '-'}</div>
-                          <div className="col-span-2">
+                        <div key={item.id} className="grid grid-cols-2 md:grid-cols-12 gap-1.5 md:gap-2 text-xs bg-slate-50 px-3.5 py-2.5 rounded-xl items-start md:items-center border border-slate-100">
+                          <div className="col-span-2 md:col-span-4 font-semibold text-slate-700 truncate">{item.drug_name}</div>
+                          <div className="col-span-1 md:col-span-2 text-slate-500">
+                            <span className="md:hidden text-[10px] text-slate-400">จำนวน: </span>
+                            {item.qty} {item.unit}
+                          </div>
+                          <div className="col-span-1 md:col-span-2 text-slate-400 font-mono text-[10px]">
+                            <span className="md:hidden font-sans text-slate-400">LOT: </span>
+                            {item.lot_number ?? '-'}
+                          </div>
+                          <div className="col-span-1 md:col-span-2">
                             <StatusBadge status={item.current_status} />
                           </div>
-                          <div className="col-span-2 text-right font-bold text-teal-600">
+                          <div className="col-span-1 md:col-span-2 text-left md:text-right font-bold text-teal-600">
                             ฿{Number(item.value_amount || 0).toLocaleString()}
                           </div>
                         </div>

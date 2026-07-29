@@ -197,8 +197,9 @@ export default function WHDashboard() {
             </div>
           </div>
 
-          {/* Table column labels */}
-          <div className="grid grid-cols-12 gap-3 px-7 py-3 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          {/* Table column labels — ซ่อนบนมือถือ เพราะ WHDrugRow เปลี่ยนเป็น layout การ์ด
+              2 คอลัมน์พร้อม label ในตัวเองแล้ว ไม่ตรงกับหัวตารางนี้อีกต่อไป */}
+          <div className="hidden md:grid grid-cols-12 gap-3 px-7 py-3 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             <div className="col-span-4">ชื่อยา / Lot No.</div>
             <div className="col-span-2">หมดอายุ</div>
             <div className="col-span-2 text-right">จำนวน</div>

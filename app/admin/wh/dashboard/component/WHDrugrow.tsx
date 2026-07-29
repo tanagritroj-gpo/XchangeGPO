@@ -116,25 +116,27 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
   const ModalIcon = meta?.icon;
 
   return (
-    <div className="grid grid-cols-12 gap-3 items-center px-4 py-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all duration-150">
-      <div className="col-span-4">
+    <div className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all duration-150">
+      <div className="col-span-2 md:col-span-4">
         <p className="text-sm font-bold text-slate-800 truncate">{item.drug_name}</p>
         <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
           <span>🏷️</span> {item.lot_number ?? '—'}
         </p>
       </div>
-      <div className="col-span-2 text-xs text-slate-400">
+      <div className="col-span-1 md:col-span-2 text-xs text-slate-400">
+        <span className="md:hidden text-[10px] text-slate-400">หมดอายุ: </span>
         {item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
       </div>
-      <div className="col-span-2 text-xs font-bold text-slate-600 text-right">
+      <div className="col-span-1 md:col-span-2 text-xs font-bold text-slate-600 text-left md:text-right">
+        <span className="md:hidden text-[10px] font-normal text-slate-400">จำนวน: </span>
         {item.qty} <span className="font-normal text-slate-400">{item.unit}</span>
       </div>
-      <div className="col-span-2">
+      <div className="col-span-1 md:col-span-2">
         <StatusBadge status={item.current_status} />
       </div>
 
       {/* Action Area */}
-      <div className="col-span-2 flex justify-end gap-1.5">
+      <div className="col-span-1 md:col-span-2 flex justify-start md:justify-end gap-1.5 flex-wrap">
         {isProcessing ? (
           <div className="flex items-center gap-1.5 text-slate-500">
             <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
