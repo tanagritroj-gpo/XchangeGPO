@@ -223,6 +223,9 @@ export default function CSRCustomersPage() {
   const [historyError, setHistoryError] = useState('');
   const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
   const [docLoading, setDocLoading] = useState(false);
+  // client.id ที่กำลังส่งคำขออนุมัติ/ปฏิเสธอยู่ — กันกดซ้ำระหว่างรอผล (ก่อนหน้านี้ไม่มี
+  // guard ทำให้กดรัวจนคำขอซ้อนกันชน unique constraint ฝั่ง server ได้)
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -261,20 +264,30 @@ export default function CSRCustomersPage() {
   }, [selectedCustomer]);
 
   const handleReviewClient = async (id: string, action: 'approved' | 'rejected') => {
+    if (processingIds.has(id)) return;
     if (action === 'approved' && !customerCodes[id]?.trim()) {
       alert('กรุณาระบุรหัสลูกค้าก่อนอนุมัติ');
       return;
     }
-    const res = await reviewClient(id, action, customerCodes[id]);
-    if (res.success) {
-      alert(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย');
-      setCustomerCodes((prev) => {
-        const { [id]: _omit, ...rest } = prev;
-        return rest;
+    setProcessingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await reviewClient(id, action, customerCodes[id]);
+      if (res.success) {
+        alert(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย');
+        setCustomerCodes((prev) => {
+          const { [id]: _omit, ...rest } = prev;
+          return rest;
+        });
+        fetchData();
+      } else {
+        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      }
+    } finally {
+      setProcessingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
       });
-      fetchData();
-    } else {
-      alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
     }
   };
 
@@ -385,15 +398,16 @@ export default function CSRCustomersPage() {
                         />
                         <button
                           onClick={() => handleReviewClient(client.id, 'approved')}
-                          disabled={!customerCodes[client.id]?.trim()}
+                          disabled={!customerCodes[client.id]?.trim() || processingIds.has(client.id)}
                           title={!customerCodes[client.id]?.trim() ? 'กรุณาระบุรหัสลูกค้าก่อนอนุมัติ' : undefined}
                           className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
                         >
-                          <Check size={14} strokeWidth={3} /> อนุมัติ
+                          {processingIds.has(client.id) ? <Loader2 size={14} className="animate-spin" strokeWidth={3} /> : <Check size={14} strokeWidth={3} />} อนุมัติ
                         </button>
                         <button
                           onClick={() => handleReviewClient(client.id, 'rejected')}
-                          className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all shrink-0"
+                          disabled={processingIds.has(client.id)}
+                          className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all shrink-0 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
                         >
                           <X size={14} strokeWidth={3} /> ปฏิเสธ
                         </button>

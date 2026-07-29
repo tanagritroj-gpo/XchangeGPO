@@ -202,6 +202,35 @@ describe('reviewClient — approval provisions a real b2b_customer', () => {
     expect(fakeAdmin.rows('clients')[0].status).toBe('rejected');
     expect(fakeAdmin.rows('b2b_customers')).toHaveLength(0);
   });
+
+  // ลูกค้าจริงรายงานว่ากดอนุมัติแล้วเจอ "duplicate key value violates unique
+  // constraint b2b_customers_email_key" — สาเหตุ: reviewClient() เดิม update
+  // clients.status โดยไม่เช็คว่าแถวยังเป็น 'pending' อยู่ไหม ทำให้คำขอซ้อนกัน (กดปุ่ม
+  // ซ้ำ/สอง tab) แข่งกัน insert เข้า b2b_customers ด้วย email เดียวกันจนชน unique
+  // constraint แทนที่จะได้ error ที่อ่านรู้เรื่อง
+  it('refuses to re-process a client that is no longer pending', async () => {
+    seedClient();
+    await reviewClient('client-1', 'approved', 'CUST-001');
+
+    const res = await reviewClient('client-1', 'approved', 'CUST-002');
+
+    expect(res).toEqual({ success: false, error: 'ลูกค้ารายนี้ถูกดำเนินการไปแล้ว กรุณารีเฟรชหน้าจอ' });
+    // ต้องไม่มีแถวที่สองถูก insert ซ้ำ
+    expect(fakeAdmin.rows('b2b_customers')).toHaveLength(1);
+  });
+
+  it('only lets one of two concurrent approvals on the same client through', async () => {
+    seedClient();
+
+    const [a, b] = await Promise.all([
+      reviewClient('client-1', 'approved', 'CUST-001'),
+      reviewClient('client-1', 'approved', 'CUST-002'),
+    ]);
+
+    const successes = [a, b].filter((r) => r.success);
+    expect(successes).toHaveLength(1);
+    expect(fakeAdmin.rows('b2b_customers')).toHaveLength(1);
+  });
 });
 
 describe('reviewClient — registration confirmation document (approval side-effect)', () => {

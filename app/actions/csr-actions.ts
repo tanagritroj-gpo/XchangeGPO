@@ -78,12 +78,24 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
 
     if (fetchErr || !client) throw new Error("หาข้อมูลลูกค้าไม่พบ");
 
-    const { error: updateErr } = await supabaseAdmin
+    // ★ .eq('status', 'pending') ทำหน้าที่เป็น compare-and-swap ระดับ DB — ถ้ามีคำขอ
+    // ซ้ำซ้อน (เช่น CSR กดปุ่มอนุมัติซ้ำก่อนหน้าเว็บ refetch, หรือ 2 แท็บ) เข้ามาพร้อมกัน
+    // จะมีแค่คำขอเดียวที่ match แถวได้ (เพราะแถวเปลี่ยนสถานะไปแล้วหลังคำขอแรกอัปเดตเสร็จ)
+    // ป้องกัน insert ซ้ำลง b2b_customers ด้วย email เดิมจนชน unique constraint
+    // b2b_customers_email_key (เดิมโค้ดนี้ update โดยไม่เช็คสถานะปัจจุบันเลย — ช่องโหว่นี้
+    // มีอยู่ก่อนแล้ว แต่ยิ่งเจอง่ายขึ้นตอนนี้เพราะ flow อนุมัติใช้เวลานานขึ้นจากการสร้าง
+    // เอกสาร+ส่งอีเมล เปิดช่องให้กดซ้ำทันจังหวะได้ง่ายขึ้น)
+    const { data: updatedRows, error: updateErr } = await supabaseAdmin
       .from('clients')
       .update({ status: action })
-      .eq('id', clientId);
+      .eq('id', clientId)
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateErr) throw updateErr;
+    if (!updatedRows || updatedRows.length === 0) {
+      throw new Error("ลูกค้ารายนี้ถูกดำเนินการไปแล้ว กรุณารีเฟรชหน้าจอ");
+    }
 
     if (action === 'approved') {
       const { data: newCustomer, error: insertErr } = await supabaseAdmin
