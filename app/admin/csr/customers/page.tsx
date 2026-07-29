@@ -281,6 +281,9 @@ export default function CSRCustomersPage() {
         fetchData();
       } else {
         alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        // รีเฟรชด้วยแม้ล้มเหลว — สถานะจริงใน DB อาจเปลี่ยนไปแล้ว (เช่น ถูกดำเนินการไปแล้ว
+        // จากคำขออื่น) ไม่อยากให้ list ค้างข้อมูลเก่าที่ไม่ตรงกับ DB จริง
+        fetchData();
       }
     } finally {
       setProcessingIds((prev) => {

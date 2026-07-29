@@ -111,7 +111,20 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
         .select('id')
         .single();
 
-      if (insertErr) throw insertErr;
+      if (insertErr) {
+        // ★ ย้อน clients.status กลับ 'pending' — ไม่งั้น client จะค้างที่ 'approved'
+        // ทั้งที่ไม่มี b2b_customer จริงผูกอยู่เลย (update ข้างบนกับ insert นี้เป็นคนละ
+        // statement ไม่ใช่ transaction เดียวกัน ถ้า insert พังแล้วปล่อย status ค้างไว้
+        // จะกลายเป็นข้อมูลขัดแย้งแบบเดียวกับที่เจอใน client เก่าที่หลุดมาก่อนหน้านี้)
+        // เกิดได้ทั้งจาก race ที่ guard ข้างบนไม่ได้ครอบคลุม (เช่น อีเมลนี้ชนกับ
+        // b2b_customers แถวอื่นที่มีอยู่ก่อนแล้วจริงๆ ไม่ใช่แค่ client แถวเดียวกันขอซ้ำ)
+        await supabaseAdmin.from('clients').update({ status: 'pending' }).eq('id', clientId);
+
+        if (insertErr.code === '23505') {
+          throw new Error('อีเมลนี้มีข้อมูลลูกค้าอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนอนุมัติซ้ำ');
+        }
+        throw insertErr;
+      }
 
       // ผูกกลับเข้า clients เผื่อต้อง trace ย้อนหลัง
       await supabaseAdmin

@@ -10,6 +10,15 @@
 type Row = Record<string, any>;
 type Tables = Record<string, Row[]>;
 
+// Columns with a real unique constraint in Postgres, worth modeling here so
+// tests can exercise the 23505 duplicate-key error path (e.g. b2b_customers
+// re-provisioning an already-used email) without needing a real DB. Extend
+// this map rather than special-casing individual tests.
+const UNIQUE_COLUMNS: Record<string, string[]> = {
+  b2b_customers: ['email'],
+  clients: ['email'],
+};
+
 class FakeQueryBuilder {
   private filters: ((row: Row) => boolean)[] = [];
   private mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
@@ -149,6 +158,21 @@ class FakeQueryBuilder {
         data = this.wantsSingle ? rows[0] : rows;
       } else if (this.mode === 'insert') {
         const arr = Array.isArray(this.insertValues) ? this.insertValues : [this.insertValues!];
+        const uniqueCols = UNIQUE_COLUMNS[this.tableName] ?? [];
+        for (const v of arr) {
+          for (const col of uniqueCols) {
+            if (v[col] != null && this.table().some((r) => r[col] === v[col])) {
+              resolve({
+                data: null,
+                error: {
+                  message: `duplicate key value violates unique constraint "${this.tableName}_${col}_key"`,
+                  code: '23505',
+                },
+              });
+              return;
+            }
+          }
+        }
         const inserted = arr.map((v) => ({ id: this.nextId(this.tableName), ...v }));
         this.table().push(...inserted);
         data = this.wantsSingle ? inserted[0] : inserted;

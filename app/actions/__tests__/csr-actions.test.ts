@@ -231,6 +231,42 @@ describe('reviewClient — approval provisions a real b2b_customer', () => {
     expect(successes).toHaveLength(1);
     expect(fakeAdmin.rows('b2b_customers')).toHaveLength(1);
   });
+
+  // Live bug found by the user: after this exact client was approved once, its
+  // `clients` row got deleted/reset for re-testing and re-registered with the
+  // same email, so a fresh pending client can end up with an email that
+  // already belongs to a *different* b2b_customers row (not itself). That's
+  // not the same-row race the previous two tests cover — this is a genuine
+  // unique-email collision, and the old code left clients.status stuck at
+  // 'approved' with no b2b_customer_id when the insert below failed.
+  it('reverts status back to pending if the email already belongs to another b2b_customer', async () => {
+    seedClient();
+    fakeAdmin.seed({
+      clients: [{
+        id: 'client-1',
+        email: 'hospital@example.com',
+        hospital_name: 'รพ.ทดสอบ',
+        phone: '0800000000',
+        contact_name: 'สมชาย',
+        position: 'เภสัชกร',
+        status: 'pending',
+      }],
+      b2b_customers: [{ email: 'hospital@example.com', hospital_name: 'รพ.เก่า', customer_code: 'OLD-001' }],
+      requests: [],
+      drug_items: [],
+      status_logs: [],
+    });
+
+    const res = await reviewClient('client-1', 'approved', 'CUST-001');
+
+    expect(res).toEqual({ success: false, error: 'อีเมลนี้มีข้อมูลลูกค้าอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนอนุมัติซ้ำ' });
+    // ต้องย้อนกลับเป็น 'pending' ไม่ใช่ค้างที่ 'approved' ทั้งที่ไม่มี b2b_customer ผูกอยู่
+    expect(fakeAdmin.rows('clients')[0].status).toBe('pending');
+    expect(fakeAdmin.rows('clients')[0].b2b_customer_id).toBeUndefined();
+    // ต้องไม่มีแถวใหม่ถูก insert ซ้ำ — มีแค่แถวเดิมที่ seed ไว้
+    expect(fakeAdmin.rows('b2b_customers')).toHaveLength(1);
+    expect(fakeAdmin.rows('b2b_customers')[0].customer_code).toBe('OLD-001');
+  });
 });
 
 describe('reviewClient — registration confirmation document (approval side-effect)', () => {
