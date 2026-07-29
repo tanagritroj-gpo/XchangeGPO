@@ -166,6 +166,46 @@ class FakeQueryBuilder {
   }
 }
 
+// Minimal in-memory stand-in for Supabase Storage — just upload/download/
+// createSignedUrl, keyed by bucket+path. Enough to test code that generates a
+// file and hands back a signed URL, without a real bucket.
+//
+// Bucket handles are memoized (one object per bucket name, reused across
+// calls) rather than freshly constructed on every `.from(bucket)` — so a test
+// that does `vi.spyOn(fake.storage.from('x'), 'upload')` actually intercepts
+// the *same* method the code under test calls later, instead of spying on a
+// throwaway object nobody else references.
+function createFakeStorage() {
+  const buckets: Record<string, Record<string, Uint8Array>> = {};
+  const handles: Record<string, ReturnType<typeof makeHandle>> = {};
+
+  function makeHandle(bucket: string) {
+    if (!buckets[bucket]) buckets[bucket] = {};
+    return {
+      async upload(path: string, bytes: any) {
+        buckets[bucket][path] = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+        return { data: { path }, error: null };
+      },
+      async download(path: string) {
+        const bytes = buckets[bucket][path];
+        if (!bytes) return { data: null, error: { message: 'not found' } };
+        return { data: new Blob([bytes as BlobPart]), error: null };
+      },
+      async createSignedUrl(path: string, _expiresIn: number) {
+        if (!buckets[bucket][path]) return { data: null, error: { message: 'not found' } };
+        return { data: { signedUrl: `https://fake-storage.test/${bucket}/${path}` }, error: null };
+      },
+    };
+  }
+
+  return {
+    from(bucket: string) {
+      if (!handles[bucket]) handles[bucket] = makeHandle(bucket);
+      return handles[bucket];
+    },
+  };
+}
+
 export function createFakeAdmin() {
   let tables: Tables = {};
   const idCounters: Record<string, number> = {};
@@ -179,6 +219,7 @@ export function createFakeAdmin() {
     from(tableName: string) {
       return new FakeQueryBuilder(tables, tableName, nextId);
     },
+    storage: createFakeStorage(),
   };
 
   return {

@@ -6,6 +6,13 @@ vi.mock('@/lib/supabase/admin', async () => {
   return { admin: undefined, __fake: createFakeAdmin() };
 });
 vi.mock('../auth-staff', () => ({ getStaffSession: vi.fn() }));
+// reviewClient() ตอนอนุมัติ trigger สร้างเอกสาร+ส่งอีเมลเป็น side-effect (non-blocking) —
+// mock resend กันไม่ให้ Resend constructor throw ตอน import (ต้องการ API key จริง)
+vi.mock('resend', () => ({
+  Resend: class {
+    emails = { send: vi.fn().mockResolvedValue({ data: { id: 'test' }, error: null }) };
+  },
+}));
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -20,6 +27,7 @@ const {
   startExchangeProcess,
   completeRequest,
   reviewClient,
+  getRegistrationDocumentUrl,
 } = await import('../csr-actions');
 
 const CSR_STAFF = { id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff' };
@@ -193,5 +201,94 @@ describe('reviewClient — approval provisions a real b2b_customer', () => {
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('clients')[0].status).toBe('rejected');
     expect(fakeAdmin.rows('b2b_customers')).toHaveLength(0);
+  });
+});
+
+describe('reviewClient — registration confirmation document (approval side-effect)', () => {
+  function seedClient() {
+    fakeAdmin.seed({
+      clients: [{
+        id: 'client-1',
+        email: 'hospital@example.com',
+        hospital_name: 'รพ.ทดสอบ',
+        province: 'สงขลา',
+        phone: '0800000000',
+        contact_name: 'สมชาย',
+        position: 'เภสัชกร',
+        status: 'pending',
+        pdpa_consented_at: '2026-07-01T00:00:00.000Z',
+        signature_url: null,
+      }],
+      b2b_customers: [],
+      document_attachments: [],
+      requests: [],
+      drug_items: [],
+      status_logs: [],
+    });
+  }
+
+  it('generates and stores a PDF, and links it via document_attachments.client_id', async () => {
+    seedClient();
+
+    const res = await reviewClient('client-1', 'approved', 'CUST-001');
+
+    expect(res.success).toBe(true);
+    const docs = fakeAdmin.rows('document_attachments');
+    expect(docs).toHaveLength(1);
+    expect(docs[0].client_id).toBe('client-1');
+    expect(docs[0].file_path).toBe('registration/client-1.pdf');
+  });
+
+  it('still reports approval success even if document generation throws', async () => {
+    seedClient();
+    // ทำให้ storage.upload พังกลางทาง (เช่น สมมุติ Supabase Storage ล่มชั่วคราว) —
+    // การอนุมัติ (b2b_customers + customer_code) ต้องสำเร็จอยู่ดี ไม่ใช่ fire-and-forget
+    // แต่ต้อง "ไม่ throw ทะลุออกมา" ต่างหาก
+    const uploadSpy = vi
+      .spyOn(fakeAdmin.client.storage.from('registration-documents'), 'upload')
+      .mockRejectedValue(new Error('storage down'));
+
+    const res = await reviewClient('client-1', 'approved', 'CUST-002');
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('b2b_customers')[0].customer_code).toBe('CUST-002');
+    expect(fakeAdmin.rows('document_attachments')).toHaveLength(0);
+
+    uploadSpy.mockRestore();
+  });
+});
+
+describe('getRegistrationDocumentUrl', () => {
+  it('returns a signed url for an already-generated document', async () => {
+    fakeAdmin.seed({
+      clients: [{ id: 'client-1', b2b_customer_id: 42 }],
+      document_attachments: [{ id: 'doc-1', client_id: 'client-1', file_path: 'registration/client-1.pdf' }],
+    });
+    // ไฟล์ต้องมีอยู่จริงใน fake storage ก่อน ถึงจะสร้าง signed url ได้
+    await fakeAdmin.client.storage.from('registration-documents').upload('registration/client-1.pdf', new Uint8Array([1, 2, 3]));
+
+    const res: any = await getRegistrationDocumentUrl(42);
+
+    expect(res.success).toBe(true);
+    expect(res.url).toContain('registration/client-1.pdf');
+  });
+
+  it('errors when no clients row links back to this b2b_customer_id', async () => {
+    fakeAdmin.seed({ clients: [], document_attachments: [] });
+
+    const res: any = await getRegistrationDocumentUrl(999);
+
+    expect(res).toEqual({ success: false, error: 'ไม่พบข้อมูลการลงทะเบียนของลูกค้ารายนี้' });
+  });
+
+  it('errors when the client exists but no document was generated yet', async () => {
+    fakeAdmin.seed({
+      clients: [{ id: 'client-2', b2b_customer_id: 7 }],
+      document_attachments: [],
+    });
+
+    const res: any = await getRegistrationDocumentUrl(7);
+
+    expect(res).toEqual({ success: false, error: 'ยังไม่มีเอกสารสำหรับลูกค้ารายนี้' });
   });
 });

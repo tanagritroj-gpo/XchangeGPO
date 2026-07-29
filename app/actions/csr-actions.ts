@@ -4,6 +4,11 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
+import { buildRegistrationConfirmationPdf } from '@/app/services/registration-pdf-service';
+import { checkRateLimit } from '@/lib/rate-limit';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 async function getCSRSession() {
   const session = await getStaffSession();
@@ -59,7 +64,7 @@ export async function getCSRDashboardData() {
 // (เดิมคอลัมน์นี้ไม่เคยถูกเซ็ตเลยตอน insert ทำให้ลูกค้าที่อนุมัติแล้วทุกรายมีค่าว่าง)
 export async function reviewClient(clientId: string, action: 'approved' | 'rejected', customerCode?: string) {
   try {
-    await getCSRSession();
+    const session = await getCSRSession();
 
     if (action === 'approved' && !customerCode?.trim()) {
       throw new Error("กรุณาระบุรหัสลูกค้าก่อนอนุมัติ");
@@ -101,6 +106,19 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
         .from('clients')
         .update({ b2b_customer_id: newCustomer.id })
         .eq('id', clientId);
+
+      // เอกสารยืนยันการลงทะเบียน + อีเมลแจ้งลูกค้า — เป็น side-effect เสริม ไม่ใช่ตัว
+      // การอนุมัติเอง จึงต้อง "ไม่บล็อกผลลัพธ์" การอนุมัติแม้จะล้มเหลว (เช่น Resend
+      // ล่มชั่วคราว) เพราะ customer_code ผูกกับ b2b_customers สำเร็จไปแล้วข้างบนนี้ —
+      // แต่ต้อง await ให้จบก่อน ไม่ทำแบบ fire-and-forget เพราะ server action รันบน
+      // Vercel serverless function ที่อาจถูก freeze ทันทีหลัง response ส่งกลับ ทำให้
+      // promise ที่ไม่ได้ await ค้างไม่จบ (CSR ยังกดสร้าง/ส่งเอกสารซ้ำได้ทีหลังผ่าน
+      // getRegistrationDocumentUrl() ถ้ารอบนี้พลาด)
+      try {
+        await generateRegistrationDocument(client, customerCode!.trim(), session);
+      } catch (docErr) {
+        console.error('generateRegistrationDocument failed (non-blocking):', docErr);
+      }
     }
 
     revalidatePath('/admin/csr/customers');
@@ -109,6 +127,116 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
   } catch (e: any) {
     return { success: false, error: e.message };
   }
+}
+
+// สร้าง PDF ยืนยันการลงทะเบียน อัปโหลดเก็บไว้ใน bucket + document_attachments แล้วส่ง
+// อีเมลแจ้งลูกค้า — เรียกจาก reviewClient() เฉพาะตอนอนุมัติเท่านั้น ไม่ throw ออกไปเอง
+// (caller เป็นคนคุม try/catch ไม่ให้กระทบผลอนุมัติ)
+async function generateRegistrationDocument(client: any, customerCode: string, session: any) {
+  let signaturePng: Uint8Array | null = null;
+  if (client.signature_url) {
+    const { data: sigBlob } = await supabaseAdmin.storage.from('signatures').download(client.signature_url);
+    if (sigBlob) signaturePng = new Uint8Array(await sigBlob.arrayBuffer());
+  }
+
+  const decidedAt = new Date().toISOString();
+
+  const pdfBytes = await buildRegistrationConfirmationPdf({
+    hospital_name: client.hospital_name,
+    province: client.province,
+    contact_name: client.contact_name,
+    position: client.position,
+    phone: client.phone,
+    email: client.email,
+    customer_code: customerCode,
+    registered_at: client.pdpa_consented_at,
+    customer_signature_png: signaturePng,
+    staff_full_name: session.full_name ?? session.username,
+    staff_action: 'approved',
+    decided_at: decidedAt,
+  });
+
+  const filePath = `registration/${client.id}.pdf`;
+
+  const { error: uploadErr } = await supabaseAdmin.storage
+    .from('registration-documents')
+    .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
+  if (uploadErr) throw uploadErr;
+
+  await supabaseAdmin.from('document_attachments').insert({ client_id: client.id, file_path: filePath });
+
+  // จำกัดความถี่การส่งอีเมลต่อ staff คนเดียว (กันเคสผิดพลาดส่งรัว) — ถ้าเกินโควตา
+  // แค่ข้ามการส่งอีเมลรอบนี้ เอกสารที่อัปโหลดไว้แล้วยังอยู่ ดึงย้อนหลังได้เสมอ
+  // ★ ลำดับ argument คือ (key, limit, windowSeconds) ตามที่ lib/rate-limit.ts ประกาศไว้จริง
+  // (ไม่ใช่ (key, windowSeconds, limit) ที่หลาย call site อื่นในโปรเจกต์ใช้ผิดลำดับอยู่ —
+  // ดูโน้ตแยกที่แจ้งผู้ใช้ท้ายงานนี้)
+  const allowed = await checkRateLimit(`send-registration-email:${session.id}`, 30, 3600);
+  if (!allowed.allowed) {
+    console.warn('send-registration-email rate limited for staff', session.id);
+    return;
+  }
+
+  const { data: signed, error: signErr } = await supabaseAdmin.storage
+    .from('registration-documents')
+    .createSignedUrl(filePath, 60 * 60 * 24);
+  if (signErr || !signed) throw signErr ?? new Error('createSignedUrl failed');
+
+  const { error: emailErr } = await resend.emails.send({
+    from: 'GPO Xchange <onboarding@resend.dev>',
+    to: [client.email],
+    subject: 'เปิดใช้งานรหัสลูกค้าสำเร็จ — GPO Xchange Portal',
+    html: `
+      <h2>สวัสดีครับ, ตัวแทนจาก ${client.hospital_name}</h2>
+      <p>ระบบได้เปิดใช้งานรหัสลูกค้าของท่านเรียบร้อยแล้ว</p>
+      <p>รหัสลูกค้าของท่านคือ: <strong>${customerCode}</strong></p>
+      <p>
+        <a href="${signed.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
+          คลิกที่นี่เพื่อดาวน์โหลดเอกสารยืนยันการลงทะเบียน
+        </a>
+      </p>
+      <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
+    `,
+  });
+  if (emailErr) throw emailErr;
+}
+
+// ดึง signed URL ของเอกสารยืนยันการลงทะเบียนที่สร้างไว้แล้ว — ให้ CSR ดู/ดาวน์โหลด
+// ย้อนหลังจากหน้าค้นหาลูกค้า (ไม่ต้องสร้างใหม่ทุกครั้งที่กด)
+// รับ b2bCustomerId (ตาราง b2b_customers.id) เพราะฝั่ง UI ค้นหาลูกค้าทำงานกับ id นี้
+// อยู่แล้ว — resolve กลับไปหา clients.id ผ่าน clients.b2b_customer_id ก่อน แล้วค่อย
+// ไปหาไฟล์ใน document_attachments (ที่ผูกกับ clients.id ไม่ใช่ b2b_customers.id)
+export async function getRegistrationDocumentUrl(b2bCustomerId: number) {
+  return withCSRAuth(async () => {
+    const { data: clientRow, error: clientErr } = await supabaseAdmin
+      .from('clients')
+      .select('id')
+      .eq('b2b_customer_id', b2bCustomerId)
+      .maybeSingle();
+
+    if (clientErr || !clientRow) {
+      return { success: false, error: 'ไม่พบข้อมูลการลงทะเบียนของลูกค้ารายนี้' };
+    }
+
+    const { data: doc, error: docErr } = await supabaseAdmin
+      .from('document_attachments')
+      .select('file_path')
+      .eq('client_id', clientRow.id)
+      .maybeSingle();
+
+    if (docErr || !doc?.file_path) {
+      return { success: false, error: 'ยังไม่มีเอกสารสำหรับลูกค้ารายนี้' };
+    }
+
+    const { data: signed, error: signErr } = await supabaseAdmin.storage
+      .from('registration-documents')
+      .createSignedUrl(doc.file_path, 300);
+
+    if (signErr || !signed) {
+      return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
+    }
+
+    return { success: true, url: signed.signedUrl };
+  });
 }
 
 export async function approveDrugItem(drugItemId: number, requestId: number, remark?: string) {

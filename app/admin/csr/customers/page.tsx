@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Inbox, Pill, ChevronDown } from 'lucide-react';
-import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail } from '@/app/actions/csr-actions';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Inbox, Pill, ChevronDown, Download } from 'lucide-react';
+import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import CustomerPicker from '../form/components/CustomerPicker';
 import {
@@ -222,6 +222,7 @@ export default function CSRCustomersPage() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
+  const [docLoading, setDocLoading] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -274,6 +275,18 @@ export default function CSRCustomersPage() {
       fetchData();
     } else {
       alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+    }
+  };
+
+  const handleViewRegistrationDocument = async () => {
+    if (!selectedCustomer) return;
+    setDocLoading(true);
+    const res = await getRegistrationDocumentUrl(selectedCustomer.id);
+    setDocLoading(false);
+    if (res.success && (res as any).url) {
+      window.open((res as any).url, '_blank');
+    } else {
+      alert((res as any).error || 'ไม่สามารถเปิดเอกสารได้');
     }
   };
 
@@ -423,10 +436,18 @@ export default function CSRCustomersPage() {
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                     <FileText size={16} className="text-blue-600" strokeWidth={2.5} />
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <h2 className="text-sm font-bold text-slate-800">ประวัติใบงาน</h2>
                     <p className="text-[11px] text-slate-400">{selectedCustomer.hospital_name}</p>
                   </div>
+                  <button
+                    onClick={handleViewRegistrationDocument}
+                    disabled={docLoading}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all shrink-0 disabled:opacity-50"
+                  >
+                    {docLoading ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} /> : <Download size={14} strokeWidth={2.5} />}
+                    เอกสารยืนยันการลงทะเบียน
+                  </button>
                 </div>
 
                 <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
