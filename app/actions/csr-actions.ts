@@ -167,9 +167,6 @@ async function generateRegistrationDocument(client: any, customerCode: string, s
 
   // จำกัดความถี่การส่งอีเมลต่อ staff คนเดียว (กันเคสผิดพลาดส่งรัว) — ถ้าเกินโควตา
   // แค่ข้ามการส่งอีเมลรอบนี้ เอกสารที่อัปโหลดไว้แล้วยังอยู่ ดึงย้อนหลังได้เสมอ
-  // ★ ลำดับ argument คือ (key, limit, windowSeconds) ตามที่ lib/rate-limit.ts ประกาศไว้จริง
-  // (ไม่ใช่ (key, windowSeconds, limit) ที่หลาย call site อื่นในโปรเจกต์ใช้ผิดลำดับอยู่ —
-  // ดูโน้ตแยกที่แจ้งผู้ใช้ท้ายงานนี้)
   const allowed = await checkRateLimit(`send-registration-email:${session.id}`, 30, 3600);
   if (!allowed.allowed) {
     console.warn('send-registration-email rate limited for staff', session.id);

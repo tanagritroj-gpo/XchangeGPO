@@ -24,7 +24,7 @@ export async function registerCustomer(payload: unknown) {
     }
     const data = parsed.data;
 
-    const allowed = await checkRateLimit(`register:${data.email}`, 3600, 3);
+    const allowed = await checkRateLimit(`register:${data.email}`, 3, 3600);
     if (!allowed.allowed) {
       return { success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
