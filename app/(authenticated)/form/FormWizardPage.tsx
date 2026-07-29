@@ -78,12 +78,12 @@ export default function FormWizardPage({ session }: { session?: any }) {
               <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base transition-all ${
                 step >= s.id
                   ? 'bg-teal-600 text-white shadow-lg shadow-teal-200'
-                  : 'bg-slate-100 text-slate-400'
+                  : 'bg-slate-100 text-muted-foreground'
               }`}>
                 {s.id}
               </div>
               <span className={`text-[9px] md:text-[10px] font-black uppercase ${
-                step >= s.id ? 'text-teal-700' : 'text-slate-400'
+                step >= s.id ? 'text-teal-700' : 'text-muted-foreground'
               }`}>
                 {s.label}
               </span>

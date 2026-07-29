@@ -3,9 +3,8 @@ import { StaffSignUpForm } from "@/components/auth/StaffSignUpForm";
 
 export default function StaffRegisterPage() {
   return (
-    <main 
-      className="min-h-screen pt-8 pb-10 px-4 md:pt-16 md:pb-20 md:px-12 relative overflow-hidden" 
-      style={{ background: 'radial-gradient(circle at 100% 100%, #fff7ed 0%, #f1f8f6 50%, #e0f2f1 100%)' }}
+    <main
+      className="min-h-screen pt-8 pb-10 px-4 md:pt-16 md:pb-20 md:px-12 relative overflow-hidden bg-background"
     >
       
       {/* Background Pattern + Orange Accents */}
@@ -19,7 +18,7 @@ export default function StaffRegisterPage() {
         <div className="md:col-span-5 space-y-6 md:space-y-10 pt-0 md:pt-10">
           <div className="space-y-4">
             <div className="w-12 h-1.5 bg-orange-500 rounded-full" />
-            <h1 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tighter leading-[1.1]">
+            <h1 className="text-3xl md:text-5xl font-extrabold text-foreground tracking-tighter leading-[1.1]">
               GPO Staff <br/>
               <span className="text-orange-500">Registration</span>
             </h1>
@@ -29,7 +28,7 @@ export default function StaffRegisterPage() {
           </div>
 
           <div className="space-y-4 md:space-y-6 pt-2 md:pt-4">
-            <h3 className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
+            <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
             {[
               { title: "ระบุรหัสพนักงานและชื่อจริง", icon: "🆔", color: "text-teal-600" },
               { title: "เลือกฝ่ายงานที่สังกัดให้ถูกต้อง", icon: "🏢", color: "text-teal-600" },

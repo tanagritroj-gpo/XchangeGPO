@@ -24,11 +24,11 @@ const TYPES = [
   { label: 'รับคืนลดหนี้',     icon: <ReceiptText size={24} className="text-emerald-600" /> },
   { label: 'รับคืน CCR',    icon: <AlertTriangle size={24} className="text-red-600" /> },
   { label: 'รับคืนแลกเปลี่ยน', icon: <ArrowLeftRight size={24} className="text-blue-600" /> },
-  { label: 'อื่นๆ',            icon: <MoreHorizontal size={24} className="text-slate-500" /> },
+  { label: 'อื่นๆ',            icon: <MoreHorizontal size={24} className="text-muted-foreground" /> },
 ] as const;
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-2 flex items-center gap-1.5">
+  <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest block mb-2 flex items-center gap-1.5">
     <span className="w-1 h-1 rounded-full bg-slate-300" />
     {children}
   </label>
@@ -93,7 +93,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">1</span>
-        <p className="text-xs font-bold text-slate-400">ข้อมูลรายการและลูกค้า</p>
+        <p className="text-xs font-bold text-muted-foreground">ข้อมูลรายการและลูกค้า</p>
       </div>
 
       {/* ══ เลือกลูกค้า ══ */}
@@ -138,7 +138,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
                   <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[9px] flex items-center justify-center font-black">✓</span>
                 )}
                 <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{t.icon}</span>
-                <span className={`text-[12px] font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-slate-500'}`}>{t.label}</span>
+                <span className={`text-[12px] font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-muted-foreground'}`}>{t.label}</span>
               </button>
             );
           })}

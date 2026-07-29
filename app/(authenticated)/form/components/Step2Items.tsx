@@ -16,7 +16,7 @@ const fieldStyle = "w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-whi
 const selectStyle = "w-full pl-4 pr-10 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm font-medium text-slate-700 focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200 cursor-pointer appearance-none";
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 ml-1 flex items-center gap-1.5">
+  <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest block mb-1.5 ml-1 flex items-center gap-1.5">
     <span className="w-1 h-1 rounded-full bg-slate-300" />
     {children}
   </label>
@@ -27,10 +27,10 @@ function SelectField({ value, onChange, children }: {
 }) {
   return (
     <div className="relative">
-      <select value={value} onChange={e => onChange(e.target.value)} className={`${selectStyle} ${!value ? 'text-slate-400' : ''}`}>
+      <select value={value} onChange={e => onChange(e.target.value)} className={`${selectStyle} ${!value ? 'text-muted-foreground' : ''}`}>
         {children}
       </select>
-      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">▾</span>
+      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">▾</span>
     </div>
   );
 }
@@ -56,10 +56,10 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
             className="w-6 h-6 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-150 active:scale-90"
           >✕</button>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-slate-500">
-          <div className="flex items-center gap-1"><span className="text-slate-400">📦</span><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
-          <div className="flex items-center gap-1"><span className="text-slate-400">📅</span><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
-          <div className="flex items-center gap-1"><span className="text-slate-400">🏷️</span><span className="font-bold text-slate-700">Lot:</span> {item.lot}</div>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1"><span className="text-muted-foreground">📦</span><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
+          <div className="flex items-center gap-1"><span className="text-muted-foreground">📅</span><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
+          <div className="flex items-center gap-1"><span className="text-muted-foreground">🏷️</span><span className="font-bold text-slate-700">Lot:</span> {item.lot}</div>
           <div className="flex items-center gap-1 font-black text-teal-600">💵 {parseFloat(item.val || '0').toLocaleString()} ฿</div>
         </div>
       </div>
@@ -99,7 +99,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">2</span>
-        <p className="text-xs font-bold text-slate-400">รายการยาและเวชภัณฑ์</p>
+        <p className="text-xs font-bold text-muted-foreground">รายการยาและเวชภัณฑ์</p>
         {items.length > 0 && (
           <span className="ml-auto text-[11px] font-bold text-teal-600 bg-teal-50 px-2.5 py-1 rounded-full">
             {items.length}/{MAX} รายการ
@@ -183,7 +183,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       {items.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
-            <p className="text-xs font-black text-slate-500 flex items-center gap-1.5">
+            <p className="text-xs font-black text-muted-foreground flex items-center gap-1.5">
               <span className="text-teal-500">📋</span> รายการที่เพิ่มแล้ว
             </p>
             <p className="text-xs font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
@@ -207,7 +207,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       {items.length === 0 && (
         <div className="text-center py-8 px-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
           <p className="text-2xl mb-2 opacity-50">📭</p>
-          <p className="text-xs text-slate-400 font-medium">ยังไม่มีรายการยา กรุณาเพิ่มอย่างน้อย 1 รายการ</p>
+          <p className="text-xs text-muted-foreground font-medium">ยังไม่มีรายการยา กรุณาเพิ่มอย่างน้อย 1 รายการ</p>
         </div>
       )}
 
@@ -215,7 +215,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       <div className="grid grid-cols-2 gap-3 sm:gap-4">
         <button
           onClick={back}
-          className="group py-4 rounded-2xl font-black text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>

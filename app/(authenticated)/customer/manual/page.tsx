@@ -218,12 +218,12 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-border bg-white">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
-        <span className="text-sm font-semibold text-slate-800">{q}</span>
+        <span className="text-sm font-semibold text-foreground">{q}</span>
         <ChevronDown
           className={`h-4 w-4 flex-shrink-0 text-[#0E7C6B] transition-transform ${
             open ? "rotate-180" : ""
@@ -231,7 +231,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         />
       </button>
       {open && (
-        <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600">
+        <div className="border-t border-border px-5 py-4 text-sm leading-relaxed text-slate-600">
           {a}
         </div>
       )}
@@ -245,7 +245,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function CustomerGuidePage() {
   return (
-    <main className="min-h-screen bg-[#F5F6F2] font-sans text-slate-800">
+    <main className="min-h-screen bg-background font-sans text-foreground">
       {/* ================= HERO ================= */}
       <section className="relative overflow-hidden bg-[#0E1622] px-6 py-10 text-white sm:py-14">
         <div
@@ -290,7 +290,7 @@ export default function CustomerGuidePage() {
       {/* ================= ทำไมต้องมีระบบนี้ ================= */}
       <section className="mx-auto max-w-5xl px-6 py-16">
         <SectionEyebrow>เหตุผลความจำเป็น</SectionEyebrow>
-        <h2 className="mb-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+        <h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">
           ทำไม GPO Xchange Portal ถึงจำเป็นสำหรับคุณ
         </h2>
         <p className="mb-10 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
@@ -301,11 +301,11 @@ export default function CustomerGuidePage() {
           {WHY_POINTS.map((item) => (
             <div
               key={item.title}
-              className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5"
+              className="flex gap-4 rounded-2xl border border-border bg-white p-5"
             >
               <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0E7C6B]" />
               <div>
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-sm font-semibold text-foreground">
                   {item.title}
                 </h3>
                 <p className="mt-1 text-sm leading-relaxed text-slate-600">
@@ -321,7 +321,7 @@ export default function CustomerGuidePage() {
       <section className="bg-white px-6 py-16">
         <div className="mx-auto max-w-5xl">
           <SectionEyebrow>ขั้นตอนการใช้งาน</SectionEyebrow>
-          <h2 className="mb-10 text-2xl font-bold text-slate-900 sm:text-3xl">
+          <h2 className="mb-10 text-2xl font-bold text-foreground sm:text-3xl">
             เริ่มต้นใช้งานใน 6 ขั้นตอนง่ายๆ
           </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -330,12 +330,12 @@ export default function CustomerGuidePage() {
               return (
                 <div
                   key={step.title}
-                  className="relative rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5"
+                  className="relative rounded-2xl border border-border bg-background/60 p-5"
                 >
                   <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B]/10">
                     <Icon className="h-5 w-5 text-[#0E7C6B]" />
                   </div>
-                  <h3 className="text-sm font-semibold text-slate-900">
+                  <h3 className="text-sm font-semibold text-foreground">
                     {step.title}
                   </h3>
                   <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
@@ -354,7 +354,7 @@ export default function CustomerGuidePage() {
       {/* ================= สิ่งที่ลูกค้าจะได้รับ ================= */}
       <section className="mx-auto max-w-5xl px-6 py-16">
         <SectionEyebrow>สิ่งที่คุณจะได้รับ</SectionEyebrow>
-        <h2 className="mb-10 text-2xl font-bold text-slate-900 sm:text-3xl">
+        <h2 className="mb-10 text-2xl font-bold text-foreground sm:text-3xl">
           ฟีเจอร์และประโยชน์ในแต่ละส่วนของระบบ
         </h2>
         <div className="grid gap-5 sm:grid-cols-2">
@@ -363,7 +363,7 @@ export default function CustomerGuidePage() {
             return (
               <div
                 key={f.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6"
+                className="rounded-2xl border border-border bg-white p-6"
               >
                 <div className="mb-4 flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B] text-white">
@@ -373,7 +373,7 @@ export default function CustomerGuidePage() {
                     <span className="inline-block rounded-full bg-[#E1F1EC] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0E7C6B]">
                       {f.tag}
                     </span>
-                    <h3 className="mt-1 text-sm font-semibold text-slate-900">
+                    <h3 className="mt-1 text-sm font-semibold text-foreground">
                       {f.title}
                     </h3>
                   </div>
@@ -391,7 +391,7 @@ export default function CustomerGuidePage() {
       <section className="bg-white px-6 py-16">
         <div className="mx-auto max-w-5xl">
           <SectionEyebrow>ทำความเข้าใจระบบติดตาม</SectionEyebrow>
-          <h2 className="mb-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+          <h2 className="mb-3 text-2xl font-bold text-foreground sm:text-3xl">
             คำร้องของคุณเดินทางผ่านขั้นตอนอะไรบ้าง
           </h2>
           <p className="mb-10 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
@@ -409,10 +409,10 @@ export default function CustomerGuidePage() {
                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#0E7C6B] bg-[#E1F1EC]">
                       <Icon className="h-5 w-5 text-[#0E7C6B]" />
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                       ขั้นตอนที่ {i + 1}
                     </span>
-                    <h3 className="text-sm font-semibold text-slate-900">
+                    <h3 className="text-sm font-semibold text-foreground">
                       {step.title}
                     </h3>
                     <p className="max-w-[11rem] text-xs leading-relaxed text-slate-600">
@@ -432,10 +432,10 @@ export default function CustomerGuidePage() {
 
           {/* เปรียบเทียบ Public vs Private Tracking */}
           <div className="mt-14 grid gap-5 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+            <div className="rounded-2xl border border-border bg-background/60 p-5">
               <div className="mb-3 flex items-center gap-2">
                 <Unlock className="h-4 w-4 text-[#0E7C6B]" />
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-sm font-semibold text-foreground">
                   ติดตามแบบสาธารณะ (ไม่ต้องล็อกอิน)
                 </h3>
               </div>
@@ -447,10 +447,10 @@ export default function CustomerGuidePage() {
                 เพื่อเช็คสถานะได้ทันที เหมาะสำหรับเช็คด่วนโดยไม่ต้องเสียเวลาล็อกอิน
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+            <div className="rounded-2xl border border-border bg-background/60 p-5">
               <div className="mb-3 flex items-center gap-2">
                 <Lock className="h-4 w-4 text-[#0E7C6B]" />
-                <h3 className="text-sm font-semibold text-slate-900">
+                <h3 className="text-sm font-semibold text-foreground">
                   ติดตามแบบล็อกอิน (ดูรายละเอียดเต็ม)
                 </h3>
               </div>
@@ -461,7 +461,7 @@ export default function CustomerGuidePage() {
             </div>
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-border">
             <table className="w-full border-collapse text-left text-xs sm:text-sm">
               <thead>
                 <tr className="bg-[#0E1622] text-white">
@@ -527,7 +527,7 @@ export default function CustomerGuidePage() {
       <section className="bg-white px-6 py-16">
         <div className="mx-auto max-w-3xl">
           <SectionEyebrow>คำถามที่พบบ่อย</SectionEyebrow>
-          <h2 className="mb-8 text-2xl font-bold text-slate-900 sm:text-3xl">
+          <h2 className="mb-8 text-2xl font-bold text-foreground sm:text-3xl">
             ยังมีข้อสงสัยอยู่ใช่ไหม?
           </h2>
           <div className="flex flex-col gap-3">

@@ -3,9 +3,8 @@ import { RegisterForm } from "@/components/auth/RegisterForm";
 
 export default function RegisterPage() {
   return (
-    <main 
-      className="min-h-screen pt-8 pb-10 px-4 md:pt-16 md:pb-20 md:px-12 relative overflow-hidden" 
-      style={{ background: 'radial-gradient(circle at 100% 100%, #e0f2f1 0%, #f1f8f6 50%, #e0f7fa 100%)' }}
+    <main
+      className="min-h-screen pt-8 pb-10 px-4 md:pt-16 md:pb-20 md:px-12 relative overflow-hidden bg-background"
     >
       
       {/* Background Pattern */}
@@ -19,7 +18,7 @@ export default function RegisterPage() {
         <div className="md:col-span-5 space-y-6 md:space-y-10 pt-0 md:pt-10">
           <div className="space-y-4">
             <div className="w-12 h-1.5 bg-teal-600 rounded-full" />
-            <h1 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tighter leading-[1.1]">
+            <h1 className="text-3xl md:text-5xl font-extrabold text-foreground tracking-tighter leading-[1.1]">
               GPO Xchange <br/>
               <span className="text-teal-700">Portal</span>
             </h1>
@@ -29,7 +28,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-4 md:space-y-6 pt-2 md:pt-4">
-            <h3 className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
+            <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
             {[
               { title: "ลงทะเบียนขอเข้าใช้ระบบ ครั้งแรกและครั้งเดียว", icon: "1️⃣" },
               { title: "กรอกข้อมูลหน่วยงานและผู้ประสานงาน", icon: "2️⃣" },

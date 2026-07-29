@@ -142,7 +142,7 @@ export function ReviewSuccessCard({
 
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-1.5">ส่งแบบฟอร์มสำเร็จ!</h2>
-            <p className="text-sm text-slate-500">บันทึกคำร้องของท่านเรียบร้อยแล้ว</p>
+            <p className="text-sm text-muted-foreground">บันทึกคำร้องของท่านเรียบร้อยแล้ว</p>
           </div>
 
           <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl px-10 py-5 w-full">
@@ -150,7 +150,7 @@ export function ReviewSuccessCard({
               เลขที่อ้างอิง
             </p>
             <p className="text-2xl font-black text-teal-700 font-mono">{refId}</p>
-            {docNumber && <p className="text-xs text-slate-400 mt-1 font-mono">เอกสารเลขที่ {docNumber}</p>}
+            {docNumber && <p className="text-xs text-muted-foreground mt-1 font-mono">เอกสารเลขที่ {docNumber}</p>}
           </div>
 
           {/* ── Mini timeline ของสถานะงาน ── */}
@@ -174,7 +174,7 @@ export function ReviewSuccessCard({
 
           {/* ── ส่วนแสดงสถานะ PDF ── */}
           {pdfState === 'preparing' && (
-            <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-sm font-bold text-slate-400">
+            <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground">
               <span className="animate-spin">⏳</span> กำลังจัดเตรียมเอกสาร…
             </div>
           )}
@@ -237,14 +237,14 @@ export function ReviewSuccessCard({
 
           <button
             onClick={() => (window.location.href = homeHref)}
-            className="text-xs font-bold text-slate-400 hover:text-slate-500 mt-1"
+            className="text-xs font-bold text-muted-foreground hover:text-muted-foreground mt-1"
           >
             กลับหน้าหลัก
           </button>
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-slate-400 mt-3">
+      <p className="text-center text-[11px] text-muted-foreground mt-3">
         ลิงก์ดาวน์โหลดมีอายุ 5 นาทีต่อการกดหนึ่งครั้ง เพื่อความปลอดภัยของข้อมูล — กดดาวน์โหลดใหม่ได้ทุกเมื่อ
       </p>
     </div>

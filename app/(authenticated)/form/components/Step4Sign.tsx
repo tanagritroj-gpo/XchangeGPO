@@ -24,7 +24,7 @@ function SectionTitle({ icon, children }: { icon?: string; children: React.React
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+    <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
       <span className="w-1 h-1 rounded-full bg-slate-300" />
       {children}
     </label>
@@ -163,7 +163,7 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">4</span>
-        <p className="text-xs font-bold text-slate-400">ยืนยันข้อมูลและลงนาม</p>
+        <p className="text-xs font-bold text-muted-foreground">ยืนยันข้อมูลและลงนาม</p>
       </div>
 
       {/* ══ ลายเซ็น + ข้อมูลผู้ลงนาม ══ */}
@@ -227,7 +227,7 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
         <button
           type="button"
           onClick={back}
-          className="group py-4 rounded-2xl font-black text-sm text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-sm text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>

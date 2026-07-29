@@ -37,12 +37,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-96 border border-slate-100">
-        <h1 className="text-2xl font-black text-slate-800 mb-6">LOGIN</h1>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-96 border border-border">
+        <h1 className="text-2xl font-black text-foreground mb-6">LOGIN</h1>
         {error && <p className="text-red-500 text-xs mb-4 font-bold">{error}</p>}
-        <input type="text" placeholder="Username" className="w-full p-4 mb-4 rounded-xl border border-slate-200" value={username} onChange={(e) => setUsername(e.target.value)} required />
-        <input type="password" placeholder="Password" className="w-full p-4 mb-6 rounded-xl border border-slate-200" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <input type="text" placeholder="Username" className="w-full p-4 mb-4 rounded-xl border border-border" value={username} onChange={(e) => setUsername(e.target.value)} required />
+        <input type="password" placeholder="Password" className="w-full p-4 mb-6 rounded-xl border border-border" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-slate-800" disabled={isLoading}>
           {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
         </button>

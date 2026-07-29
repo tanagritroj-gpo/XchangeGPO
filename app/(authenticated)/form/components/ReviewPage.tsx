@@ -41,7 +41,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | number })
   if (!value) return null;
   return (
     <div className="flex items-start gap-3 py-3 border-b border-dashed border-slate-100 last:border-0">
-      <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest w-32 shrink-0 pt-0.5 flex items-center gap-1.5">
+      <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest w-32 shrink-0 pt-0.5 flex items-center gap-1.5">
         <span className="w-1 h-1 rounded-full bg-slate-300" />{label}
       </span>
       <span className="text-sm text-slate-800 font-bold flex-1">{value}</span>
@@ -134,7 +134,7 @@ if (status === 'success') {
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">{stepNumber}</span>
-        <p className="text-xs font-bold text-slate-400">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
+        <p className="text-xs font-bold text-muted-foreground">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
       </div>
 
       {/* ══ ข้อมูลหน่วยงาน ══ */}
@@ -160,7 +160,7 @@ if (status === 'success') {
               </span>
               <div className="flex-1">
                 <p className="font-black text-sm text-slate-900">{d.drugName}</p>
-                <p className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                   <span>📦 {d.qty} {d.unit}</span>
                   <span>🏷️ Lot: {d.lot}</span>
                   <span>📅 Exp: {d.exp}</span>
@@ -169,7 +169,7 @@ if (status === 'success') {
             </div>
           ))}
           <div className="flex justify-between items-center pt-3.5 mt-1 border-t-2 border-dashed border-slate-100">
-            <span className="text-xs font-black text-slate-400 uppercase tracking-widest">รวมมูลค่า</span>
+            <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">รวมมูลค่า</span>
             <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
           </div>
         </div>
@@ -208,7 +208,7 @@ if (status === 'success') {
             </div>
             <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
               <p className="text-sm font-black text-slate-800">({signer_name})</p>
-              <p className="text-xs text-slate-500 font-medium">{signer_position}</p>
+              <p className="text-xs text-muted-foreground font-medium">{signer_position}</p>
             </div>
           </div>
         </div>
@@ -220,7 +220,7 @@ if (status === 'success') {
           type="button"
           onClick={back}
           disabled={loading}
-          className="group py-4 rounded-2xl font-black text-sm text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-sm text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>
@@ -252,7 +252,7 @@ if (status === 'success') {
               >⚠️</div>
 
               <h3 className="text-lg font-black text-slate-800 mb-2">ยืนยันการส่งแบบฟอร์ม</h3>
-              <p className="text-sm text-slate-500 leading-relaxed mb-6">
+              <p className="text-sm text-muted-foreground leading-relaxed mb-6">
                 โปรดตรวจสอบข้อมูลก่อนกดยืนยัน<br />
                 <span className="font-bold text-rose-600">หากส่งข้อมูลแล้วจะไม่สามารถแก้ไขข้อมูลเองได้</span>
               </p>
@@ -261,7 +261,7 @@ if (status === 'success') {
                 <button
                   type="button"
                   onClick={() => setShowConfirm(false)}
-                  className="py-3.5 rounded-2xl font-black text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
+                  className="py-3.5 rounded-2xl font-black text-sm text-muted-foreground bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
                 >
                   ← ย้อนกลับ
                 </button>
