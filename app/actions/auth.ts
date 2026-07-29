@@ -11,7 +11,9 @@ const RegisterSchema = z.object({
   position: z.string().min(1).max(100),
   phone: z.string().regex(/^[0-9+\-\s]{9,15}$/, 'รูปแบบเบอร์โทรไม่ถูกต้อง'),
   email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง'),
-  signature_url: z.string().url(),
+  // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL —
+  // ตรวจ + upload ฝั่ง server เอง แทนการเชื่อ URL ที่ client อ้างว่าเป็นไฟล์ของเรา
+  signature_url: z.string().startsWith('data:image/png;base64,'),
 });
 
 export async function registerCustomer(payload: unknown) {
@@ -22,15 +24,27 @@ export async function registerCustomer(payload: unknown) {
     }
     const data = parsed.data;
 
-    const allowed = await checkRateLimit(`register:${data.email}`, 3600, 3);
-    if (!allowed) {
+    const allowed = await checkRateLimit(`register:${data.email}`, 3, 3600);
+    if (!allowed.allowed) {
       return { success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
 
-    // 3. ตรวจสอบว่า signature_url เป็นไฟล์จาก storage ของระบบเราเองจริง
-    const storageBase = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!storageBase || !data.signature_url.startsWith(storageBase)) {
-      return { success: false, error: 'ข้อมูลลายเซ็นไม่ถูกต้อง' };
+    const base64Data = data.signature_url.split(',')[1] ?? '';
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    if (buffer.length === 0 || buffer.length > 2 * 1024 * 1024) {
+      return { success: false, error: 'ไฟล์ลายเซ็นไม่ถูกต้องหรือมีขนาดใหญ่เกินไป' };
+    }
+
+    const signaturePath = `registration/${crypto.randomUUID()}.png`;
+
+    const { error: uploadErr } = await supabaseAdmin.storage
+      .from('signatures')
+      .upload(signaturePath, buffer, { contentType: 'image/png' });
+
+    if (uploadErr) {
+      console.error('Registration signature upload failed:', uploadErr);
+      return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
     const { data: inserted, error } = await supabaseAdmin
@@ -43,7 +57,8 @@ export async function registerCustomer(payload: unknown) {
           position: data.position,
           phone: data.phone,
           email: data.email,
-          signature_url: data.signature_url,
+          // เก็บ path ภายใน bucket ไม่ใช่ public URL — bucket นี้เป็น private แล้ว
+          signature_url: signaturePath,
           pdpa_consented_at: new Date().toISOString(),
           status: 'pending',
         }

@@ -36,7 +36,7 @@ export default function RootLayout({
       lang="th"
       className={`${sarabun.variable} ${notoSerifThai.variable} ${ibmPlexMono.variable}`}
     >
-      <body className="font-sans antialiased text-gray-900 bg-slate-50">
+      <body className="font-sans antialiased text-foreground bg-background">
 
         {/* ── Sticky Glass Header ── */}
         <header className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur-lg z-50">

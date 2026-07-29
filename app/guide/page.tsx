@@ -220,12 +220,12 @@ function SectionEyebrow({ children }: { children: React.ReactNode }) {
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-border bg-white">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
-        <span className="text-sm font-semibold text-slate-800">{q}</span>
+        <span className="text-sm font-semibold text-foreground">{q}</span>
         <ChevronDown
           className={`h-4 w-4 flex-shrink-0 text-[#0E7C6B] transition-transform ${
             open ? "rotate-180" : ""
@@ -233,7 +233,7 @@ function FaqItem({ q, a }: { q: string; a: string }) {
         />
       </button>
       {open && (
-        <div className="border-t border-slate-100 px-5 py-4 text-sm leading-relaxed text-slate-600">
+        <div className="border-t border-border px-5 py-4 text-sm leading-relaxed text-slate-600">
           {a}
         </div>
       )}
@@ -247,9 +247,9 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 export default function CustomerGuidePage() {
   return (
-    <main className="min-h-screen bg-[#F5F6F2] font-sans text-slate-800">
+    <main className="min-h-screen bg-background font-sans text-foreground">
       {/* ================= TOP BAR (กลับสู่หน้าหลัก) ================= */}
-      <div className="border-b border-slate-200 bg-white px-6 py-3">
+      <div className="border-b border-border bg-white px-6 py-3">
         <div className="mx-auto max-w-5xl">
           <a
             href="/"
@@ -316,7 +316,7 @@ export default function CustomerGuidePage() {
           {WHY_POINTS.map((item) => (
             <div
               key={item.title}
-              className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5"
+              className="flex gap-4 rounded-2xl border border-border bg-white p-5"
             >
               <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0E7C6B]" />
               <div>
@@ -345,7 +345,7 @@ export default function CustomerGuidePage() {
               return (
                 <div
                   key={step.title}
-                  className="relative rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5"
+                  className="relative rounded-2xl border border-border bg-background/60 p-5"
                 >
                   <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B]/10">
                     <Icon className="h-5 w-5 text-[#0E7C6B]" />
@@ -378,7 +378,7 @@ export default function CustomerGuidePage() {
             return (
               <div
                 key={f.title}
-                className="rounded-2xl border border-slate-200 bg-white p-6"
+                className="rounded-2xl border border-border bg-white p-6"
               >
                 <div className="mb-4 flex items-center gap-3">
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0E7C6B] text-white">
@@ -424,7 +424,7 @@ export default function CustomerGuidePage() {
                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full border-2 border-[#0E7C6B] bg-[#E1F1EC]">
                       <Icon className="h-5 w-5 text-[#0E7C6B]" />
                     </div>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                       ขั้นตอนที่ {i + 1}
                     </span>
                     <h3 className="text-sm font-semibold text-slate-900">
@@ -447,7 +447,7 @@ export default function CustomerGuidePage() {
 
           {/* เปรียบเทียบ Public vs Private Tracking */}
           <div className="mt-14 grid gap-5 sm:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+            <div className="rounded-2xl border border-border bg-background/60 p-5">
               <div className="mb-3 flex items-center gap-2">
                 <Unlock className="h-4 w-4 text-[#0E7C6B]" />
                 <h3 className="text-sm font-semibold text-slate-900">
@@ -462,7 +462,7 @@ export default function CustomerGuidePage() {
                 เพื่อเช็คสถานะได้ทันที เหมาะสำหรับเช็คด่วนโดยไม่ต้องเสียเวลาล็อกอิน
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-[#F5F6F2]/60 p-5">
+            <div className="rounded-2xl border border-border bg-background/60 p-5">
               <div className="mb-3 flex items-center gap-2">
                 <Lock className="h-4 w-4 text-[#0E7C6B]" />
                 <h3 className="text-sm font-semibold text-slate-900">
@@ -476,7 +476,7 @@ export default function CustomerGuidePage() {
             </div>
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="mt-5 overflow-hidden rounded-2xl border border-border">
             <table className="w-full border-collapse text-left text-xs sm:text-sm">
               <thead>
                 <tr className="bg-[#0E1622] text-white">

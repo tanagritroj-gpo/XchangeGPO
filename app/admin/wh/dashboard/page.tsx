@@ -45,7 +45,7 @@ function RequestCard({ req, onItemUpdate, onConfirmCheckedIn }: {
           </span>
         </div>
         {/* Progress indicator */}
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium">
           <span className="text-teal-600 font-bold">{doneCount}</span>
           <span>/</span>
           <span>{totalActive}</span>
@@ -148,29 +148,29 @@ export default function WHDashboard() {
   };
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#f0f4f8' }}>
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
         <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-slate-500 font-medium">กำลังโหลดข้อมูล...</p>
+        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(160deg, #f0f7f4 0%, #f0f4f8 60%)' }}>
+    <div className="min-h-screen bg-background">
 
       {/* ── Top Bar ── */}
-      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-100 shadow-sm">
+      <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-border shadow-sm">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button onClick={() => router.replace('/')}
-              className="flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-slate-800 bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-xl transition-all group">
+              className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground hover:text-foreground bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-xl transition-all group">
               <span className="group-hover:-translate-x-0.5 transition-transform">←</span> ย้อนกลับ
             </button>
             <div className="w-px h-5 bg-slate-200" />
             <div>
-              <h1 className="text-base font-black text-slate-800 leading-tight">GPO StaffCommand Center</h1>
-              <p className="text-[11px] text-slate-400">GPO Xchange Portal • Warehouse Operations</p>
+              <h1 className="text-base font-black text-foreground leading-tight">GPO StaffCommand Center</h1>
+              <p className="text-[11px] text-muted-foreground">GPO Xchange Portal • Warehouse Operations</p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2">
@@ -184,21 +184,22 @@ export default function WHDashboard() {
 
       {/* ── Content ── */}
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <section className="bg-white rounded-3xl shadow-md border border-slate-100 overflow-hidden">
+        <section className="bg-white rounded-3xl shadow-md border border-border overflow-hidden">
 
           {/* Section header */}
-          <div className="flex items-center gap-3 px-7 py-5 border-b border-slate-100"
+          <div className="flex items-center gap-3 px-7 py-5 border-b border-border"
             style={{ background: 'linear-gradient(90deg,#f0fdf4,#ffffff)' }}>
             <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-sm"
               style={{ background: 'linear-gradient(135deg,#bbf7d0,#34d399)' }}>🏭</div>
             <div>
-              <h2 className="text-sm font-black text-slate-800">Warehouse Operations</h2>
-              <p className="text-xs text-slate-400">{data.length} ใบงาน • ตรวจรับและจัดเก็บสินค้าเข้าคลัง</p>
+              <h2 className="text-sm font-black text-foreground">Warehouse Operations</h2>
+              <p className="text-xs text-muted-foreground">{data.length} ใบงาน • ตรวจรับและจัดเก็บสินค้าเข้าคลัง</p>
             </div>
           </div>
 
-          {/* Table column labels */}
-          <div className="grid grid-cols-12 gap-3 px-7 py-3 bg-slate-50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          {/* Table column labels — ซ่อนบนมือถือ เพราะ WHDrugRow เปลี่ยนเป็น layout การ์ด
+              2 คอลัมน์พร้อม label ในตัวเองแล้ว ไม่ตรงกับหัวตารางนี้อีกต่อไป */}
+          <div className="hidden md:grid grid-cols-12 gap-3 px-7 py-3 bg-slate-50 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             <div className="col-span-4">ชื่อยา / Lot No.</div>
             <div className="col-span-2">หมดอายุ</div>
             <div className="col-span-2 text-right">จำนวน</div>
@@ -210,7 +211,7 @@ export default function WHDashboard() {
           {data.length === 0 ? (
             <div className="py-16 text-center">
               <div className="text-4xl mb-3">🏭</div>
-              <p className="text-sm text-slate-400 font-medium">ไม่มีงานค้างในคลังสินค้า</p>
+              <p className="text-sm text-muted-foreground font-medium">ไม่มีงานค้างในคลังสินค้า</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-50">

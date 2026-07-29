@@ -1,11 +1,16 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
-import { uploadSignature } from '@/lib/storage';
+
+// หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
+// ลูกค้าค้างอยู่หน้าลงทะเบียนเดิมแล้วงงว่าต้องทำอะไรต่อ (เดิมใช้ alert() เฉยๆ
+// ปิดแล้วก็ยังค้างอยู่หน้าเดิม)
+const SUCCESS_REDIRECT_DELAY_MS = 2200;
 
 const registerSchema = z.object({
   hospital_name: z.string().min(1, "กรุณากรอกชื่อหน่วยงาน"),
@@ -20,48 +25,47 @@ const registerSchema = z.object({
 });
 
 export function RegisterForm() {
+  const router = useRouter();
   const [signature, setSignature] = useState<string>("");
   const [isSigned, setIsSigned] = useState(false);
   const [signatureError, setSignatureError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(registerSchema)
   });
 
   const onSubmit = async (data: any) => {
-    if (!signature) { 
+    if (!signature) {
       setSignatureError("กรุณาลงลายเซ็นต์ผู้มีอำนาจก่อนดำเนินการต่อ");
-      return; 
+      return;
     }
     setLoading(true);
-    
+
     try {
-      const response = await fetch(signature);
-      const blob = await response.blob();
-      const file = new File([blob], `${Date.now()}_signature.png`, { type: 'image/png' });
-
-      const { url, error: uploadError } = await uploadSignature(file);
-      if (uploadError) throw new Error(uploadError);
-
-      const payload = { ...data, signature_url: url };
+      const payload = { ...data, signature_url: signature };
       const result = await registerCustomer(payload);
-      
-      if (result.success) alert("ลงทะเบียนสำเร็จ!");
-      else alert("เกิดข้อผิดพลาด: " + result.error);
+
+      if (result.success) {
+        setShowSuccessModal(true);
+        setTimeout(() => router.push('/'), SUCCESS_REDIRECT_DELAY_MS);
+      } else {
+        alert("เกิดข้อผิดพลาด: " + result.error);
+        setLoading(false);
+      }
     } catch (err: any) {
       alert("เกิดข้อผิดพลาด: " + err.message);
-    } finally {
       setLoading(false);
     }
   };
 
-  const inputStyle = "w-full px-4 py-3 border-2 border-slate-100 rounded-xl text-sm text-slate-800 font-medium placeholder:text-slate-400 placeholder:font-normal bg-slate-50/70 focus:bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200";
-  const labelStyle = "text-xs font-bold text-slate-500 mb-1.5 block tracking-wide";
+  const inputStyle = "w-full px-4 py-3 border-2 border-slate-100 rounded-xl text-sm text-foreground font-medium placeholder:text-slate-400 placeholder:font-normal bg-slate-50/70 focus:bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200";
+  const labelStyle = "text-xs font-bold text-muted-foreground mb-1.5 block tracking-wide";
   const errorStyle = "text-[11px] text-rose-500 mt-1 ml-1 font-semibold flex items-center gap-1";
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden" style={{ background: 'linear-gradient(160deg, #eefcf6 0%, #f0f4f8 40%, #eef6fb 100%)' }}>
+    <div className="min-h-screen flex items-center justify-center px-4 py-10 relative overflow-hidden bg-background">
       <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-30 blur-3xl" style={{ background: 'radial-gradient(circle, #5eead4, transparent)' }} />
       <div className="absolute -bottom-40 -right-32 w-[28rem] h-[28rem] rounded-full opacity-25 blur-3xl" style={{ background: 'radial-gradient(circle, #38bdf8, transparent)' }} />
 
@@ -71,8 +75,8 @@ export function RegisterForm() {
             <span className="text-4xl drop-shadow-sm">📝</span>
             <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md text-sm">✨</div>
           </div>
-          <h1 className="text-2xl font-black text-slate-800 tracking-tight">ลงทะเบียนใช้งานระบบ</h1>
-          <p className="text-xs text-slate-400 mt-1.5 flex items-center justify-center gap-1.5">
+          <h1 className="text-2xl font-black text-foreground tracking-tight">ลงทะเบียนใช้งานระบบ</h1>
+          <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-center gap-1.5">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-400" />
             GPO Xchange Portal • สำหรับโรงพยาบาล / หน่วยงาน
           </p>
@@ -84,7 +88,7 @@ export function RegisterForm() {
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>🏥</div>
-              <h2 className="text-sm font-black text-slate-800">ข้อมูลหน่วยงาน</h2>
+              <h2 className="text-sm font-black text-foreground">ข้อมูลหน่วยงาน</h2>
             </div>
             <label className={labelStyle}>ชื่อหน่วยงาน / โรงพยาบาล</label>
             <input {...register("hospital_name")} placeholder="เช่น โรงพยาบาลส่งเสริมสุขภาพ..." className={inputStyle} />
@@ -106,10 +110,10 @@ export function RegisterForm() {
             </div>
           </div>
 
-          <div className="pt-5 border-t border-dashed border-slate-200">
+          <div className="pt-5 border-t border-dashed border-border">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
-              <h2 className="text-sm font-black text-slate-800">ข้อมูลผู้ติดต่อ</h2>
+              <h2 className="text-sm font-black text-foreground">ข้อมูลผู้ติดต่อ</h2>
             </div>
             <label className={labelStyle}>ชื่อ-นามสกุล ผู้ติดต่อ</label>
             <input {...register("contact_name")} placeholder="ชื่อ-นามสกุล" className={inputStyle} />
@@ -126,11 +130,11 @@ export function RegisterForm() {
             </div>
           </div>
 
-          <div className="pt-5 border-t border-dashed border-slate-200">
+          <div className="pt-5 border-t border-dashed border-border">
             <label className="flex items-start gap-3 cursor-pointer group">
               <input type="checkbox" {...register("pdpa_consent")} className="mt-1 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
               <span className="text-xs text-slate-600 leading-relaxed">
-                <b className="text-slate-800">คำยินยอม PDPA: </b>
+                <b className="text-foreground">คำยินยอม PDPA: </b>
                 ข้าพเจ้ายินยอมให้ระบบ Xchange Portal ของ{' '}
                 <span className="font-bold text-teal-700">องค์การเภสัชกรรม (GPO)</span>{' '}
                 จัดเก็บ ประมวลผล และใช้ข้อมูลส่วนบุคคลข้างต้น
@@ -142,12 +146,12 @@ export function RegisterForm() {
             {errors.pdpa_consent && <p className={errorStyle}>⚠ {errors.pdpa_consent.message as string}</p>}
           </div>
 
-          <div className="pt-5 border-t border-dashed border-slate-200">
+          <div className="pt-5 border-t border-dashed border-border">
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: isSigned ? 'linear-gradient(135deg,#d1fae5,#99f6e4)' : 'linear-gradient(135deg,#fef3c7,#fde68a)' }}>{isSigned ? '✅' : '✍️'}</div>
-              <h2 className="text-sm font-black text-slate-800">{isSigned ? "ยืนยันลายเซ็นต์สำเร็จ" : "ลายเซ็นต์ผู้มีอำนาจลงนาม"}</h2>
+              <h2 className="text-sm font-black text-foreground">{isSigned ? "ยืนยันลายเซ็นต์สำเร็จ" : "ลายเซ็นต์ผู้มีอำนาจลงนาม"}</h2>
             </div>
-            <div className="rounded-2xl border-2 border-dashed border-slate-200 p-2 bg-gradient-to-br from-slate-50 to-white">
+            <div className="rounded-2xl border-2 border-dashed border-border p-2 bg-gradient-to-br from-slate-50 to-white">
               <SignaturePad 
                 onSave={(data) => {
                   setSignature(data);
@@ -170,16 +174,33 @@ export function RegisterForm() {
           <button
 type="button"
 onClick={() => window.location.href = '/'}
-className="w-full py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-100 hover:bg-white hover:border-slate-200 hover:text-slate-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+className="w-full py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-slate-100 hover:bg-white hover:border-border hover:text-slate-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
 >
 ← กลับหน้าหลัก
 </button>
 </form>
 
 <div className="flex items-center justify-center gap-2 mt-5">
-<p className="text-center text-[11px] text-slate-400 font-medium">ข้อมูลของท่านได้รับการคุ้มครองตาม PDPA</p>
+<p className="text-center text-[11px] text-muted-foreground font-medium">ข้อมูลของท่านได้รับการคุ้มครองตาม PDPA</p>
 </div>
 </div>
+
+{/* ══ ลงทะเบียนสำเร็จ — ค้าง modal ไว้สักพักก่อนพากลับหน้าหลัก ══ */}
+{showSuccessModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 text-center">
+      <div className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
+        <span className="text-3xl">✅</span>
+      </div>
+      <h3 className="text-lg font-black text-foreground mb-2">ลงทะเบียนสำเร็จ</h3>
+      <p className="text-sm text-muted-foreground leading-relaxed mb-6">รอดำเนินการใน 1-2 วัน</p>
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground font-medium">
+        <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+        กำลังนำท่านกลับสู่หน้าหลัก...
+      </div>
+    </div>
+  </div>
+)}
 </div>
 );
 }

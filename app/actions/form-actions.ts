@@ -40,7 +40,7 @@ export async function createReturnRequest(formData: any) {
   }
 
   // ★ 2. Rate limit ป้องกันสแปมยื่นคำร้อง
-  const allowed = await checkRateLimit(`create-request:${session.id}`, 3600, 10);
+  const allowed = await checkRateLimit(`create-request:${session.id}`, 10, 3600);
   if (!allowed.allowed) {
     throw new Error("ส่งคำร้องถี่เกินไป กรุณาลองใหม่ภายหลัง");
   }

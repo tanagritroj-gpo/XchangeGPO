@@ -50,7 +50,7 @@ const REJECTED_GROUP: Group = {
 };
 
 const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
-  const meta = getStatusMeta(stage.label);
+  const meta = getStatusMeta(stage.key);
   return { key: stage.key, label: stage.label, icon: meta.icon, iconTone: meta.fg };
 });
 
@@ -76,7 +76,7 @@ function formatExp(value: string | null) {
  *  + font-mono กับ Exp ที่มี icon Calendar ในคอลัมน์แคบเกินไป */
 function DrugItemRow({ item }: { item: any }) {
   const itemRejected = item.current_status === REJECTED_STATUS;
-  const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-slate-100 bg-slate-50';
+  const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-border bg-slate-50';
 
   return (
     <div className={`rounded-lg border p-3 text-xs ${rowTone}`}>
@@ -97,7 +97,7 @@ function DrugItemRow({ item }: { item: any }) {
             {formatCurrency(item.value_amount) ?? '-'}
           </span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
           <span className="font-medium text-slate-600">
             {item.qty} {item.unit}
           </span>
@@ -127,11 +127,11 @@ function DrugItemRow({ item }: { item: any }) {
         <div className="col-span-1 font-medium text-slate-600">
           {item.qty} {item.unit}
         </div>
-        <div className="col-span-2 flex items-center gap-1 font-mono text-slate-500">
+        <div className="col-span-2 flex items-center gap-1 font-mono text-muted-foreground">
           <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
           {item.lot_number ?? '-'}
         </div>
-        <div className="col-span-2 flex items-center gap-1 text-slate-500">
+        <div className="col-span-2 flex items-center gap-1 text-muted-foreground">
           <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
           {formatExp(item.exp_date)}
         </div>
@@ -148,19 +148,19 @@ function RequestCard({ request }: { request: any }) {
 
   return (
     <div
-      className={`rounded-2xl border border-slate-100 border-l-4 bg-white p-6 shadow-sm transition-shadow hover:shadow-md ${tone.border}`}
+      className={`rounded-2xl border border-border border-l-4 bg-white p-6 shadow-sm transition-shadow hover:shadow-md ${tone.border}`}
     >
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-black text-slate-800">{request.ref_id}</h3>
+            <h3 className="text-lg font-black text-foreground">{request.ref_id}</h3>
             {request.request_type && (
               <span className="rounded-md border border-teal-100 bg-teal-50 px-2 py-0.5 text-[9px] font-bold uppercase text-teal-700">
                 {request.request_type}
               </span>
             )}
           </div>
-          <p className="text-xs font-medium text-slate-400">
+          <p className="text-xs font-medium text-muted-foreground">
             {new Date(request.created_at).toLocaleDateString('th-TH', { dateStyle: 'long' })}
           </p>
         </div>
@@ -172,7 +172,7 @@ function RequestCard({ request }: { request: any }) {
 
       <div className="mb-5 space-y-2">
         {/* หัวคอลัมน์โชว์เฉพาะ sm ขึ้นไป เพราะมือถือใช้ label แบบ inline ในแต่ละแถวแทน */}
-        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:px-3 sm:pb-1 sm:text-[9px] sm:font-bold sm:uppercase sm:tracking-widest sm:text-slate-400">
+        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:px-3 sm:pb-1 sm:text-[9px] sm:font-bold sm:uppercase sm:tracking-widest sm:text-muted-foreground">
           <div className="col-span-4">ชื่อยา</div>
           <div className="col-span-1">จำนวน</div>
           <div className="col-span-2">Lot</div>
@@ -210,15 +210,15 @@ function StatCard({
   tone: { iconBg: string; iconText: string };
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white p-2.5">
+    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-white p-2.5">
       <div
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone.iconBg} ${tone.iconText}`}
       >
         <Icon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-base font-black leading-tight text-slate-800">{value}</p>
-        <p className="truncate text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+        <p className="truncate text-base font-black leading-tight text-foreground">{value}</p>
+        <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -276,10 +276,10 @@ export default function HistoryPage() {
           <History className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-800 sm:text-3xl">
+          <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
             ประวัติการแลกเปลี่ยนสินค้า
           </h1>
-          <p className="text-xs font-medium text-slate-400 sm:text-sm">
+          <p className="text-xs font-medium text-muted-foreground sm:text-sm">
             ติดตามคำร้องคืน/แลกเปลี่ยนที่คุณเคยยื่นทั้งหมด
           </p>
         </div>
@@ -321,22 +321,22 @@ export default function HistoryPage() {
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-slate-400">
+        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2} aria-hidden="true" />
           กำลังโหลดประวัติ...
         </div>
       ) : history.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 py-20 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-20 text-center">
           <Inbox className="h-8 w-8 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
-          <p className="text-sm font-bold text-slate-500">ยังไม่มีคำร้องคืนสินค้า</p>
-          <p className="text-xs text-slate-400">คำร้องที่คุณยื่นจะแสดงที่นี่</p>
+          <p className="text-sm font-bold text-muted-foreground">ยังไม่มีคำร้องคืนสินค้า</p>
+          <p className="text-xs text-muted-foreground">คำร้องที่คุณยื่นจะแสดงที่นี่</p>
         </div>
       ) : (
         <>
           <div
             role="tablist"
             aria-label="กรองประวัติตามสถานะ"
-            className="-mx-6 flex gap-1 overflow-x-auto border-b border-slate-200 px-6"
+            className="-mx-6 flex gap-1 overflow-x-auto border-b border-border px-6"
           >
             {tabs.map((tab) => {
               const TabIcon = tab.icon;
@@ -350,7 +350,7 @@ export default function HistoryPage() {
                   className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-xs font-bold transition-colors ${
                     active
                       ? `border-teal-600 ${tab.iconTone}`
-                      : 'border-transparent text-slate-400 hover:text-slate-600'
+                      : 'border-transparent text-muted-foreground hover:text-slate-600'
                   }`}
                 >
                   <TabIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
@@ -359,7 +359,7 @@ export default function HistoryPage() {
                     className={`rounded-full px-1.5 py-0.5 text-[10px] ${
                       active
                         ? 'bg-teal-50 text-teal-700'
-                        : 'bg-slate-100 text-slate-500'
+                        : 'bg-slate-100 text-muted-foreground'
                     }`}
                   >
                     {tab.items.length}
@@ -370,9 +370,9 @@ export default function HistoryPage() {
           </div>
 
           {activeTab && activeTab.items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-slate-200 py-16 text-center">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
               <Inbox className="h-7 w-7 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
-              <p className="text-sm font-bold text-slate-500">ยังไม่มีคำร้องในสถานะนี้</p>
+              <p className="text-sm font-bold text-muted-foreground">ยังไม่มีคำร้องในสถานะนี้</p>
             </div>
           ) : (
             <div className="space-y-4">

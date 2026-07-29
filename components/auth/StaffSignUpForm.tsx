@@ -23,14 +23,14 @@ export function StaffSignUpForm() {
     setLoading(false);
   };
 
-  const inputStyle = "w-full px-5 py-3.5 rounded-xl border border-slate-300 bg-white text-slate-800 placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 outline-none transition-all";
-  const labelStyle = "text-xs font-bold text-slate-500 mb-1.5 block tracking-wide";
+  const inputStyle = "w-full px-5 py-3.5 rounded-xl border border-slate-300 bg-white text-foreground placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 outline-none transition-all";
+  const labelStyle = "text-xs font-bold text-muted-foreground mb-1.5 block tracking-wide";
   const errorStyle = "text-xs text-red-500 font-medium mt-1";
 
   return (
     <div className="w-full flex flex-col p-6 md:p-8">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <h2 className="text-2xl font-black text-slate-800 mb-6">ลงทะเบียนพนักงาน</h2>
+        <h2 className="text-2xl font-black text-foreground mb-6">ลงทะเบียนพนักงาน</h2>
 
         {/* รหัสพนักงาน */}
         <div>
@@ -85,7 +85,7 @@ export function StaffSignUpForm() {
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="w-full py-3 text-sm font-semibold text-slate-500 hover:text-teal-700 transition-colors"
+          className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-teal-700 transition-colors"
         >
           ← กลับหน้าหลัก
         </button>
@@ -93,10 +93,10 @@ export function StaffSignUpForm() {
 
       {/* Footer */}
       <div className="mt-8 pt-6 border-t border-slate-200 text-center">
-        <p className="text-[10px] md:text-xs text-slate-400 uppercase tracking-widest font-bold">
+        <p className="text-[10px] md:text-xs text-muted-foreground uppercase tracking-widest font-bold">
           องค์การเภสัชกรรม สาขาภาคใต้
         </p>
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-[10px] text-muted-foreground mt-1">
           © 2026 Government Pharmaceutical Organization. All rights reserved.
         </p>
       </div>
@@ -106,7 +106,7 @@ export function StaffSignUpForm() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100">
             <div className="text-4xl mb-4">✅</div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">ลงทะเบียนเรียบร้อยแล้ว</h3>
+            <h3 className="text-xl font-black text-foreground mb-2">ลงทะเบียนเรียบร้อยแล้ว</h3>
             <p className="text-slate-600 mb-6 text-sm">กรุณารอการอนุมัติสิทธิ์จากผู้จัดการสาขาภาคใต้ หลังจากได้รับการอนุมัติ ท่านจึงจะสามารถเข้าใช้งานระบบได้</p>
             <button 
               onClick={() => router.push('/')}

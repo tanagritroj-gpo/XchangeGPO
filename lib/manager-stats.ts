@@ -11,6 +11,8 @@
  * บอทพูดกับตัวเลขบนกราฟจะเพี้ยนกันได้
  * ──────────────────────────────────────────────────────────────────── */
 
+import { getRejectionReasonLabel } from './rejection-reasons';
+
 export const MONTH_LABELS_TH = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
@@ -194,13 +196,17 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
     .sort((a, b) => b.qty - a.qty)
     .slice(0, 6);
 
-  // เหตุผลการปฏิเสธยอดนิยม
+  // เหตุผลการปฏิเสธยอดนิยม — group ตาม rejection_reason_code (dropdown ที่เลือกไว้)
+  // ไม่ใช่ staff_remark (free text) อีกต่อไป กัน "ยกเลิก" กับ "ปฏิเสธรายการ: ยกเลิก"
+  // นับแยกกันทั้งที่ความหมายเดียวกัน — log เก่าก่อนมี column นี้ไม่มี code จะรวมเป็น "ไม่ระบุ"
   const rejectionReasonMap: Record<string, number> = {};
   statusLogs
-    .filter((log: any) => log.status_name === 'rejected' && log.staff_remark?.trim())
+    .filter((log: any) => log.status_name === 'rejected')
     .forEach((log: any) => {
-      const remark = log.staff_remark.trim();
-      rejectionReasonMap[remark] = (rejectionReasonMap[remark] || 0) + 1;
+      const reason = log.rejection_reason_code
+        ? getRejectionReasonLabel(log.rejection_reason_code)
+        : 'ไม่ระบุ (ข้อมูลเก่า)';
+      rejectionReasonMap[reason] = (rejectionReasonMap[reason] || 0) + 1;
     });
   const topRejectionReasons = Object.entries(rejectionReasonMap)
     .map(([reason, count]) => ({ reason, count }))

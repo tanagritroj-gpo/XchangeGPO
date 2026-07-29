@@ -1,5 +1,10 @@
 import { NextRequest } from 'next/server';
 import { CHATBOT_SYSTEM_PROMPT, MAX_HISTORY_MESSAGES } from '@/lib/chatbot-knowledge';
+import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+
+// วลีที่ prompt สั่งให้บอทพูดตรงๆ เวลาไม่มั่นใจ (ดู "กฎกันตอบมั่ว" ใน
+// CHATBOT_SYSTEM_PROMPT) ใช้จับคำถามที่บอทตอบไม่ได้เพื่อเก็บไว้ทบทวน
+const UNCERTAIN_MARKER = 'ไม่แน่ใจ';
 
 /**
  * POST /api/chat
@@ -78,11 +83,61 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return new Response(geminiRes.body, {
+  // tee ก็อปปี้ stream ออกเป็น 2 ทาง: ทางหนึ่งส่งกลับ client ตามปกติ (ไม่หน่วง
+  // latency เลย) อีกทางอ่านใน background เพื่อตรวจว่าบอทตอบ "ไม่แน่ใจ" ไหม
+  // ถ้าใช่ เก็บคำถามไว้ให้ manager ทบทวนว่าควรเพิ่มเข้า FAQ_ENTRIES
+  const [clientStream, loggingStream] = geminiRes.body.tee();
+  const lastUserMessage = trimmed[trimmed.length - 1];
+  if (lastUserMessage?.role === 'user') {
+    logIfUncertain(loggingStream, lastUserMessage.text).catch((e) =>
+      console.error('logIfUncertain failed:', e),
+    );
+  } else {
+    loggingStream.cancel().catch(() => {});
+  }
+
+  return new Response(clientStream, {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
     },
   });
+}
+
+async function logIfUncertain(stream: ReadableStream<Uint8Array>, question: string) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const jsonStr = line.slice(6).trim();
+      if (!jsonStr) continue;
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const piece = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (piece) fullText += piece;
+      } catch {
+        // chunk ยังไม่ครบ JSON — ข้ามไปรอบถัดไป เหมือนฝั่ง client
+      }
+    }
+  }
+
+  if (!question.trim() || !fullText.includes(UNCERTAIN_MARKER)) return;
+
+  const { error } = await supabaseAdmin.from('chatbot_unanswered_questions').insert({
+    question: question.slice(0, 1000),
+    answer: fullText.slice(0, 2000),
+  });
+  if (error) console.error('Failed to log unanswered chatbot question:', error.message);
 }

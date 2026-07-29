@@ -27,6 +27,18 @@ import {
 } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
+import ReasonSelectFields from '@/components/ReasonSelectFields';
+import { REJECTION_REASONS } from '@/lib/rejection-reasons';
+import { resolveQuickNote } from '@/lib/quick-note';
+
+// หมายเหตุตอนเริ่มกระบวนการแลกเปลี่ยน — preset ให้เลือกเร็วๆ (ยังพิมพ์เพิ่มเติมได้
+// ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติใดต้อง group ตามหมายเหตุ
+// ฝั่งนี้ — ดู lib/quick-note.ts
+const START_EXCHANGE_NOTES = [
+  { code: 'debt_reduction', label: 'เริ่มลดหนี้' },
+  { code: 'exchange', label: 'เริ่มแลกเปลี่ยน' },
+  { code: 'other', label: 'อื่นๆ' },
+] as const;
 
 // ── Status config: คงค่าเดิมทั้งหมด แค่ปรับให้ใช้ token สีสม่ำเสมอขึ้น ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -76,14 +88,14 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
       onClick={onClick}
       className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
         ${active
-          ? 'bg-white shadow-sm border-slate-200 text-slate-800'
-          : 'bg-transparent border-transparent text-slate-500 hover:bg-white/70 hover:text-slate-700'}`}
+          ? 'bg-white shadow-sm border-border text-foreground'
+          : 'bg-transparent border-transparent text-muted-foreground hover:bg-white/70 hover:text-slate-700'}`}
     >
       <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-slate-100'}`}>
-        <Icon size={15} className={active ? accentColor : 'text-slate-400'} strokeWidth={2.5} />
+        <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
       </span>
       <span className="whitespace-nowrap md:whitespace-normal md:flex-1">{label}</span>
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-slate-100 text-slate-400'}`}>
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-slate-100 text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -98,11 +110,11 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
     <button
       onClick={onClick}
       className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
-        ${active ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+        ${active ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
     >
-      <Icon size={15} className={active ? accentColor : 'text-slate-400'} strokeWidth={2.5} />
+      <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
       {label}
-      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/70 text-slate-500'}`}>
+      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/70 text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -170,7 +182,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging'];
 // ── ส่วนแสดงรายการใบงาน — logic เหมือนกันทุกอย่าง แค่รับ items แยกกันเพื่อแยกหัวข้อ ──
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
-  expandedReq, setExpandedReq, openConfirmModal, handleUpdateStatus, fetchData,
+  expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
   emptyIcon: EmptyIcon, emptyText,
 }: any) {
   return (
@@ -180,14 +192,14 @@ function RequestListSection({
           <Icon size={16} className={iconColor} strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-slate-800">{title}</h2>
-          <p className="text-[11px] text-slate-400">{subtitle}</p>
+          <h2 className="text-sm font-bold text-foreground">{title}</h2>
+          <p className="text-[11px] text-muted-foreground">{subtitle}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl border border-border overflow-hidden">
         {items.length > 0 && (
-          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-slate-50 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
@@ -198,7 +210,7 @@ function RequestListSection({
         {items.length === 0 ? (
           <div className="py-12 text-center">
             <EmptyIcon className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
-            <p className="text-sm text-slate-400 font-medium">{emptyText}</p>
+            <p className="text-sm text-muted-foreground font-medium">{emptyText}</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100">
@@ -211,14 +223,14 @@ function RequestListSection({
                   {/* Desktop row */}
                   <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
                     <div className="col-span-3">
-                      <p className="text-sm font-bold text-slate-800 font-mono">{req.ref_id}</p>
-                      {req.hospital_name && <p className="text-xs text-slate-400 mt-0.5 truncate">{req.hospital_name}</p>}
+                      <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
+                      {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
                     </div>
                     <div className="col-span-2"><StatusBadge status={req.current_status} /></div>
                     <div className="col-span-5">
                       <button
                         onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                        className="flex items-center gap-2 text-xs text-slate-500 hover:text-teal-700 font-medium transition-colors group"
+                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-teal-700 font-medium transition-colors group"
                       >
                         <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px] group-hover:bg-teal-100">
                           {drugCount}
@@ -235,14 +247,14 @@ function RequestListSection({
                             <WorkflowDecisionButton icon={X} label="ปฏิเสธใบงาน" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
                           </>
                         ) : (
-                          <p className="text-[10px] text-slate-400 text-right leading-snug flex items-center gap-1 justify-end">
+                          <p className="text-[10px] text-muted-foreground text-right leading-snug flex items-center gap-1 justify-end">
                             <ClipboardCheck size={12} strokeWidth={2.5} />
                             ตรวจรายการยาให้ครบก่อน
                           </p>
                         )
                       )}
                       {req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => handleUpdateStatus(req.id, 'exchanging')} />
+                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
@@ -254,15 +266,15 @@ function RequestListSection({
                   <div className="md:hidden px-4 py-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-slate-800 font-mono">{req.ref_id}</p>
-                        {req.hospital_name && <p className="text-xs text-slate-400 mt-0.5 truncate">{req.hospital_name}</p>}
+                        <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
+                        {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
 
                     <button
                       onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                      className="flex items-center gap-2 text-xs text-slate-500 font-medium w-full py-2 px-3 bg-slate-50 rounded-xl hover:bg-teal-50 hover:text-teal-700 transition-colors"
+                      className="flex items-center gap-2 text-xs text-muted-foreground font-medium w-full py-2 px-3 bg-slate-50 rounded-xl hover:bg-teal-50 hover:text-teal-700 transition-colors"
                     >
                       <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px]">{drugCount}</span>
                       รายการสินค้า
@@ -277,14 +289,14 @@ function RequestListSection({
                             <WorkflowDecisionButton icon={X} label="ปฏิเสธ" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
                           </>
                         ) : (
-                          <p className="text-[11px] text-slate-400 flex items-center gap-1.5 py-2">
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 py-2">
                             <ClipboardCheck size={13} strokeWidth={2.5} />
                             ตรวจรายการยาให้ครบก่อนอนุมัติ/ปฏิเสธ
                           </p>
                         )
                       )}
                       {req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => handleUpdateStatus(req.id, 'exchanging')} />
+                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
@@ -295,7 +307,7 @@ function RequestListSection({
                   {/* Drug items expanded */}
                   {isExpanded && drugCount > 0 && (
                     <div className="px-4 md:px-6 pb-4">
-                      <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-wide px-3 mb-1.5">
+                      <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wide px-3 mb-1.5">
                         <div className="col-span-3">ชื่อยา</div>
                         <div className="col-span-1">จำนวน</div>
                         <div className="col-span-1 text-center">Lot</div>
@@ -317,7 +329,7 @@ function RequestListSection({
                         <div className="mt-3 flex justify-end">
                           <div className="flex items-center gap-2 bg-teal-50 border border-teal-100 rounded-xl px-4 py-2 text-xs">
                             <Pill size={13} className="text-teal-500" strokeWidth={2.5} />
-                            <span className="text-slate-500">มูลค่ารวม:</span>
+                            <span className="text-muted-foreground">มูลค่ารวม:</span>
                             <span className="font-bold text-teal-700">
                               ฿{req.drug_items.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                             </span>
@@ -347,7 +359,13 @@ export default function CSRDashboard() {
   // Modal ยืนยันอนุมัติ/ปฏิเสธใบงาน (พร้อมหมายเหตุ) — เปิดเมื่อรายการยาครบทุกตัวแล้วเท่านั้น
   const [confirmModal, setConfirmModal] = useState<{ requestId: number; action: 'approved' | 'rejected' } | null>(null);
   const [remark, setRemark] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal ยืนยันเริ่มกระบวนการแลกเปลี่ยน (แทน prompt() เดิม)
+  const [exchangeModal, setExchangeModal] = useState<{ requestId: number } | null>(null);
+  const [exchangeReasonCode, setExchangeReasonCode] = useState('');
+  const [exchangeDetail, setExchangeDetail] = useState('');
 
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
@@ -366,23 +384,50 @@ export default function CSRDashboard() {
     init();
   }, []);
 
-  // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เริ่มแลกเปลี่ยน / เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
+  // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
+  // "เริ่มแลกเปลี่ยน" แยกไปใช้ exchangeModal ด้านล่างแล้ว (มี dropdown แทน prompt)
   const handleUpdateStatus = async (id: number, newStatus: string) => {
     const remarkInput = prompt('ระบุหมายเหตุ:');
     if (remarkInput === null) return;
     try {
-      let res;
-      if (newStatus === 'exchanging') res = await startExchangeProcess(id, remarkInput || '');
-      else if (newStatus === 'completed') res = await completeRequest(id, remarkInput || '');
-      else { alert('สถานะไม่รู้จัก'); return; }
+      if (newStatus !== 'completed') { alert('สถานะไม่รู้จัก'); return; }
+      const res = await completeRequest(id, remarkInput || '');
       if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
       else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
     } catch (err) { alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); console.error(err); }
   };
 
+  // เปิด modal เริ่มแลกเปลี่ยน แทนการเรียก prompt() เดิม
+  const openExchangeModal = (requestId: number) => {
+    setExchangeReasonCode('');
+    setExchangeDetail('');
+    setExchangeModal({ requestId });
+  };
+
+  const submitExchangeModal = async () => {
+    if (!exchangeModal) return;
+    setIsSubmitting(true);
+    try {
+      const remarkText = resolveQuickNote(START_EXCHANGE_NOTES, exchangeReasonCode, exchangeDetail);
+      const res = await startExchangeProcess(exchangeModal.requestId, remarkText);
+      if (res.success) {
+        setExchangeModal(null);
+        fetchData();
+      } else {
+        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // เปิด modal ยืนยัน อนุมัติ/ปฏิเสธ ใบงาน (แสดงได้ก็ต่อเมื่อรายการยาครบทุกตัวแล้ว)
   const openConfirmModal = (requestId: number, action: 'approved' | 'rejected') => {
     setRemark('');
+    setReasonCode('');
     setConfirmModal({ requestId, action });
   };
 
@@ -393,7 +438,7 @@ export default function CSRDashboard() {
       const { requestId, action } = confirmModal;
       const res = action === 'approved'
         ? await approveRequest(requestId, remark)
-        : await rejectRequest(requestId, remark);
+        : await rejectRequest(requestId, reasonCode, remark);
 
       if (res.success) {
         setConfirmModal(null);
@@ -419,32 +464,32 @@ export default function CSRDashboard() {
   const monitorWorkflowRequests = activeRequests.filter(r => !CSR_ACTIONABLE_STATUSES.includes(r.current_status));
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
         <Loader2 className="w-9 h-9 text-teal-600 animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-slate-500 font-medium">กำลังโหลดข้อมูล...</p>
+        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
 
       {/* ══ Top Bar ══ */}
-      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200">
+      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={() => router.replace('/admin/csr')}
-              className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
             <div className="w-px h-5 bg-slate-200 shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-slate-900 leading-tight truncate">CSR Dashboard</h1>
-              <p className="text-[10px] md:text-[11px] text-slate-400 hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">CSR Dashboard</h1>
+              <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
@@ -502,6 +547,7 @@ export default function CSRDashboard() {
                   expandedReq={expandedReq}
                   setExpandedReq={setExpandedReq}
                   openConfirmModal={openConfirmModal}
+                  openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
@@ -520,6 +566,7 @@ export default function CSRDashboard() {
                   expandedReq={expandedReq}
                   setExpandedReq={setExpandedReq}
                   openConfirmModal={openConfirmModal}
+                  openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
@@ -534,12 +581,13 @@ export default function CSRDashboard() {
               title="ประวัติใบงาน (Complete)"
               icon={History}
               iconBg="bg-slate-100"
-              iconColor="text-slate-500"
+              iconColor="text-muted-foreground"
               subtitle={`${historyRequests.length} ใบงานที่เสร็จสิ้นหรือถูกปฏิเสธ`}
               items={historyRequests}
               expandedReq={expandedReq}
               setExpandedReq={setExpandedReq}
               openConfirmModal={openConfirmModal}
+              openExchangeModal={openExchangeModal}
               handleUpdateStatus={handleUpdateStatus}
               fetchData={fetchData}
               emptyIcon={Inbox}
@@ -577,46 +625,113 @@ export default function CSRDashboard() {
                     : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">
+                  <h3 className="text-base font-bold text-foreground">
                     {confirmModal.action === 'approved' ? 'ยืนยันการอนุมัติใบงาน' : 'ยืนยันการปฏิเสธใบงาน'}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Ref: {requests.find(r => r.id === confirmModal.requestId)?.ref_id}
                   </p>
                 </div>
               </div>
 
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                หมายเหตุ {confirmModal.action === 'rejected' && <span className="text-rose-500">*จำเป็น</span>}
-              </label>
-              <textarea
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={confirmModal.action === 'approved' ? 'ระบุหมายเหตุ (ถ้ามี)...' : 'ระบุเหตุผลที่ปฏิเสธ...'}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
-              />
+              {confirmModal.action === 'rejected' ? (
+                <ReasonSelectFields
+                  label="เหตุผลที่ปฏิเสธ"
+                  options={REJECTION_REASONS}
+                  code={reasonCode}
+                  detail={remark}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setRemark}
+                />
+              ) : (
+                <>
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
+                    หมายเหตุ
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    placeholder="ระบุหมายเหตุ (ถ้ามี)..."
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                  />
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setConfirmModal(null); setRemark(''); }}
+                  onClick={() => { setConfirmModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmSubmit}
-                  disabled={isSubmitting || (confirmModal.action === 'rejected' && !remark.trim())}
+                  disabled={isSubmitting || (confirmModal.action === 'rejected' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: confirmModal.action === 'approved'
                       ? 'linear-gradient(135deg,#059669,#10b981)'
                       : 'linear-gradient(135deg,#dc2626,#f87171)',
                   }}
+                >
+                  {isSubmitting
+                    ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
+                    : <><Check size={15} strokeWidth={3} /> ยืนยัน</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Confirm Modal: เริ่มกระบวนการแลกเปลี่ยน พร้อมหมายเหตุ ══ */}
+      {exchangeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#ea580c,#fb923c)' }} />
+
+            <div className="p-7">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#ffedd5' }}>
+                  <RefreshCw size={22} className="text-orange-600" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">ยืนยันเริ่มกระบวนการแลกเปลี่ยน</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ref: {requests.find(r => r.id === exchangeModal.requestId)?.ref_id}
+                  </p>
+                </div>
+              </div>
+
+              <ReasonSelectFields
+                label="ประเภทการดำเนินการ"
+                options={START_EXCHANGE_NOTES}
+                code={exchangeReasonCode}
+                detail={exchangeDetail}
+                onCodeChange={setExchangeReasonCode}
+                onDetailChange={setExchangeDetail}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setExchangeModal(null); setExchangeReasonCode(''); setExchangeDetail(''); }}
+                  disabled={isSubmitting}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={submitExchangeModal}
+                  disabled={isSubmitting || !exchangeReasonCode || (exchangeReasonCode === 'other' && !exchangeDetail.trim())}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(135deg,#ea580c,#fb923c)' }}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>

@@ -26,7 +26,7 @@ function SectionTitle({ icon, children }: { icon?: string; children: React.React
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+    <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
       <span className="w-1 h-1 rounded-full bg-slate-300" />
       {children}
     </label>
@@ -42,7 +42,7 @@ function BadgeBtn({ label, active, onClick }: { label: string; active: boolean; 
         'relative px-4 sm:px-5 py-2.5 rounded-full text-sm font-bold border-2 transition-all duration-200 active:scale-95',
         active
           ? 'border-transparent text-white shadow-lg -translate-y-0.5'
-          : 'border-slate-200 bg-white text-slate-500 hover:border-teal-300 hover:text-teal-600 hover:-translate-y-0.5'
+          : 'border-slate-200 bg-white text-muted-foreground hover:border-teal-300 hover:text-teal-600 hover:-translate-y-0.5'
       ].join(' ')}
       style={active ? { background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 8px 20px -6px rgba(26,122,69,0.5)' } : {}}
     >
@@ -116,7 +116,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">3</span>
-        <p className="text-xs font-bold text-slate-400">เหตุผลการส่งคืนและวิธีจัดส่ง</p>
+        <p className="text-xs font-bold text-muted-foreground">เหตุผลการส่งคืนและวิธีจัดส่ง</p>
       </div>
 
       {/* ══ เหตุผลการส่งคืน ══ */}
@@ -215,7 +215,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
 
           {deliveryType === 'ขนส่ง' && (
             <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-xs font-black text-slate-500 flex items-center gap-1.5">📍 ที่อยู่สำหรับไปรับสินค้า</p>
+              <p className="text-xs font-black text-muted-foreground flex items-center gap-1.5">📍 ที่อยู่สำหรับไปรับสินค้า</p>
               <div className="flex flex-col gap-1.5">
                 <FieldLabel>เลขที่ / ถนน</FieldLabel>
                 <input value={addrStreet} onChange={e => setAddrStreet(e.target.value)} placeholder="เลขที่ / หมู่ / ถนน" className={inputCls} />
@@ -257,7 +257,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
         <button
           type="button"
           onClick={back}
-          className="group py-4 rounded-2xl font-black text-sm text-slate-500 bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-sm text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>

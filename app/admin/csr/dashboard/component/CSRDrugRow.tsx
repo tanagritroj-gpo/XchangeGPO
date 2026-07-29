@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, Loader2, Check, X, Receipt, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
+import ReasonSelectFields from '@/components/ReasonSelectFields';
+import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 
 // ── Badge สำหรับแสดงประเภทคำร้อง — สีตรงกับ TYPES ใน Step1Info.tsx ──
 const REQUEST_TYPE_STYLE: Record<string, { icon: any; color: string; bg: string }> = {
@@ -20,6 +22,7 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
   // Modal ยืนยันอนุมัติ/ปฏิเสธรายการยา (แทน prompt() เดิม)
   const [actionModal, setActionModal] = useState<'approve' | 'reject' | null>(null);
   const [remark, setRemark] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => { setLocalStatus(item.current_status); }, [item.current_status]);
@@ -42,6 +45,7 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
   // เปิด modal แทนการเรียก prompt() เดิม
   const openActionModal = (action: 'approve' | 'reject') => {
     setRemark('');
+    setReasonCode('');
     setActionModal(action);
   };
 
@@ -51,7 +55,7 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
     try {
       const res = actionModal === 'approve'
         ? await approveDrugItem(item.id, item.request_id, remark)
-        : await rejectDrugItem(item.id, item.request_id, remark);
+        : await rejectDrugItem(item.id, item.request_id, reasonCode, remark);
 
       if (res.success) {
         setLocalStatus(actionModal === 'approve' ? 'approved' : 'rejected');
@@ -201,22 +205,35 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
                 </div>
               </div>
 
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                หมายเหตุ {actionModal === 'reject' && <span className="text-rose-500">*จำเป็น</span>}
-              </label>
-              <textarea
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={actionModal === 'approve' ? 'ระบุหมายเหตุ (ถ้ามี)...' : 'ระบุเหตุผลที่ปฏิเสธ...'}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
-              />
+              {actionModal === 'reject' ? (
+                <ReasonSelectFields
+                  label="เหตุผลที่ปฏิเสธ"
+                  options={REJECTION_REASONS}
+                  code={reasonCode}
+                  detail={remark}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setRemark}
+                />
+              ) : (
+                <>
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                    หมายเหตุ
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    placeholder="ระบุหมายเหตุ (ถ้ามี)..."
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                  />
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setActionModal(null); setRemark(''); }}
+                  onClick={() => { setActionModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
                   className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
@@ -225,7 +242,7 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
                 <button
                   type="button"
                   onClick={submitAction}
-                  disabled={isSubmitting || (actionModal === 'reject' && !remark.trim())}
+                  disabled={isSubmitting || (actionModal === 'reject' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: actionModal === 'approve'

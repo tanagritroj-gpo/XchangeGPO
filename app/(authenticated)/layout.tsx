@@ -14,7 +14,7 @@ export default async function AuthenticatedLayout({
   if (!customer) redirect('/');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-teal-50">
+    <div className="flex h-screen overflow-hidden bg-background">
 
       <div className="hidden md:flex w-64 flex-shrink-0">
         <Sidebar customer={customer} />

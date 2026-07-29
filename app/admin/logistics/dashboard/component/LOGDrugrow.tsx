@@ -2,6 +2,18 @@
 import { useState } from 'react';
 import { CheckCircle2, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { updateItemStatus, rejectItemStatus } from '@/app/actions/logistics-actions';
+import ReasonSelectFields from '@/components/ReasonSelectFields';
+import { REJECTION_REASONS } from '@/lib/rejection-reasons';
+import { resolveQuickNote } from '@/lib/quick-note';
+
+// หมายเหตุตรวจรับสินค้าถึงคลัง — preset ให้เลือกเร็วๆ ไม่ต้องพิมพ์เองทุกครั้ง
+// (ยังพิมพ์เพิ่มเติมได้ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติ
+// ใดต้อง group ตามหมายเหตุฝั่งนี้ — ดู lib/quick-note.ts
+const LOG_ACCEPT_NOTES = [
+  { code: 'delivered_complete', label: 'สินค้าถึงคลังครบถ้วน' },
+  { code: 'delivered_good_condition', label: 'สภาพสินค้าเรียบร้อยระหว่างขนส่ง' },
+  { code: 'other', label: 'อื่นๆ' },
+] as const;
 
 export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   item: any;
@@ -10,12 +22,14 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
 }) {
   // Modal ยืนยันตรวจรับ/ปฏิเสธรายการยา (แทน prompt() เดิม)
   const [actionModal, setActionModal] = useState<'at_warehouse' | 'rejected' | null>(null);
-  const [remark, setRemark] = useState('');
+  const [detail, setDetail] = useState('');
+  const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // เปิด modal แทนการเรียก prompt() เดิม
   const openActionModal = (action: 'at_warehouse' | 'rejected') => {
-    setRemark('');
+    setDetail('');
+    setReasonCode('');
     setActionModal(action);
   };
 
@@ -24,13 +38,13 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
     setIsSubmitting(true);
     try {
       const res = actionModal === 'at_warehouse'
-        ? await updateItemStatus(item.id, 'at_warehouse', remark || '')
-        : await rejectItemStatus(item.id, remark || '');
+        ? await updateItemStatus(item.id, 'at_warehouse', resolveQuickNote(LOG_ACCEPT_NOTES, reasonCode, detail))
+        : await rejectItemStatus(item.id, reasonCode, detail);
 
       if (res.success) {
         onUpdate(item.id, actionModal);
         setActionModal(null);
-        setRemark('');
+        setDetail('');
       } else {
         alert('บันทึกไม่สำเร็จ: ' + (res as any).error);
       }
@@ -45,21 +59,21 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   return (
     <>
       {/* ปรับ grid ให้รองรับทั้งสองขนาด */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-border hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
 
         {/* ชื่อยา (4 ส่วนบน Desktop) */}
-        <div className="col-span-1 md:col-span-4 font-semibold text-slate-800 truncate">
+        <div className="col-span-1 md:col-span-4 font-semibold text-foreground truncate">
           {item.drug_name}
         </div>
 
         {/* ข้อมูลยาอื่นๆ */}
-        <div className="col-span-1 md:col-span-2 text-slate-500 font-medium">
-          <span className="md:hidden text-[10px] text-slate-400">จำนวน: </span>
+        <div className="col-span-1 md:col-span-2 text-muted-foreground font-medium">
+          <span className="md:hidden text-[10px] text-muted-foreground">จำนวน: </span>
           {item.qty} {item.unit}
         </div>
 
-        <div className="col-span-1 md:col-span-2 text-slate-400 font-mono truncate">
-          <span className="md:hidden text-[10px] text-slate-400">LOT: </span>
+        <div className="col-span-1 md:col-span-2 text-muted-foreground font-mono truncate">
+          <span className="md:hidden text-[10px] text-muted-foreground">LOT: </span>
           {item.lot_number ?? '—'}
         </div>
 
@@ -104,38 +118,46 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                     : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-slate-800">
+                  <h3 className="text-base font-bold text-foreground">
                     {actionModal === 'at_warehouse' ? 'ยืนยันการตรวจรับสินค้า' : 'ยืนยันการปฏิเสธรายการ'}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{item.drug_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.drug_name}</p>
                 </div>
               </div>
 
-              <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
-                หมายเหตุ {actionModal === 'rejected' && <span className="text-rose-500">*จำเป็น</span>}
-              </label>
-              <textarea
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder={actionModal === 'at_warehouse' ? 'ระบุหมายเหตุการตรวจรับ...' : 'ระบุเหตุผลที่ปฏิเสธ...'}
-                maxLength={500}
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
-              />
+              {actionModal === 'rejected' ? (
+                <ReasonSelectFields
+                  label="เหตุผลที่ปฏิเสธ"
+                  options={REJECTION_REASONS}
+                  code={reasonCode}
+                  detail={detail}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setDetail}
+                />
+              ) : (
+                <ReasonSelectFields
+                  label="หมายเหตุการตรวจรับ"
+                  options={LOG_ACCEPT_NOTES}
+                  code={reasonCode}
+                  detail={detail}
+                  onCodeChange={setReasonCode}
+                  onDetailChange={setDetail}
+                />
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setActionModal(null); setRemark(''); }}
+                  onClick={() => { setActionModal(null); setDetail(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
                 <button
                   type="button"
                   onClick={submitAction}
-                  disabled={isSubmitting || (actionModal === 'rejected' && !remark.trim())}
+                  disabled={isSubmitting || !reasonCode || (reasonCode === 'other' && !detail.trim())}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: actionModal === 'at_warehouse'

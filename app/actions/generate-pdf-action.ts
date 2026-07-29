@@ -17,7 +17,7 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
   }
 
   // ★ 2. Rate limit แบบ atomic ผ่าน RPC (กัน race condition)
-  const allowed = await checkRateLimit(`pdf:${session.id}`, 60, 5);
+  const allowed = await checkRateLimit(`pdf:${session.id}`, 5, 60);
   if (!allowed.allowed) {
     return { success: false, error: 'มีการเรียกดูเอกสารถี่เกินไป กรุณารอสักครู่' };
   }

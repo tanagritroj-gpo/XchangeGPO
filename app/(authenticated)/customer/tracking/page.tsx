@@ -39,7 +39,7 @@ function InfoRow({
   if (value === null || value === undefined || value === '') return null;
   return (
     <div>
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
       <p className={highlight ? 'font-bold text-teal-700' : 'font-medium text-slate-700'}>{value}</p>
     </div>
   );
@@ -90,7 +90,7 @@ function PingButton({
           <BellRing className="h-3.5 w-3.5" />
           แจ้งแล้ว
         </span>
-        <p className="mt-1 text-[11px] text-slate-400">
+        <p className="mt-1 text-[11px] text-muted-foreground">
           แจ้งซ้ำได้ในอีกประมาณ {pingState.cooldownRemainingHours} ชม.
         </p>
       </div>
@@ -198,14 +198,14 @@ function TrackingContent() {
           <Search className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-800">ติดตามสถานะคำร้องของฉัน</h1>
-          <p className="text-sm font-medium text-slate-400">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">ติดตามสถานะคำร้องของฉัน</h1>
+          <p className="text-sm font-medium text-muted-foreground">
             ดูรายละเอียดคำร้องคืนสินค้าของคุณแบบเต็มรูปแบบ รวมมูลค่าและหมายเหตุจากเจ้าหน้าที่
           </p>
         </div>
       </div>
       {/* หัวข้อสำหรับตอนพิมพ์ — ไม่มี icon/คำอธิบายรอง เอาแค่ข้อความ */}
-      <h1 className="hidden print:block text-2xl font-black text-slate-800 mb-4">
+      <h1 className="hidden print:block text-2xl font-black text-foreground mb-4">
         ติดตามสถานะคำร้องของฉัน
       </h1>
 
@@ -217,9 +217,9 @@ function TrackingContent() {
         className="mt-8 mb-8 flex flex-col md:flex-row gap-3 print:hidden"
       >
         <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-muted-foreground absolute left-4 top-1/2 -translate-y-1/2" />
           <input
-            className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-800 focus:border-teal-500 focus:ring-4 focus:ring-teal-50 outline-none transition-all"
+            className="w-full pl-11 pr-4 py-3 rounded-xl border-2 border-border bg-white text-foreground focus:border-teal-500 focus:ring-4 focus:ring-teal-50 outline-none transition-all"
             placeholder="กรอกเลขอ้างอิง (Ref ID)..."
             value={refId}
             onChange={(e) => setRefId(e.target.value.toUpperCase())}
@@ -231,7 +231,7 @@ function TrackingContent() {
           disabled={loading || !refId.trim()}
           className={`px-6 rounded-xl font-bold transition-all py-3 md:py-0 ${
             !refId.trim()
-              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              ? 'bg-slate-200 text-muted-foreground cursor-not-allowed'
               : 'bg-teal-700 text-white shadow-md shadow-teal-200 hover:bg-teal-800 active:scale-[0.98]'
           }`}
         >
@@ -256,10 +256,10 @@ function TrackingContent() {
 
       {/* Empty state — ก่อนค้นหาครั้งแรก ไม่ปล่อยพื้นที่ว่างเปล่าไว้เฉยๆ */}
       {!hasSearched && !loading && (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white/60 py-16 text-center print:hidden">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-white/60 py-16 text-center print:hidden">
           <PackageSearch className="h-9 w-9 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
-          <p className="text-sm font-bold text-slate-500">กรอกเลขอ้างอิงด้านบนเพื่อติดตามสถานะ</p>
-          <p className="max-w-xs text-xs text-slate-400">
+          <p className="text-sm font-bold text-muted-foreground">กรอกเลขอ้างอิงด้านบนเพื่อติดตามสถานะ</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
             เลขอ้างอิง (Ref ID) จะได้รับทางอีเมลทันทีหลังยื่นคำร้องคืนสินค้าสำเร็จ
           </p>
         </div>
@@ -268,16 +268,16 @@ function TrackingContent() {
       {data && (
         <div className="space-y-8 animate-in fade-in duration-500">
           {/* ส่วนแสดงหัวข้อใบงาน + stepper */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:shadow-none print:border-slate-300">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-border print:shadow-none print:border-slate-300">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <p className="text-xs text-slate-400 font-medium mb-1">ใบงานเลขที่</p>
+                <p className="text-xs text-muted-foreground font-medium mb-1">ใบงานเลขที่</p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black text-slate-800 font-mono tracking-wide">{data.ref_id}</h2>
+                  <h2 className="text-xl font-black text-foreground font-mono tracking-wide">{data.ref_id}</h2>
                   <button
                     onClick={handleCopy}
                     aria-label="คัดลอกเลขอ้างอิง"
-                    className="text-slate-400 hover:text-teal-600 transition-colors print:hidden"
+                    className="text-muted-foreground hover:text-teal-600 transition-colors print:hidden"
                   >
                     {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                   </button>
@@ -319,7 +319,7 @@ function TrackingContent() {
                       </div>
                       <p
                         className={`text-[11px] mt-1.5 text-center ${
-                          i <= currentStageIndex ? 'text-slate-700 font-semibold' : 'text-slate-400'
+                          i <= currentStageIndex ? 'text-slate-700 font-semibold' : 'text-muted-foreground'
                         }`}
                       >
                         {stage.label}
@@ -339,8 +339,8 @@ function TrackingContent() {
           </div>
 
           {/* รายละเอียดคำร้อง — เห็นได้เฉพาะฝั่ง login เข้ามาเท่านั้น */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 print:shadow-none print:border-slate-300">
-            <p className="text-sm font-bold text-slate-500 mb-4">รายละเอียดคำร้อง</p>
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-border print:shadow-none print:border-slate-300">
+            <p className="text-sm font-bold text-muted-foreground mb-4">รายละเอียดคำร้อง</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <InfoRow label="โรงพยาบาล / ร้านยา" value={data.hospital_name} />
               <InfoRow label="ผู้ติดต่อ" value={data.contact_name} />
@@ -357,10 +357,10 @@ function TrackingContent() {
 
           {/* รายการยา พร้อมมูลค่าต่อรายการ (private only) */}
           {data.drug_items?.length > 0 && (
-            <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm print:shadow-none print:border-slate-300">
+            <div className="bg-white border border-border rounded-2xl p-5 shadow-sm print:shadow-none print:border-slate-300">
               <div className="flex items-center gap-2 mb-4">
-                <Pill className="w-4 h-4 text-slate-400" />
-                <p className="text-sm font-bold text-slate-500">รายการยา</p>
+                <Pill className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm font-bold text-muted-foreground">รายการยา</p>
               </div>
               <div className="space-y-3">
                 {data.drug_items.map((item: any, index: number) => {
@@ -369,19 +369,19 @@ function TrackingContent() {
                     <div
                       key={index}
                       className={`rounded-xl p-3.5 border flex items-start justify-between gap-3 flex-wrap ${
-                        itemRejected ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
+                        itemRejected ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-border'
                       }`}
                     >
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-bold text-slate-800 text-sm">{item.drug_name}</p>
+                          <p className="font-bold text-foreground text-sm">{item.drug_name}</p>
                           {itemRejected && (
                             <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
                               ถูกปฏิเสธ
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">
+                        <p className="text-xs text-muted-foreground mt-0.5">
                           {item.lot_number && <>Lot. {item.lot_number}</>}
                           {item.lot_number && item.exp_date && ' · '}
                           {item.exp_date && (
@@ -389,12 +389,12 @@ function TrackingContent() {
                           )}
                         </p>
                         {item.value_amount != null && (
-                          <p className="text-xs text-slate-500 mt-0.5">
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             มูลค่า {formatCurrency(item.value_amount)}
                           </p>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
                         {item.qty} {item.unit}
                       </span>
                     </div>
@@ -406,8 +406,8 @@ function TrackingContent() {
 
           {/* Timeline พร้อมหมายเหตุจากเจ้าหน้าที่ — private only, public ตัด staff_remark ออกไปแล้ว */}
           <div>
-            <p className="text-sm font-bold text-slate-500 mb-3">ประวัติการดำเนินการ</p>
-            <div className="relative border-l-2 border-slate-200 ml-3 space-y-8">
+            <p className="text-sm font-bold text-muted-foreground mb-3">ประวัติการดำเนินการ</p>
+            <div className="relative border-l-2 border-border ml-3 space-y-8">
               {data.timeline?.map((log: any, index: number) => {
                 const meta = getStatusMeta(log.status_name);
                 const Icon = meta.icon;
@@ -418,24 +418,24 @@ function TrackingContent() {
                     >
                       <Icon className={`w-4 h-4 ${meta.fg}`} />
                     </div>
-                    <p className="text-xs text-slate-400 font-mono">
+                    <p className="text-xs text-muted-foreground font-mono">
                       {new Date(log.log_date).toLocaleString('th-TH')}
                     </p>
                     <h4 className="font-bold text-teal-900">{log.status_name}</h4>
                     {getTimelineDescription(log.status_name) && (
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {getTimelineDescription(log.status_name)}
                       </p>
                     )}
                     {log.drug_name && (
-                      <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                         <Pill className="w-3 h-3" />
                         {log.drug_name}
                       </p>
                     )}
                     {log.staff_remark && (
-                      <p className="text-sm text-slate-600 mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 flex items-start gap-1.5">
-                        <FileText className="w-3.5 h-3.5 mt-0.5 text-slate-400 flex-shrink-0" />
+                      <p className="text-sm text-slate-600 mt-2 bg-slate-50 border border-border rounded-lg px-3 py-2 flex items-start gap-1.5">
+                        <FileText className="w-3.5 h-3.5 mt-0.5 text-muted-foreground flex-shrink-0" />
                         {log.staff_remark}
                       </p>
                     )}
@@ -449,7 +449,7 @@ function TrackingContent() {
           <div className="flex gap-3 print:hidden">
             <button
               onClick={() => window.print()}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-border font-bold text-slate-600 hover:bg-slate-50 transition-all"
             >
               <Printer className="w-4 h-4" />
               พิมพ์
@@ -457,7 +457,7 @@ function TrackingContent() {
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-slate-200 font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-border font-bold text-slate-600 hover:bg-slate-50 transition-all disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
