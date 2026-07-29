@@ -49,8 +49,8 @@ export default function CsrHubPage() {
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-bold text-slate-800 leading-tight">GPO Xchange</p>
-              <p className="text-[10px] text-slate-400 leading-tight">Staff Portal · CSR</p>
+              <p className="text-sm font-bold text-foreground leading-tight">GPO Xchange</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Staff Portal · CSR</p>
             </div>
           </div>
           <button
@@ -107,8 +107,8 @@ export default function CsrHubPage() {
                     <FileEdit className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-slate-800">กรอกแบบฟอร์มแทนลูกค้า</h2>
-                    <p className="text-xs text-slate-400">สร้างคำร้องคืน/แลกเปลี่ยนสินค้าแทนลูกค้าที่ติดต่อเข้ามา</p>
+                    <h2 className="text-sm font-black text-foreground">กรอกแบบฟอร์มแทนลูกค้า</h2>
+                    <p className="text-xs text-muted-foreground">สร้างคำร้องคืน/แลกเปลี่ยนสินค้าแทนลูกค้าที่ติดต่อเข้ามา</p>
                   </div>
                 </div>
                 <div className="mt-auto h-16 w-full rounded-2xl font-bold text-white text-sm bg-purple-600 shadow-md shadow-purple-200 group-hover:bg-purple-700 group-hover:shadow-xl group-hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
@@ -127,8 +127,8 @@ export default function CsrHubPage() {
                     <Building2 className="w-5 h-5 text-indigo-600" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-slate-800">CSR Dashboard</h2>
-                    <p className="text-xs text-slate-400">ตรวจสอบ/อนุมัติใบงานที่รอดำเนินการ</p>
+                    <h2 className="text-sm font-black text-foreground">CSR Dashboard</h2>
+                    <p className="text-xs text-muted-foreground">ตรวจสอบ/อนุมัติใบงานที่รอดำเนินการ</p>
                   </div>
                 </div>
                 <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-2xl text-sm text-indigo-700 bg-indigo-50 gap-1 group-hover:bg-indigo-100 group-hover:border-indigo-300 transition-colors">
@@ -150,8 +150,8 @@ export default function CsrHubPage() {
                     <Users className="w-5 h-5 text-fuchsia-600" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-black text-slate-800">การจัดการข้อมูลลูกค้า</h2>
-                    <p className="text-xs text-slate-400">อนุมัติ/ปฏิเสธลูกค้าใหม่ที่รอตรวจสอบ</p>
+                    <h2 className="text-sm font-black text-foreground">การจัดการข้อมูลลูกค้า</h2>
+                    <p className="text-xs text-muted-foreground">อนุมัติ/ปฏิเสธลูกค้าใหม่ที่รอตรวจสอบ</p>
                   </div>
                 </div>
                 <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-fuchsia-100 rounded-2xl text-sm text-fuchsia-600 bg-fuchsia-50/60 gap-1 group-hover:bg-fuchsia-50 group-hover:border-fuchsia-300 transition-colors">
@@ -167,7 +167,7 @@ export default function CsrHubPage() {
       </main>
 
       <footer className="mt-4 py-5 px-6 text-center border-t border-purple-100">
-        <p className="text-[11px] text-slate-400">© 2026 <span className="font-bold text-purple-600">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
+        <p className="text-[11px] text-muted-foreground">© 2026 <span className="font-bold text-purple-600">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
       </footer>
     </div>
   );

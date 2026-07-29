@@ -116,20 +116,20 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
   const ModalIcon = meta?.icon;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 bg-white rounded-xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/20 transition-all duration-150">
+    <div className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 bg-white rounded-xl border border-border hover:border-emerald-200 hover:bg-emerald-50/20 transition-all duration-150">
       <div className="col-span-2 md:col-span-4">
-        <p className="text-sm font-bold text-slate-800 truncate">{item.drug_name}</p>
-        <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+        <p className="text-sm font-bold text-foreground truncate">{item.drug_name}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
           <span>🏷️</span> {item.lot_number ?? '—'}
         </p>
       </div>
-      <div className="col-span-1 md:col-span-2 text-xs text-slate-400">
-        <span className="md:hidden text-[10px] text-slate-400">หมดอายุ: </span>
+      <div className="col-span-1 md:col-span-2 text-xs text-muted-foreground">
+        <span className="md:hidden text-[10px] text-muted-foreground">หมดอายุ: </span>
         {item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
       </div>
       <div className="col-span-1 md:col-span-2 text-xs font-bold text-slate-600 text-left md:text-right">
-        <span className="md:hidden text-[10px] font-normal text-slate-400">จำนวน: </span>
-        {item.qty} <span className="font-normal text-slate-400">{item.unit}</span>
+        <span className="md:hidden text-[10px] font-normal text-muted-foreground">จำนวน: </span>
+        {item.qty} <span className="font-normal text-muted-foreground">{item.unit}</span>
       </div>
       <div className="col-span-1 md:col-span-2">
         <StatusBadge status={item.current_status} />
@@ -138,7 +138,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
       {/* Action Area */}
       <div className="col-span-1 md:col-span-2 flex justify-start md:justify-end gap-1.5 flex-wrap">
         {isProcessing ? (
-          <div className="flex items-center gap-1.5 text-slate-500">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
             <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
             <span className="text-[9px] font-bold">กำลังบันทึก...</span>
           </div>
@@ -200,8 +200,8 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
                   <ModalIcon size={22} className={meta.iconColor} strokeWidth={2.5} />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-slate-800">{meta.title}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{item.drug_name}</p>
+                  <h3 className="text-base font-bold text-foreground">{meta.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.drug_name}</p>
                 </div>
               </div>
 
@@ -219,7 +219,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
                   type="button"
                   onClick={() => setActionModal(null)}
                   disabled={isProcessing}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>

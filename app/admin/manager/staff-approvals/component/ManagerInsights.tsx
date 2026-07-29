@@ -71,14 +71,14 @@ function StatCard({ icon: Icon, label, value, sub, accentBg, accentColor }: {
   icon: any; label: string; value: string; sub?: string; accentBg: string; accentColor: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5 flex items-center gap-3.5">
+    <div className="bg-white rounded-2xl border border-border p-4 md:p-5 flex items-center gap-3.5">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${accentBg}`}>
         <Icon size={20} className={accentColor} strokeWidth={2.5} />
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-slate-400 truncate">{label}</p>
-        <p className="text-lg md:text-xl font-bold text-slate-800 truncate">{value}</p>
-        {sub && <p className="text-[10px] text-slate-400 mt-0.5">{sub}</p>}
+        <p className="text-[11px] font-semibold text-muted-foreground truncate">{label}</p>
+        <p className="text-lg md:text-xl font-bold text-foreground truncate">{value}</p>
+        {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
       </div>
     </div>
   );
@@ -91,24 +91,24 @@ function ComparisonCard({ icon: Icon, label, periodLabel, current, previous, for
   const change = pctChange(current, previous);
   const isUp = change >= 0;
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-5">
+    <div className="bg-white rounded-2xl border border-border p-4 md:p-5">
       <div className="flex items-center gap-2.5 mb-3">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accentBg}`}>
           <Icon size={16} className={accentColor} strokeWidth={2.5} />
         </div>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-slate-500 truncate">{label}</p>
-          <p className="text-[10px] text-slate-400">{periodLabel}</p>
+          <p className="text-[11px] font-semibold text-muted-foreground truncate">{label}</p>
+          <p className="text-[10px] text-muted-foreground">{periodLabel}</p>
         </div>
       </div>
       <div className="flex items-end justify-between gap-2">
-        <p className="text-lg md:text-xl font-bold text-slate-800 truncate">{formatValue(current)}</p>
+        <p className="text-lg md:text-xl font-bold text-foreground truncate">{formatValue(current)}</p>
         <span className={`flex items-center gap-0.5 text-[11px] font-bold px-2 py-1 rounded-full shrink-0 ${isUp ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
           {isUp ? <ArrowUpRight size={12} strokeWidth={3} /> : <ArrowDownRight size={12} strokeWidth={3} />}
           {Math.abs(change)}%
         </span>
       </div>
-      <p className="text-[10px] text-slate-400 mt-1">เทียบก่อนหน้า: {formatValue(previous)}</p>
+      <p className="text-[10px] text-muted-foreground mt-1">เทียบก่อนหน้า: {formatValue(previous)}</p>
     </div>
   );
 }
@@ -117,15 +117,15 @@ function ChartCard({ icon: Icon, title, subtitle, accentBg, accentColor, rightSl
   icon: any; title: string; subtitle: string; accentBg: string; accentColor: string; rightSlot?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 md:p-6">
+    <div className="bg-white rounded-2xl border border-border p-4 md:p-6">
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2.5">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${accentBg}`}>
             <Icon size={16} className={accentColor} strokeWidth={2.5} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-800">{title}</h3>
-            <p className="text-[11px] text-slate-400">{subtitle}</p>
+            <h3 className="text-sm font-bold text-foreground">{title}</h3>
+            <p className="text-[11px] text-muted-foreground">{subtitle}</p>
           </div>
         </div>
         {rightSlot}
@@ -140,13 +140,13 @@ function PeriodToggle({ mode, onChange }: { mode: 'month' | 'year'; onChange: (m
     <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100">
       <button
         onClick={() => onChange('month')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'month' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'month' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
       >
         รายเดือน
       </button>
       <button
         onClick={() => onChange('year')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'year' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'year' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
       >
         รายปี
       </button>
@@ -375,8 +375,8 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
           <BarChart3 size={16} className="text-purple-600" strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-slate-800">ภาพรวม & สถิติ</h2>
-          <p className="text-[11px] text-slate-400">แนวโน้มและข้อมูลเชิงลึกสำหรับผู้บริหาร</p>
+          <h2 className="text-sm font-bold text-foreground">ภาพรวม & สถิติ</h2>
+          <p className="text-[11px] text-muted-foreground">แนวโน้มและข้อมูลเชิงลึกสำหรับผู้บริหาร</p>
         </div>
       </div>
 
@@ -444,7 +444,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
         accentBg="bg-cyan-100" accentColor="text-cyan-600"
       >
         {stageDurations.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-10">ยังไม่มีข้อมูลเพียงพอสำหรับคำนวณ</p>
+          <p className="text-sm text-muted-foreground text-center py-10">ยังไม่มีข้อมูลเพียงพอสำหรับคำนวณ</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(200, stageDurations.length * 42)}>
             <BarChart data={stageDurations} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>
@@ -590,7 +590,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
       {/* ── ใหม่ #4: เหตุผลการปฏิเสธยอดนิยม ── */}
       <ChartCard icon={XCircle} title="เหตุผลการปฏิเสธยอดนิยม" subtitle="Top 8 หมายเหตุที่พนักงานระบุตอนปฏิเสธ" accentBg="bg-red-100" accentColor="text-red-600">
         {topRejectionReasons.length === 0 ? (
-          <p className="text-sm text-slate-400 text-center py-10">ยังไม่มีข้อมูลการปฏิเสธที่มีหมายเหตุ</p>
+          <p className="text-sm text-muted-foreground text-center py-10">ยังไม่มีข้อมูลการปฏิเสธที่มีหมายเหตุ</p>
         ) : (
           <ResponsiveContainer width="100%" height={Math.max(200, topRejectionReasons.length * 40)}>
             <BarChart data={topRejectionReasons} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 0 }}>

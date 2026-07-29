@@ -59,21 +59,21 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   return (
     <>
       {/* ปรับ grid ให้รองรับทั้งสองขนาด */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-border hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
 
         {/* ชื่อยา (4 ส่วนบน Desktop) */}
-        <div className="col-span-1 md:col-span-4 font-semibold text-slate-800 truncate">
+        <div className="col-span-1 md:col-span-4 font-semibold text-foreground truncate">
           {item.drug_name}
         </div>
 
         {/* ข้อมูลยาอื่นๆ */}
-        <div className="col-span-1 md:col-span-2 text-slate-500 font-medium">
-          <span className="md:hidden text-[10px] text-slate-400">จำนวน: </span>
+        <div className="col-span-1 md:col-span-2 text-muted-foreground font-medium">
+          <span className="md:hidden text-[10px] text-muted-foreground">จำนวน: </span>
           {item.qty} {item.unit}
         </div>
 
-        <div className="col-span-1 md:col-span-2 text-slate-400 font-mono truncate">
-          <span className="md:hidden text-[10px] text-slate-400">LOT: </span>
+        <div className="col-span-1 md:col-span-2 text-muted-foreground font-mono truncate">
+          <span className="md:hidden text-[10px] text-muted-foreground">LOT: </span>
           {item.lot_number ?? '—'}
         </div>
 
@@ -118,10 +118,10 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                     : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-slate-800">
+                  <h3 className="text-base font-bold text-foreground">
                     {actionModal === 'at_warehouse' ? 'ยืนยันการตรวจรับสินค้า' : 'ยืนยันการปฏิเสธรายการ'}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{item.drug_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.drug_name}</p>
                 </div>
               </div>
 
@@ -150,7 +150,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                   type="button"
                   onClick={() => { setActionModal(null); setDetail(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
