@@ -321,6 +321,37 @@ describe('reviewClient — registration confirmation document (approval side-eff
 
     uploadSpy.mockRestore();
   });
+
+  // Live bug: a PDF got uploaded to registration-documents successfully, but
+  // the document_attachments insert that links it back silently failed — the
+  // old code never checked that insert's error, so the file became permanently
+  // unreachable (getRegistrationDocumentUrl only looks it up via
+  // document_attachments.client_id) with zero trace in the logs.
+  it('surfaces (and does not swallow) a failure in the document_attachments insert', async () => {
+    seedClient();
+    const originalFrom = fakeAdmin.client.from.bind(fakeAdmin.client);
+    const fromSpy = vi.spyOn(fakeAdmin.client, 'from').mockImplementation((table: string) => {
+      if (table === 'document_attachments') {
+        return { insert: () => ({ then: (resolve: any) => resolve({ data: null, error: { message: 'insert failed' } }) }) } as any;
+      }
+      return originalFrom(table);
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await reviewClient('client-1', 'approved', 'CUST-003');
+
+    // การอนุมัติ (b2b_customers + customer_code) ต้องสำเร็จอยู่ดี
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('b2b_customers')[0].customer_code).toBe('CUST-003');
+    // แต่ความล้มเหลวต้องถูก log ไว้ ไม่ใช่หายไปเฉยๆ
+    expect(errorSpy).toHaveBeenCalledWith(
+      'generateRegistrationDocument failed (non-blocking):',
+      expect.objectContaining({ message: 'insert failed' }),
+    );
+
+    fromSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
 });
 
 describe('getRegistrationDocumentUrl', () => {

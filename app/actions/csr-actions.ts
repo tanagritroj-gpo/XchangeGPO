@@ -188,7 +188,15 @@ async function generateRegistrationDocument(client: any, customerCode: string, s
     .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
   if (uploadErr) throw uploadErr;
 
-  await supabaseAdmin.from('document_attachments').insert({ client_id: client.id, file_path: filePath });
+  // ★ ต้องเช็ค error ตรงนี้ — เดิมโค้ดนี้ไม่เช็คเลย ถ้า insert พัง (เช่น ชน FK เพราะแถว
+  // client ถูกลบไปแล้วระหว่างที่ request ยังทำงานอยู่) ไฟล์ PDF ที่เพิ่ง upload สำเร็จจะ
+  // กลายเป็นขยะลอยอยู่ใน bucket ไปตลอด เพราะไม่มีทางย้อนกลับมาหาไฟล์นั้นได้อีก
+  // (getRegistrationDocumentUrl ค้นหาผ่าน document_attachments.client_id เท่านั้น) และ
+  // จะไม่มี log อะไรเลยด้วยเพราะ error ถูกทิ้งไปเฉยๆ
+  const { error: attachErr } = await supabaseAdmin
+    .from('document_attachments')
+    .insert({ client_id: client.id, file_path: filePath });
+  if (attachErr) throw attachErr;
 
   // จำกัดความถี่การส่งอีเมลต่อ staff คนเดียว (กันเคสผิดพลาดส่งรัว) — ถ้าเกินโควตา
   // แค่ข้ามการส่งอีเมลรอบนี้ เอกสารที่อัปโหลดไว้แล้วยังอยู่ ดึงย้อนหลังได้เสมอ
