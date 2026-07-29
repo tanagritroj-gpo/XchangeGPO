@@ -223,6 +223,10 @@ export default function CSRCustomersPage() {
   const [historyError, setHistoryError] = useState('');
   const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
   const [docLoading, setDocLoading] = useState(false);
+  // signed URL ของเอกสารที่กำลังแสดงอยู่ในโมดัล — ใช้แทน window.open() เพราะ window.open()
+  // ที่เรียกหลัง await (คำขอ signed URL) ไม่นับเป็น user gesture ตรงๆ อีกต่อไป ทำให้ browser
+  // (โดยเฉพาะ Safari บนมือถือ และบางเคสบน desktop) บล็อกเป็น popup แทนที่จะเปิดให้
+  const [docModalUrl, setDocModalUrl] = useState<string | null>(null);
   // client.id ที่กำลังส่งคำขออนุมัติ/ปฏิเสธอยู่ — กันกดซ้ำระหว่างรอผล (ก่อนหน้านี้ไม่มี
   // guard ทำให้กดรัวจนคำขอซ้อนกันชน unique constraint ฝั่ง server ได้)
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
@@ -300,7 +304,7 @@ export default function CSRCustomersPage() {
     const res = await getRegistrationDocumentUrl(selectedCustomer.id);
     setDocLoading(false);
     if (res.success && (res as any).url) {
-      window.open((res as any).url, '_blank');
+      setDocModalUrl((res as any).url);
     } else {
       alert((res as any).error || 'ไม่สามารถเปิดเอกสารได้');
     }
@@ -533,6 +537,44 @@ export default function CSRCustomersPage() {
           </div>
         )}
       </div>
+
+      {/* ══ โมดัลดูเอกสารยืนยันการลงทะเบียน — แสดงในหน้าเดียวกันแทน window.open() ══
+          (window.open() หลัง await ไม่นับเป็น user gesture ต่อเนื่อง ทำให้ browser
+          บล็อกเป็น popup ทั้งบน desktop บางเคสและมือถือ Safari แทบทุกเคส) */}
+      {docModalUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => setDocModalUrl(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 shrink-0">
+              <h3 className="text-sm font-bold text-slate-800">เอกสารยืนยันการลงทะเบียน</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={docModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
+                >
+                  <Download size={13} strokeWidth={2.5} />
+                  เปิดในแท็บใหม่ / ดาวน์โหลด
+                </a>
+                <button
+                  onClick={() => setDocModalUrl(null)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+                  aria-label="ปิด"
+                >
+                  <X size={16} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+            <iframe src={docModalUrl} className="flex-1 w-full" title="เอกสารยืนยันการลงทะเบียน" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
