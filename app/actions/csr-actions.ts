@@ -54,9 +54,16 @@ export async function getCSRDashboardData() {
 }
 
 // ฟังก์ชันรวม: อนุมัติ หรือ ปฏิเสธ ลูกค้า
-export async function reviewClient(clientId: string, action: 'approved' | 'rejected') {
+// customerCode: รหัสลูกค้าที่ CSR พิมพ์เอง (ไม่ได้มาจากลูกค้าตอนลงทะเบียน) — จำเป็น
+// เฉพาะตอน approved เท่านั้น เพราะเป็นค่าเดียวที่จะถูกเก็บลง b2b_customers.customer_code
+// (เดิมคอลัมน์นี้ไม่เคยถูกเซ็ตเลยตอน insert ทำให้ลูกค้าที่อนุมัติแล้วทุกรายมีค่าว่าง)
+export async function reviewClient(clientId: string, action: 'approved' | 'rejected', customerCode?: string) {
   try {
     await getCSRSession();
+
+    if (action === 'approved' && !customerCode?.trim()) {
+      throw new Error("กรุณาระบุรหัสลูกค้าก่อนอนุมัติ");
+    }
 
     const { data: client, error: fetchErr } = await supabaseAdmin
       .from('clients')
@@ -82,6 +89,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           phone: client.phone,
           contact_name: client.contact_name,
           position: client.position,
+          customer_code: customerCode!.trim(),
         })
         .select('id')
         .single();

@@ -161,17 +161,28 @@ describe('reviewClient — approval provisions a real b2b_customer', () => {
     });
   }
 
-  it('creates a b2b_customer and links it back on approval', async () => {
+  it('creates a b2b_customer (with the CSR-entered customer_code) and links it back on approval', async () => {
     seedClient();
 
-    const res = await reviewClient('client-1', 'approved');
+    const res = await reviewClient('client-1', 'approved', 'CUST-001');
 
     expect(res.success).toBe(true);
     const client = fakeAdmin.rows('clients')[0];
     expect(client.status).toBe('approved');
     expect(fakeAdmin.rows('b2b_customers')).toHaveLength(1);
     expect(fakeAdmin.rows('b2b_customers')[0].email).toBe('hospital@example.com');
+    expect(fakeAdmin.rows('b2b_customers')[0].customer_code).toBe('CUST-001');
     expect(client.b2b_customer_id).toBe(fakeAdmin.rows('b2b_customers')[0].id);
+  });
+
+  it('refuses to approve without a customer_code', async () => {
+    seedClient();
+
+    const res = await reviewClient('client-1', 'approved');
+
+    expect(res).toEqual({ success: false, error: 'กรุณาระบุรหัสลูกค้าก่อนอนุมัติ' });
+    expect(fakeAdmin.rows('clients')[0].status).toBe('pending');
+    expect(fakeAdmin.rows('b2b_customers')).toHaveLength(0);
   });
 
   it('does not provision a customer on rejection', async () => {
