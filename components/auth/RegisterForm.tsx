@@ -1,10 +1,16 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
+
+// หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
+// ลูกค้าค้างอยู่หน้าลงทะเบียนเดิมแล้วงงว่าต้องทำอะไรต่อ (เดิมใช้ alert() เฉยๆ
+// ปิดแล้วก็ยังค้างอยู่หน้าเดิม)
+const SUCCESS_REDIRECT_DELAY_MS = 2200;
 
 const registerSchema = z.object({
   hospital_name: z.string().min(1, "กรุณากรอกชื่อหน่วยงาน"),
@@ -19,31 +25,37 @@ const registerSchema = z.object({
 });
 
 export function RegisterForm() {
+  const router = useRouter();
   const [signature, setSignature] = useState<string>("");
   const [isSigned, setIsSigned] = useState(false);
   const [signatureError, setSignatureError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   const { register, handleSubmit, formState: { errors } } = useForm({
     resolver: zodResolver(registerSchema)
   });
 
   const onSubmit = async (data: any) => {
-    if (!signature) { 
+    if (!signature) {
       setSignatureError("กรุณาลงลายเซ็นต์ผู้มีอำนาจก่อนดำเนินการต่อ");
-      return; 
+      return;
     }
     setLoading(true);
 
     try {
       const payload = { ...data, signature_url: signature };
       const result = await registerCustomer(payload);
-      
-      if (result.success) alert("ลงทะเบียนสำเร็จ!");
-      else alert("เกิดข้อผิดพลาด: " + result.error);
+
+      if (result.success) {
+        setShowSuccessModal(true);
+        setTimeout(() => router.push('/'), SUCCESS_REDIRECT_DELAY_MS);
+      } else {
+        alert("เกิดข้อผิดพลาด: " + result.error);
+        setLoading(false);
+      }
     } catch (err: any) {
       alert("เกิดข้อผิดพลาด: " + err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -172,6 +184,23 @@ className="w-full py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-5
 <p className="text-center text-[11px] text-slate-400 font-medium">ข้อมูลของท่านได้รับการคุ้มครองตาม PDPA</p>
 </div>
 </div>
+
+{/* ══ ลงทะเบียนสำเร็จ — ค้าง modal ไว้สักพักก่อนพากลับหน้าหลัก ══ */}
+{showSuccessModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 text-center">
+      <div className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
+        <span className="text-3xl">✅</span>
+      </div>
+      <h3 className="text-lg font-black text-slate-800 mb-2">ลงทะเบียนสำเร็จ</h3>
+      <p className="text-sm text-slate-500 leading-relaxed mb-6">รอดำเนินการใน 1-2 วัน</p>
+      <div className="flex items-center justify-center gap-2 text-xs text-slate-400 font-medium">
+        <div className="w-4 h-4 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+        กำลังนำท่านกลับสู่หน้าหลัก...
+      </div>
+    </div>
+  </div>
+)}
 </div>
 );
 }
