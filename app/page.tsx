@@ -101,7 +101,7 @@ function HomePageContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: '#f0f4f8' }}>
+    <div className="min-h-screen flex flex-col bg-background">
       <div className="flex flex-col md:flex-row flex-1 w-full px-4 md:px-16 py-8 gap-4">
 
         {/* ── LEFT: GPO Graphic ── */}
@@ -146,15 +146,15 @@ function HomePageContent() {
           </div>
 
           <div className="relative bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl overflow-hidden border border-white/50">
-            <div className="grid grid-cols-2 bg-white/50 border-b border-slate-200">
+            <div className="grid grid-cols-2 bg-white/50 border-b border-border">
               {(['customer', 'staff'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => { setActiveTab(tab); setIsOtpStep(false); }}
                   className={`py-3.5 text-sm font-bold transition-all border-b-2 flex flex-col items-center justify-center ${
-                    activeTab === tab 
-                      ? (tab === 'customer' ? 'text-teal-700 border-teal-500 bg-white' : 'text-blue-700 border-blue-500 bg-white') 
-                      : 'text-slate-400 border-transparent hover:text-slate-600'
+                    activeTab === tab
+                      ? (tab === 'customer' ? 'text-teal-700 border-teal-500 bg-white' : 'text-blue-700 border-blue-500 bg-white')
+                      : 'text-muted-foreground border-transparent hover:text-foreground'
                   }`}
                 >
                   <span className="block mb-0.5">
@@ -167,8 +167,8 @@ function HomePageContent() {
 
             <div className="p-6 space-y-6">
               <div className="space-y-4">
-                <h2 className="text-sm font-black text-slate-800 flex items-center gap-2">
-                  <div className={`w-1 h-4 rounded-full ${isCustomer ? 'bg-teal-500' : 'bg-blue-500'}`} /> 
+                <h2 className="text-sm font-black text-foreground flex items-center gap-2">
+                  <div className={`w-1 h-4 rounded-full ${isCustomer ? 'bg-teal-500' : 'bg-blue-500'}`} />
                   {isCustomer && isOtpStep ? 'ยืนยันรหัส OTP (ลูกค้า)' : 'เข้าสู่ระบบ'}
                 </h2>
                 
@@ -178,17 +178,17 @@ function HomePageContent() {
                       <input 
                         value={email} 
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-teal-400" 
-                        placeholder="📧  อีเมล" 
+                        className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
+                        placeholder="📧  อีเมล"
                       />
                       <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
                         {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
                       </button>
                       
                       <div className="relative flex py-2 items-center">
-                        <div className="flex-grow border-t border-slate-200"></div>
-                        <span className="flex-shrink mx-4 text-slate-400 text-[10px] uppercase">หรือ</span>
-                        <div className="flex-grow border-t border-slate-200"></div>
+                        <div className="flex-grow border-t border-border"></div>
+                        <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase">หรือ</span>
+                        <div className="flex-grow border-t border-border"></div>
                       </div>
                       <button
                         onClick={handleGoogleLogin}
@@ -209,29 +209,29 @@ function HomePageContent() {
                         value={otp} 
                         onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
                         maxLength={6} 
-                        className="w-full px-4 py-3 text-center tracking-[0.5em] text-lg rounded-xl border-2 border-teal-400 bg-teal-50 focus:outline-none" 
-                        placeholder="0 0 0 0 0 0" 
+                        className="w-full px-4 py-3 text-center tracking-[0.5em] text-lg rounded-xl border-2 border-teal-400 bg-teal-50 focus:outline-none"
+                        placeholder="0 0 0 0 0 0"
                       />
                       <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
                         ยืนยันรหัสเข้าสู่ระบบ
                       </button>
-                      <button onClick={() => setIsOtpStep(false)} className="w-full text-xs text-slate-400 hover:text-slate-600 underline">ยกเลิก</button>
+                      <button onClick={() => setIsOtpStep(false)} className="w-full text-xs text-muted-foreground hover:text-foreground underline">ยกเลิก</button>
                     </>
                   )
                 ) : (
                   <>
                     <input 
-                      value={empId} 
+                      value={empId}
                       onChange={(e) => setEmpId(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" 
-                      placeholder="🪪  รหัสพนักงาน" 
+                      className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                      placeholder="🪪  รหัสพนักงาน"
                     />
-                    <input 
-                      type="password" 
-                      value={password} 
+                    <input
+                      type="password"
+                      value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" 
-                      placeholder="🔑  รหัสผ่าน" 
+                      className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                      placeholder="🔑  รหัสผ่าน"
                     />
                     <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition-all">
                       {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
@@ -240,8 +240,8 @@ function HomePageContent() {
                 )}
               </div>
 
-              <div className="pt-6 border-t border-dashed border-slate-200">
-                <h2 className="text-sm font-black text-slate-800 mb-3 flex items-center gap-2">
+              <div className="pt-6 border-t border-dashed border-border">
+                <h2 className="text-sm font-black text-foreground mb-3 flex items-center gap-2">
                   <div className="w-1 h-4 rounded-full bg-orange-400" /> ลงทะเบียนใช้งานครั้งแรก
                 </h2>
                 <button
@@ -256,7 +256,7 @@ function HomePageContent() {
         </div>
       </div>
 
-      <footer className="w-full py-5 px-6 text-center text-slate-500 text-xs">
+      <footer className="w-full py-5 px-6 text-center text-muted-foreground text-xs">
         © 2026 องค์การเภสัชกรรม • สาขาภาคใต้ &nbsp;|&nbsp; 🔒 PDPA Compliant &nbsp;|&nbsp; v2.0
       </footer>
     </div>
