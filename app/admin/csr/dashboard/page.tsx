@@ -215,12 +215,19 @@ function RequestListSection({
             <p className="text-sm text-muted-foreground font-medium">{emptyText}</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-200">
             {items.map((req: any) => {
               const isExpanded = expandedReq === req.id;
               const drugCount  = req.drug_items?.length ?? 0;
               return (
-                <div key={req.id} className="hover:bg-slate-50/60 transition-colors">
+                <div
+                  key={req.id}
+                  className={`border-l-[3px] transition-colors ${
+                    isExpanded
+                      ? 'bg-teal-50/70 border-l-teal-600'
+                      : 'border-l-transparent hover:bg-teal-50/50 hover:border-l-teal-400'
+                  }`}
+                >
 
                   {/* Desktop row */}
                   <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
