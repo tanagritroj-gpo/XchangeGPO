@@ -203,6 +203,8 @@ export default function StaffApprovalPage() {
   const [statusLogs, setStatusLogs] = useState<any[]>([]);
   const [unansweredQuestions, setUnansweredQuestions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'staff' | 'history' | 'all' | 'insights' | 'chatbot'>('staff');
 
   useEffect(() => {
@@ -249,13 +251,18 @@ export default function StaffApprovalPage() {
     const confirmed = confirm("ยืนยันการอนุมัติพนักงานท่านนี้?");
     if (!confirmed) return;
 
-    const res = await approveStaff(id);
+    setApprovingId(id);
+    try {
+      const res = await approveStaff(id);
 
-    if (res.success) {
-      alert("อนุมัติเรียบร้อยแล้ว");
-      fetchData();
-    } else {
-      alert("เกิดข้อผิดพลาด: " + ((res as any).error || 'ไม่ทราบสาเหตุ'));
+      if (res.success) {
+        alert("อนุมัติเรียบร้อยแล้ว");
+        fetchData();
+      } else {
+        alert("เกิดข้อผิดพลาด: " + ((res as any).error || 'ไม่ทราบสาเหตุ'));
+      }
+    } finally {
+      setApprovingId(null);
     }
   };
 
@@ -375,9 +382,13 @@ export default function StaffApprovalPage() {
                             </span>
                             <button
                               onClick={() => handleApprove(staff.id)}
-                              className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
+                              disabled={approvingId === staff.id}
+                              className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-60 disabled:pointer-events-none"
                             >
-                              <Check size={14} strokeWidth={3} /> อนุมัติ
+                              {approvingId === staff.id
+                                ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} />
+                                : <Check size={14} strokeWidth={3} />}
+                              อนุมัติ
                             </button>
                           </div>
                         </div>

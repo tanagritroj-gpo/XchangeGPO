@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, FileEdit, FolderKanban, ArrowRight, LogOut, Users } from 'lucide-react';
+import { ShieldCheck, User, Building2, FileEdit, FolderKanban, ArrowRight, LogOut, Users, Loader2 } from 'lucide-react';
 
 export default function CsrHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<any>(null);
   const [today, setToday] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -24,6 +25,7 @@ export default function CsrHubPage() {
   }, []);
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     await logoutStaffAction();
     router.push('/');
   };
@@ -55,9 +57,10 @@ export default function CsrHubPage() {
           </div>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-purple-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors"
+            disabled={isLoggingOut}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-purple-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
           >
-            <LogOut className="w-4 h-5" />
+            {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
             ออกจากระบบ
           </button>
         </div>

@@ -3,10 +3,18 @@
 import { logoutCustomer } from '@/app/actions/auth-actions';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Home, History, Building2, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Home, History, Building2, LogOut, Loader2 } from 'lucide-react';
 
 export default function Sidebar({ customer }: { customer: any }) {
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutCustomer();
+    router.push('/');
+  };
 
   return (
     <aside className="h-full w-full flex flex-col p-6 bg-white border-r border-slate-100">
@@ -52,10 +60,11 @@ export default function Sidebar({ customer }: { customer: any }) {
           <History className="w-4 h-4" /> ประวัติการแลกเปลี่ยน
         </Link>
         <button
-          onClick={async () => { await logoutCustomer(); router.push('/'); }}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black text-red-600 bg-red-50 hover:bg-red-500 hover:text-white border border-red-100 transition-all duration-300 active:scale-95"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black text-red-600 bg-red-50 hover:bg-red-500 hover:text-white border border-red-100 transition-all duration-300 active:scale-95 disabled:opacity-60 disabled:pointer-events-none"
         >
-          <LogOut className="w-3.5 h-3.5" /> ออกจากระบบ
+          {isLoggingOut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} ออกจากระบบ
         </button>
       </nav>
 

@@ -3,11 +3,19 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logoutCustomer } from '@/app/actions/auth-actions';
-import { Home, History, LogOut } from 'lucide-react';
+import { useState } from 'react';
+import { Home, History, LogOut, Loader2 } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutCustomer();
+    router.push('/');
+  };
 
   const tabs = [
     { href: '/welcome',          icon: Home,    label: 'หน้าหลัก' },
@@ -37,10 +45,11 @@ export default function BottomNav() {
       })}
 
       <button
-        onClick={async () => { await logoutCustomer(); router.push('/'); }}
-        className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-red-400 active:text-red-600"
+        onClick={handleLogout}
+        disabled={isLoggingOut}
+        className="flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-red-400 active:text-red-600 disabled:opacity-60"
       >
-        <LogOut className="w-5 h-5" />
+        {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
         ออกจากระบบ
       </button>
     </nav>
