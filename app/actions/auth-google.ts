@@ -1,11 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 
 export async function loginWithGoogle() {
   const supabase = await createClient();
-  
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
@@ -14,10 +13,13 @@ export async function loginWithGoogle() {
     },
   });
 
-  if (error) {
-    throw new Error('ไม่สามารถเชื่อมต่อ Google ได้ในขณะนี้');
+  // เดิมเรียก redirect() ในนี้ตรงๆ แต่เพราะถูกเรียกผ่าน onClick (ไม่ใช่ <form action>)
+  // และปลายทางเป็น cross-origin (accounts.google.com) ทำให้ promise ฝั่ง client
+  // reject ได้เองบางครั้งก่อนที่ redirect จริงจะไปถึง — เลยขึ้น alert ผิดพลาดทั้งที่เข้าระบบได้ปกติ
+  // แก้โดยส่ง url กลับไปให้ client เป็นคน navigate เอง
+  if (error || !data.url) {
+    return { success: false as const, error: 'ไม่สามารถเชื่อมต่อ Google ได้ในขณะนี้' };
   }
 
-  // Supabase จะจัดการ redirect ไปหน้า Google เอง
-  return redirect(data.url);
+  return { success: true as const, url: data.url };
 }
