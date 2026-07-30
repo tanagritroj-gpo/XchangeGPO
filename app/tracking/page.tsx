@@ -85,7 +85,7 @@ function TrackingContent() {
       {/* ปุ่มกลับหน้าหลัก */}
       <div className="mb-6 print:hidden">
         <a
-          href="/welcome"
+          href="/"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-teal-700 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
