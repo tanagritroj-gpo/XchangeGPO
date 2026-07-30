@@ -18,6 +18,9 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
   const [productType, setProductType] = useState(item.product_type || '');
   const [status, setStatus] = useState({ pass: item.is_compliant, msg: item.compliance_remark || '' });
   const [localStatus, setLocalStatus] = useState(item.current_status);
+  // บันทึกประเภทสินค้า/เกณฑ์ — เดิมอัปเดต UI ก่อนแล้วยิง server action แบบไม่เช็คผลเลย
+  // ถ้า network พังตอนนั้น หน้าจอจะค้างโชว์ผลที่ไม่เคยถูกบันทึกจริงโดยไม่มีใครรู้
+  const [isTypeSaving, setIsTypeSaving] = useState(false);
 
   // Modal ยืนยันอนุมัติ/ปฏิเสธรายการยา (แทน prompt() เดิม)
   const [actionModal, setActionModal] = useState<'approve' | 'reject' | null>(null);
@@ -28,6 +31,9 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
   useEffect(() => { setLocalStatus(item.current_status); }, [item.current_status]);
 
   const handleTypeChange = async (pType: string) => {
+    const prevType = productType;
+    const prevStatus = status;
+
     setProductType(pType);
     const today = new Date();
     const expDate = new Date(item.exp_date);
@@ -39,7 +45,23 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
       result = { pass: false, msg: 'อายุคงเหลือไม่ถึง 7 เดือน' };
     }
     setStatus(result);
-    await updateDrugCompliance(item.id, pType, result);
+
+    setIsTypeSaving(true);
+    try {
+      const res = await updateDrugCompliance(item.id, pType, result);
+      if (!res.success) {
+        setProductType(prevType);
+        setStatus(prevStatus);
+        alert('บันทึกประเภทสินค้าไม่สำเร็จ: ' + ((res as any).error || 'ไม่ทราบสาเหตุ'));
+      }
+    } catch (err) {
+      setProductType(prevType);
+      setStatus(prevStatus);
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ บันทึกประเภทสินค้าไม่สำเร็จ');
+      console.error(err);
+    } finally {
+      setIsTypeSaving(false);
+    }
   };
 
   // เปิด modal แทนการเรียก prompt() เดิม
@@ -117,8 +139,8 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
           <>
             <div className="md:col-span-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 md:hidden">ประเภท</p>
-              <div className={`flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
-                ${localStatus !== 'pending_review' ? 'opacity-50 pointer-events-none' : ''}`}>
+              <div className={`relative flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
+                ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
                 <button
                   type="button"
                   onClick={() => handleTypeChange('GPO')}
@@ -139,6 +161,11 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
                 >
                   สมุนไพร/ผู้ผลิตอื่น
                 </button>
+                {isTypeSaving && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                    <Loader2 size={13} className="animate-spin text-slate-500" strokeWidth={2.5} />
+                  </div>
+                )}
               </div>
             </div>
 

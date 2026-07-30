@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getLogisticsDashboardData, updateLogisticsStatus, confirmLogisticsBatch } from '@/app/actions/logistics-actions';
+import { getLogisticsDashboardData, updateLogisticsStatus } from '@/app/actions/logistics-actions';
 import LOGDrugRow from './component/LOGDrugrow';
 
 const LOGISTICS_STATUS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -26,7 +26,6 @@ export default function LogisticsDashboard() {
   const [requests, setRequests]               = useState<any[]>([]);
   const [isLoading, setIsLoading]             = useState(true);
   const [expandedReq, setExpandedReq]         = useState<number | null>(null);
-  const [pendingActions, setPendingActions]   = useState<Record<number, { status: 'at_warehouse' | 'rejected'; remark: string }>>({});
   const [processingReqId, setProcessingReqId] = useState<number | null>(null);
 
   const fetchData = async () => {
@@ -75,32 +74,6 @@ export default function LogisticsDashboard() {
       });
       return shouldRemove ? updated.filter(req => req.id !== requestId) : updated;
     });
-  };
-
-  const handleConfirmBatch = async (requestId: number) => {
-    const actions = Object.entries(pendingActions).map(([itemId, val]) => ({
-      itemId: Number(itemId), status: val.status, remark: val.remark
-    }));
-    const res = await confirmLogisticsBatch(requestId, actions);
-    if (res.success) {
-      setRequests(prevRequests => {
-        let shouldRemove = false;
-        const updated = prevRequests.map(req => {
-          if (req.id !== requestId) return req;
-          const updatedItems = req.drug_items.map((item: any) => {
-            const action = actions.find(a => a.itemId === item.id);
-            return action ? { ...item, current_status: action.status } : item;
-          });
-          const allProcessed = updatedItems.every((i: any) => ['at_warehouse', 'rejected'].includes(i.current_status));
-          const hasAccepted  = updatedItems.some((i: any) => i.current_status === 'at_warehouse');
-          if (allProcessed) shouldRemove = true;
-          return { ...req, drug_items: updatedItems, current_status: allProcessed ? (hasAccepted ? 'at_warehouse' : 'rejected') : req.current_status };
-        });
-        return shouldRemove ? updated.filter(req => req.id !== requestId) : updated;
-      });
-      setPendingActions({});
-      alert('บันทึกเรียบร้อย');
-    }
   };
 
   if (isLoading) return (

@@ -46,6 +46,7 @@ export function ReviewSuccessCard({
   const [errorMsg, setErrorMsg] = useState('');
   const [copyLabel, setCopyLabel] = useState('คัดลอกเลขอ้างอิง');
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [downloading, setDownloading] = useState(false);
 
   // 1. เตรียมเอกสารอัตโนมัติทันทีที่โหลดหน้าจอ
   useEffect(() => {
@@ -85,18 +86,23 @@ export function ReviewSuccessCard({
 
   // 3. ฟังก์ชันดาวน์โหลด (ขอ URL ใหม่เสมอ ป้องกันลิงก์หมดอายุ 5 นาที)
   const handleDownload = async () => {
-    const fresh = await generatePdfActionFn(requestId);
-    if (!fresh.success) {
-      setErrorMsg(fresh.error);
-      setPdfState('error');
-      return;
+    setDownloading(true);
+    try {
+      const fresh = await generatePdfActionFn(requestId);
+      if (!fresh.success) {
+        setErrorMsg(fresh.error);
+        setPdfState('error');
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = fresh.url;
+      a.download = `FM-AJJ0-008_${refId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } finally {
+      setDownloading(false);
     }
-    const a = document.createElement('a');
-    a.href = fresh.url;
-    a.download = `FM-AJJ0-008_${refId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   };
 
   // 4. ฟังก์ชันคัดลอกเลข Ref
@@ -195,9 +201,10 @@ export function ReviewSuccessCard({
             <div className="grid grid-cols-1 gap-3 w-full">
               <button
                 onClick={handleDownload}
-                className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2"
+                disabled={downloading}
+                className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
               >
-                📥 ดาวน์โหลดใบรับคืน (PDF)
+                {downloading ? <span className="animate-spin">⏳</span> : '📥'} ดาวน์โหลดใบรับคืน (PDF)
               </button>
 
               <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>

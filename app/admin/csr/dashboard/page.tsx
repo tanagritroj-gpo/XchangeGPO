@@ -121,9 +121,10 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
   );
 }
 
-function ActionButton({ icon: Icon, label, onClick, tone }: {
+function ActionButton({ icon: Icon, label, onClick, tone, loading }: {
   icon: any; label: string; onClick: () => void;
   tone: 'blue' | 'red' | 'orange' | 'emerald';
+  loading?: boolean;
 }) {
   const tones = {
     blue:    'bg-blue-600 hover:bg-blue-700 shadow-blue-200',
@@ -134,9 +135,10 @@ function ActionButton({ icon: Icon, label, onClick, tone }: {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full ${tones[tone]}`}
+      disabled={loading}
+      className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full disabled:opacity-60 disabled:pointer-events-none ${tones[tone]}`}
     >
-      <Icon size={14} strokeWidth={2.5} />
+      {loading ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} /> : <Icon size={14} strokeWidth={2.5} />}
       {label}
     </button>
   );
@@ -183,7 +185,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging'];
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
-  emptyIcon: EmptyIcon, emptyText,
+  emptyIcon: EmptyIcon, emptyText, completingId,
 }: any) {
   return (
     <section>
@@ -257,7 +259,7 @@ function RequestListSection({
                         <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
-                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
                       )}
                     </div>
                   </div>
@@ -299,7 +301,7 @@ function RequestListSection({
                         <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
                       {req.current_status === 'exchanging' && (
-                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
                       )}
                     </div>
                   </div>
@@ -361,6 +363,8 @@ export default function CSRDashboard() {
   const [remark, setRemark] = useState('');
   const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // request id ที่กำลังกด "เสร็จสิ้น" อยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
+  const [completingId, setCompletingId] = useState<number | null>(null);
 
   // Modal ยืนยันเริ่มกระบวนการแลกเปลี่ยน (แทน prompt() เดิม)
   const [exchangeModal, setExchangeModal] = useState<{ requestId: number } | null>(null);
@@ -389,12 +393,14 @@ export default function CSRDashboard() {
   const handleUpdateStatus = async (id: number, newStatus: string) => {
     const remarkInput = prompt('ระบุหมายเหตุ:');
     if (remarkInput === null) return;
+    setCompletingId(id);
     try {
       if (newStatus !== 'completed') { alert('สถานะไม่รู้จัก'); return; }
       const res = await completeRequest(id, remarkInput || '');
       if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
       else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
     } catch (err) { alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); console.error(err); }
+    finally { setCompletingId(null); }
   };
 
   // เปิด modal เริ่มแลกเปลี่ยน แทนการเรียก prompt() เดิม
@@ -549,6 +555,7 @@ export default function CSRDashboard() {
                   openConfirmModal={openConfirmModal}
                   openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
+                  completingId={completingId}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
                   emptyText="ไม่มีใบงานที่ต้องดำเนินการตอนนี้"
@@ -568,6 +575,7 @@ export default function CSRDashboard() {
                   openConfirmModal={openConfirmModal}
                   openExchangeModal={openExchangeModal}
                   handleUpdateStatus={handleUpdateStatus}
+                  completingId={completingId}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
                   emptyText="ไม่มีใบงานที่กำลังดำเนินการโดยฝ่ายอื่น"
@@ -589,6 +597,7 @@ export default function CSRDashboard() {
               openConfirmModal={openConfirmModal}
               openExchangeModal={openExchangeModal}
               handleUpdateStatus={handleUpdateStatus}
+              completingId={completingId}
               fetchData={fetchData}
               emptyIcon={Inbox}
               emptyText="ยังไม่มีประวัติใบงาน"
