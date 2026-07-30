@@ -17,18 +17,14 @@
 --    grant ให้ anon/authenticated เรียกผ่าน RPC ได้ (แม้เรียกแล้วจะ error ทันทีเพราะไม่มี
 --    NEW/OLD context ก็ตาม ไม่มีผลจริง) revoke ออกตามหลัก least-privilege ไม่ให้โผล่เป็น
 --    RPC endpoint โดยไม่จำเป็น
---    ★ ต้อง REVOKE ... FROM anon, authenticated โดยตรง — REVOKE ... FROM PUBLIC อย่างเดียว
---    ไม่พอ เพราะ Supabase grant EXECUTE ให้ anon/authenticated แบบ direct grant ตอนสร้าง
---    ฟังก์ชันใหม่ในสคีมา public เสมอ (ไม่ใช่แค่สืบทอดผ่านการเป็นสมาชิกของ PUBLIC) — พิสูจน์
---    แล้วจริงว่าถ้า revoke จาก PUBLIC อย่างเดียว has_function_privilege('anon',...) ยังคืน
---    true อยู่ ต้อง revoke จาก anon/authenticated ตรงๆ ถึงจะได้ผลจริง (เหมือนที่ playbook
---    เตือนไว้เรื่อง REVOKE จาก role เจาะจงไม่กระทบ PUBLIC — ที่นี่กลับด้าน: REVOKE จาก
---    PUBLIC ก็ไม่กระทบ direct grant ของ role เจาะจงเหมือนกัน ต้องเช็คทั้งสองทิศทางเสมอ)
---    ฟังก์ชันอื่นที่ล็อกไว้ถูกต้องอยู่แล้ว (เช่น increment_rate_limit) ก็ตั้งไว้แบบ
---    revoke จาก anon/authenticated ตรงๆ เหมือนกัน ไม่ใช่แค่จาก PUBLIC
+--    (หมายเหตุ: revoke ตรงนี้ทำแค่ FROM public เท่านั้น ภายหลังพบว่ายังไม่พอ — Supabase
+--    grant EXECUTE ให้ anon/authenticated แบบ direct grant ตอนสร้างฟังก์ชันใหม่เสมอ ไม่ใช่
+--    แค่สืบทอดผ่าน PUBLIC — จึงต้องมี migration ถัดไป
+--    20260729074806_fix_trigger_function_grants_target_named_roles.sql ที่ revoke จาก
+--    anon, authenticated ตรงๆ อีกรอบถึงจะได้ผลจริง)
 
 create policy "deny_client_access" on public.request_pings
   for all to anon, authenticated using (false) with check (false);
 
-revoke execute on function public.check_document_attachment_consistency() from anon, authenticated, public;
-revoke execute on function public.sync_timeline() from anon, authenticated, public;
+revoke execute on function public.check_document_attachment_consistency() from public;
+revoke execute on function public.sync_timeline() from public;
