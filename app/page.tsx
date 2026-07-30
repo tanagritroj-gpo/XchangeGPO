@@ -48,7 +48,13 @@ function HomePageContent() {
   const handleGoogleLogin = async () => {
     setLoadingLogin(true);
     try {
-      await loginWithGoogle();
+      const res = await loginWithGoogle();
+      if (res.success) {
+        window.location.href = res.url;
+      } else {
+        alert(res.error);
+        setLoadingLogin(false);
+      }
     } catch (err) {
       alert('เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่');
       setLoadingLogin(false);
