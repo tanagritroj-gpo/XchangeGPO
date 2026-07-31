@@ -7,6 +7,8 @@ import {
   History,
   ClipboardList,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Check,
   Loader2,
   Pill,
@@ -27,7 +29,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
   receiving:        { label: 'กำลังรับสินค้า',   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       dot: 'bg-blue-500'    },
   exchanging:       { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200',   dot: 'bg-purple-500'  },
-  completed:        { label: 'เสร็จสิ้น',        color: 'text-slate-600',   bg: 'bg-slate-100 border-slate-200',    dot: 'bg-slate-400'   },
+  completed:        { label: 'เสร็จสิ้น',        color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200',   dot: 'bg-orange-500'  },
   out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
   at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
   checked_in:       { label: 'ตรวจรับแล้ว',      color: 'text-teal-700',    bg: 'bg-teal-50 border-teal-200',       dot: 'bg-teal-500'    },
@@ -69,9 +71,17 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
   );
 }
 
+const OVERVIEW_PAGE_SIZE = 5;
+
 // ── รายการใบงาน แบบดูอย่างเดียว (ไม่มีปุ่ม action — manager มอนิเตอร์ ไม่ได้แก้ไขจากหน้านี้) ──
+// แบ่งหน้าละ 5 รายการ (เหมือน CSR Report Center) กันรายการยาวเกะกะหน้าจอ
 function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: string }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / OVERVIEW_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedItems = items.slice((currentPage - 1) * OVERVIEW_PAGE_SIZE, currentPage * OVERVIEW_PAGE_SIZE);
 
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">
@@ -91,11 +101,20 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
-          {items.map((req: any) => {
+          {pagedItems.map((req: any) => {
             const isExpanded = expandedId === req.id;
             const drugCount = req.drug_items?.length ?? 0;
             return (
-              <div key={req.id} className="hover:bg-slate-50/60 transition-colors">
+              <div
+                key={req.id}
+                className={`group relative transition-colors ${isExpanded ? 'bg-teal-50/70' : 'hover:bg-teal-50/50'}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
+                    isExpanded ? 'bg-teal-600 opacity-100' : 'bg-teal-400 opacity-0 group-hover:opacity-100'
+                  }`}
+                />
 
                 {/* Desktop row */}
                 <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
@@ -111,7 +130,7 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
                     <p className="text-sm text-slate-600 truncate">{req.hospital_name || '-'}</p>
                     {req.province && (
                       <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <MapPin size={11} strokeWidth={2.5} />
+                        <MapPin size={11} strokeWidth={2.5} className="text-amber-500 shrink-0" />
                         {req.province}
                       </p>
                     )}
@@ -190,6 +209,45 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
               </div>
             );
           })}
+        </div>
+      )}
+
+      {items.length > 0 && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3.5 border-t border-border bg-slate-50">
+          <p className="text-xs text-muted-foreground">
+            แสดง {(currentPage - 1) * OVERVIEW_PAGE_SIZE + 1}–{Math.min(currentPage * OVERVIEW_PAGE_SIZE, items.length)} จาก {items.length} รายการ
+          </p>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              aria-label="หน้าก่อนหน้า"
+            >
+              <ChevronLeft size={16} strokeWidth={2.5} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
+                  p === currentPage
+                    ? 'bg-teal-600 text-white'
+                    : 'text-muted-foreground hover:bg-slate-200'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              aria-label="หน้าถัดไป"
+            >
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
         </div>
       )}
     </div>
