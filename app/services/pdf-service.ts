@@ -2,6 +2,7 @@ import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { drawThaiText } from '@/lib/pdf-thai-text';
 
 export async function buildReturnFormPdf(request: any) {
   
@@ -21,7 +22,7 @@ export async function buildReturnFormPdf(request: any) {
   const page = pdfDoc.getPages()[0];
 
   const drawText = (text: string | null | undefined, x: number, y: number, size = 14) => {
-    if (text) page.drawText(text, { x, y, size, font: customFont, color: rgb(0, 0, 0) });
+    if (text) drawThaiText(page, text, { x, y, size, font: customFont, color: rgb(0, 0, 0) });
   };
 
 
