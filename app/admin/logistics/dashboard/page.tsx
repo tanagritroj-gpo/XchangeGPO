@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
+import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check, User } from 'lucide-react';
 import { getLogisticsDashboardData, updateLogisticsStatus } from '@/app/actions/logistics-actions';
+import { getStaffSession } from '@/app/actions/auth-staff';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
@@ -236,6 +237,12 @@ export default function LogisticsDashboard() {
   const [isLoading, setIsLoading]             = useState(true);
   const [expandedReq, setExpandedReq]         = useState<number | null>(null);
   const [activeTab, setActiveTab]             = useState<'approved' | 'in_transit' | 'photos'>('approved');
+  const [staff, setStaff]                     = useState<any>(null);
+  const [today, setToday]                     = useState('');
+
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
+  }, []);
 
   // ══ Modal ยืนยันส่งรถไปรับคืน — แทนที่ prompt() เดิม ด้วย modal มาตรฐานแบบเดียวกับ
   // LOGDrugrow.tsx / CSR dashboard (overlay + card + gradient bar + ReasonSelectFields) ══
@@ -246,7 +253,8 @@ export default function LogisticsDashboard() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    const data = await getLogisticsDashboardData();
+    const [staffSession, data] = await Promise.all([getStaffSession(), getLogisticsDashboardData()]);
+    setStaff(staffSession);
     if (data.success) setRequests(data.requests || []);
     setIsLoading(false);
   };
@@ -337,7 +345,42 @@ export default function LogisticsDashboard() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8 space-y-6">
+
+        {/* ── Welcome Banner — โทนน้ำเงินให้เข้ากับสีของหน้านี้ (เหมือนแนวคิด CSR/WH welcome page) ── */}
+        <div className="relative overflow-hidden rounded-3xl bg-blue-600 p-8 text-white shadow-lg shadow-blue-200">
+          <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-20 bg-white" />
+          <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full opacity-15 bg-white" />
+          <div className="absolute top-1/2 right-24 w-20 h-20 rounded-full opacity-10 bg-white hidden md:block" />
+          <div className="absolute top-6 left-1/3 w-3 h-3 rounded-full bg-sky-200 opacity-80 hidden md:block" />
+          <div className="absolute bottom-10 right-1/3 w-2 h-2 rounded-full bg-sky-200 opacity-70 hidden md:block" />
+
+          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-200 animate-pulse" /> ยินดีต้อนรับ
+              </p>
+              <h1 className="text-2xl md:text-3xl font-black leading-tight flex items-center gap-2">
+                สวัสดีคุณ {staff?.full_name || staff?.username}
+                <User className="w-6 h-6 opacity-80" />
+              </h1>
+              <p className="text-blue-50 mt-1.5 flex items-center gap-1.5 text-sm">
+                <Truck className="w-4 h-4" /> แผนกโลจิสติกส์ (Logistics)
+              </p>
+              <p className="text-blue-50/90 mt-3 text-sm leading-relaxed">
+                ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
+              </p>
+            </div>
+            <div className="bg-white/15 border border-white/25 rounded-2xl px-5 py-4 text-center hidden md:block backdrop-blur-sm">
+              <p className="text-blue-100 text-[11px] font-semibold uppercase tracking-wide mb-1">สถานะบัญชี</p>
+              <div className="flex items-center gap-1.5 justify-center">
+                <span className="w-2 h-2 rounded-full bg-sky-300 animate-pulse" />
+                <span className="text-white font-bold text-sm">Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — เหมือน CSR/Manager Dashboard) ══ */}
