@@ -104,6 +104,7 @@ export async function createReturnRequest(formData: any) {
 
     // ★ 4. ใช้ email จาก session ที่ verify แล้ว ไม่ใช่จาก formData
     customer_email: session.email,
+    province: session.province,
 
     // ★ 5. ใช้ b2b_customer_id จาก session เท่านั้น ไม่รับจาก client
     b2b_customer_id: session.id,

@@ -101,7 +101,7 @@ export async function createStaffReturnRequest(formData: any) {
   // ★ ยืนยันว่าลูกค้าที่เลือกมามีอยู่จริง ไม่เชื่อ id จาก client เฉยๆ
   const { data: customer, error: custErr } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, hospital_name, contact_name, phone, email, position')
+    .select('id, hospital_name, contact_name, phone, email, position, province')
     .eq('id', b2bCustomerId)
     .maybeSingle();
 
@@ -133,6 +133,7 @@ export async function createStaffReturnRequest(formData: any) {
     contact_name: customer.contact_name,
     phone: customer.phone,
     customer_email: customer.email,
+    province: customer.province,
 
     return_reason: formData.return_reason,
     delivery_type: formData.delivery_type,
