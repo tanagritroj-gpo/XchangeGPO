@@ -31,7 +31,7 @@ export default function CsrHubPage() {
   };
 
   if (!staff) return (
-    <div className="min-h-screen flex items-center justify-center bg-teal-50">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
         <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-sm font-medium text-purple-700">กำลังโหลดข้อมูล...</p>
@@ -40,7 +40,7 @@ export default function CsrHubPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-teal-50">
+    <div className="min-h-screen flex flex-col bg-background">
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
 
