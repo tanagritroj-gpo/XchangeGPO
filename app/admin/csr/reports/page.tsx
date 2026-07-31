@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs } from '@/app/actions/manager-actions';
 import ManagerInsights from '@/app/admin/manager/staff-approvals/component/ManagerInsights';
@@ -54,6 +54,7 @@ export default function CsrReportsPage() {
   const [statusLogs, setStatusLogs] = useState<any[]>([]);
   const [filters, setFilters] = useState<CsrReportFilters>({ status: 'all', requestType: 'all' });
   const [page, setPage] = useState(1);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -77,6 +78,29 @@ export default function CsrReportsPage() {
     const ids = new Set(filteredRequests.map((r) => r.id));
     return statusLogs.filter((l) => ids.has(l.request_id));
   }, [statusLogs, filteredRequests]);
+
+  // ── ตัวเลือกที่ค้นหาบ่อยของ Ref ID / หน่วยงาน แสดงเป็น dropdown ตอนพิมพ์ในช่องค้นหา ──
+  const searchSuggestions = useMemo(() => {
+    const q = filters.search?.trim().toLowerCase();
+    if (!q) return [] as { type: 'ref' | 'hospital'; value: string }[];
+
+    const refMatches = new Set<string>();
+    const hospitalMatches = new Set<string>();
+    for (const r of requests) {
+      if (refMatches.size >= 5 && hospitalMatches.size >= 5) break;
+      if (refMatches.size < 5 && r.ref_id && r.ref_id.toLowerCase().includes(q)) {
+        refMatches.add(r.ref_id);
+      }
+      if (hospitalMatches.size < 5 && r.hospital_name && r.hospital_name.toLowerCase().includes(q)) {
+        hospitalMatches.add(r.hospital_name);
+      }
+    }
+
+    return [
+      ...Array.from(refMatches).map((value) => ({ type: 'ref' as const, value })),
+      ...Array.from(hospitalMatches).map((value) => ({ type: 'hospital' as const, value })),
+    ];
+  }, [requests, filters.search]);
 
   useEffect(() => {
     setPage(1);
@@ -164,29 +188,35 @@ export default function CsrReportsPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-muted-foreground uppercase">สถานะ</label>
-            <select
-              value={filters.status ?? 'all'}
-              onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-              className="text-sm border border-border rounded-lg px-2.5 py-1.5"
-            >
-              <option value="all">ทั้งหมด</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{getStatusLabel(s)}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={filters.status ?? 'all'}
+                onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
+                className="w-full appearance-none cursor-pointer bg-white text-sm border border-border rounded-lg pl-2.5 pr-8 py-1.5 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-50 transition-all"
+              >
+                <option value="all">ทั้งหมด</option>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{getStatusLabel(s)}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" strokeWidth={2.5} />
+            </div>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-muted-foreground uppercase">ประเภทคำร้อง</label>
-            <select
-              value={filters.requestType ?? 'all'}
-              onChange={(e) => setFilters((f) => ({ ...f, requestType: e.target.value }))}
-              className="text-sm border border-border rounded-lg px-2.5 py-1.5"
-            >
-              <option value="all">ทั้งหมด</option>
-              {REQUEST_TYPES.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={filters.requestType ?? 'all'}
+                onChange={(e) => setFilters((f) => ({ ...f, requestType: e.target.value }))}
+                className="w-full appearance-none cursor-pointer bg-white text-sm border border-border rounded-lg pl-2.5 pr-8 py-1.5 focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-50 transition-all"
+              >
+                <option value="all">ทั้งหมด</option>
+                {REQUEST_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" strokeWidth={2.5} />
+            </div>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-bold text-muted-foreground uppercase">ค้นหา</label>
@@ -197,8 +227,35 @@ export default function CsrReportsPage() {
                 placeholder="Ref ID / หน่วยงาน"
                 value={filters.search ?? ''}
                 onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value || undefined }))}
+                onFocus={() => setSearchOpen(true)}
+                onBlur={() => setSearchOpen(false)}
                 className="w-full text-sm border border-border rounded-lg pl-8 pr-2.5 py-1.5"
               />
+              {searchOpen && searchSuggestions.length > 0 && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                  {searchSuggestions.map((s, i) => (
+                    <button
+                      key={`${s.type}-${s.value}-${i}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setFilters((f) => ({ ...f, search: s.value }));
+                        setSearchOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-teal-50 transition-colors"
+                    >
+                      <span
+                        className={`shrink-0 text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                          s.type === 'ref' ? 'bg-teal-100 text-teal-700' : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {s.type === 'ref' ? 'Ref ID' : 'หน่วยงาน'}
+                      </span>
+                      <span className="truncate text-foreground">{s.value}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
