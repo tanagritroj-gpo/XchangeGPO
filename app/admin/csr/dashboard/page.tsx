@@ -222,12 +222,14 @@ function RequestListSection({
               return (
                 <div
                   key={req.id}
-                  className={`border-l-[3px] transition-colors ${
-                    isExpanded
-                      ? 'bg-teal-50/70 border-l-teal-600'
-                      : 'border-l-transparent hover:bg-teal-50/50 hover:border-l-teal-400'
-                  }`}
+                  className={`group relative transition-colors ${isExpanded ? 'bg-teal-50/70' : 'hover:bg-teal-50/50'}`}
                 >
+                  <span
+                    aria-hidden="true"
+                    className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
+                      isExpanded ? 'bg-teal-600 opacity-100' : 'bg-teal-400 opacity-0 group-hover:opacity-100'
+                    }`}
+                  />
 
                   {/* Desktop row */}
                   <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">

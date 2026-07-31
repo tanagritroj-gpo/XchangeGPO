@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search } from 'lucide-react';
+import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs } from '@/app/actions/manager-actions';
 import ManagerInsights from '@/app/admin/manager/staff-approvals/component/ManagerInsights';
@@ -16,6 +16,33 @@ const STATUS_OPTIONS = [
   'checked_in', 'receiving', 'exchanging', 'completed', 'out_for_delivery',
 ];
 
+const PAGE_SIZE = 5;
+
+// ── Status config — สีเดียวกับ CSR Dashboard (app/admin/csr/dashboard/page.tsx)
+// ให้สถานะเดียวกันใช้สีเดียวกันทั้งพื้นที่ CSR ──
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+  pending_review:   { label: 'รอตรวจสอบ',       color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     dot: 'bg-amber-400'   },
+  approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
+  receiving:        { label: 'กำลังรับสินค้า',   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       dot: 'bg-blue-500'    },
+  exchanging:       { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200',   dot: 'bg-purple-500'  },
+  completed:        { label: 'เสร็จสิ้น',        color: 'text-slate-600',   bg: 'bg-slate-100 border-slate-200',    dot: 'bg-slate-400'   },
+  out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
+  at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
+  checked_in:       { label: 'ตรวจรับแล้ว',      color: 'text-teal-700',    bg: 'bg-teal-50 border-teal-200',       dot: 'bg-teal-500'    },
+  rejected:         { label: 'ถูกปฏิเสธ',        color: 'text-red-700',     bg: 'bg-red-50 border-red-200',         dot: 'bg-red-500'     },
+  in_transit:       { label: 'อยู่ระหว่างขนส่ง', color: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200',       dot: 'bg-cyan-500'    },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200', dot: 'bg-slate-400' };
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cfg.bg} ${cfg.color}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      <span className="truncate">{cfg.label}</span>
+    </span>
+  );
+}
+
 function formatCurrency(n: number) {
   return `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
 }
@@ -26,6 +53,7 @@ export default function CsrReportsPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [statusLogs, setStatusLogs] = useState<any[]>([]);
   const [filters, setFilters] = useState<CsrReportFilters>({ status: 'all', requestType: 'all' });
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     async function load() {
@@ -49,6 +77,17 @@ export default function CsrReportsPage() {
     const ids = new Set(filteredRequests.map((r) => r.id));
     return statusLogs.filter((l) => ids.has(l.request_id));
   }, [statusLogs, filteredRequests]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedRequests = useMemo(
+    () => filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filteredRequests, currentPage],
+  );
 
   const exportHref = useMemo(() => {
     const params = new URLSearchParams();
@@ -172,9 +211,9 @@ export default function CsrReportsPage() {
           <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-slate-50 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
             <div className="col-span-2">Ref ID</div>
             <div className="col-span-2">วันที่</div>
-            <div className="col-span-3">หน่วยงาน</div>
+            <div className="col-span-2">หน่วยงาน</div>
             <div className="col-span-2">ประเภท</div>
-            <div className="col-span-1">สถานะ</div>
+            <div className="col-span-2">สถานะ</div>
             <div className="col-span-2 text-right">มูลค่า</div>
           </div>
 
@@ -184,37 +223,81 @@ export default function CsrReportsPage() {
               <p className="text-sm text-muted-foreground font-medium">ไม่พบใบงานตามเงื่อนไขที่เลือก</p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-200">
-              {filteredRequests.map((r) => (
-                <div key={r.id} className="border-l-[3px] border-l-transparent hover:bg-teal-50/50 hover:border-l-teal-400 transition-colors">
-                  <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3.5 items-center">
-                    <div className="col-span-2 text-sm font-bold text-foreground font-mono">{r.ref_id}</div>
-                    <div className="col-span-2 text-xs text-muted-foreground">
-                      {new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
+            <>
+              <div className="divide-y divide-slate-200">
+                {pagedRequests.map((r) => (
+                  <div key={r.id} className="group relative hover:bg-teal-50/50 transition-colors">
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-0 left-0 w-[3px] bg-teal-500 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                    />
+                    <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3.5 items-center">
+                      <div className="col-span-2 text-sm font-bold text-foreground font-mono">{r.ref_id}</div>
+                      <div className="col-span-2 text-xs text-muted-foreground">
+                        {new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
+                      </div>
+                      <div className="col-span-2 text-sm text-foreground truncate">{r.hospital_name || '-'}</div>
+                      <div className="col-span-2 text-xs text-muted-foreground truncate">{r.request_type || '-'}</div>
+                      <div className="col-span-2"><StatusBadge status={r.current_status} /></div>
+                      <div className="col-span-2 text-right text-sm font-bold text-teal-600">
+                        {formatCurrency(Number(r.total_value) || 0)}
+                      </div>
                     </div>
-                    <div className="col-span-3 text-sm text-foreground truncate">{r.hospital_name || '-'}</div>
-                    <div className="col-span-2 text-xs text-muted-foreground truncate">{r.request_type || '-'}</div>
-                    <div className="col-span-1 text-xs font-semibold text-foreground">{getStatusLabel(r.current_status)}</div>
-                    <div className="col-span-2 text-right text-sm font-bold text-teal-600">
-                      {formatCurrency(Number(r.total_value) || 0)}
+
+                    <div className="md:hidden px-4 py-3.5 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-foreground font-mono truncate">{r.ref_id}</span>
+                        <span className="text-sm font-bold text-teal-600 shrink-0">{formatCurrency(Number(r.total_value) || 0)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground truncate">{r.hospital_name || '-'}</p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                        <span>{new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</span>
+                        <StatusBadge status={r.current_status} />
+                      </div>
                     </div>
                   </div>
+                ))}
+              </div>
 
-                  <div className="md:hidden px-4 py-3.5 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-foreground font-mono">{r.ref_id}</span>
-                      <span className="text-sm font-bold text-teal-600">{formatCurrency(Number(r.total_value) || 0)}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{r.hospital_name || '-'}</p>
-                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                      <span>{new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</span>
-                      <span>·</span>
-                      <span>{getStatusLabel(r.current_status)}</span>
-                    </div>
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3.5 border-t border-border bg-slate-50">
+                  <p className="text-xs text-muted-foreground">
+                    แสดง {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredRequests.length)} จาก {filteredRequests.length} รายการ
+                  </p>
+                  <div className="flex items-center gap-1 overflow-x-auto">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                      aria-label="หน้าก่อนหน้า"
+                    >
+                      <ChevronLeft size={16} strokeWidth={2.5} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
+                          p === currentPage
+                            ? 'bg-amber-600 text-white'
+                            : 'text-muted-foreground hover:bg-slate-200'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                      aria-label="หน้าถัดไป"
+                    >
+                      <ChevronRight size={16} strokeWidth={2.5} />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       </div>
