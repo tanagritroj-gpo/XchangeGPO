@@ -107,6 +107,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           contact_name: client.contact_name,
           position: client.position,
           customer_code: customerCode!.trim(),
+          province: client.province,
         })
         .select('id')
         .single();

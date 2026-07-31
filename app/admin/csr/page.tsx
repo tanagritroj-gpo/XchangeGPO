@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, FileEdit, FolderKanban, ArrowRight, LogOut, Users, Loader2 } from 'lucide-react';
+import { ShieldCheck, User, Building2, FileEdit, FolderKanban, ArrowRight, LogOut, Users, Loader2, FileBarChart2 } from 'lucide-react';
 
 export default function CsrHubPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function CsrHubPage() {
   };
 
   if (!staff) return (
-    <div className="min-h-screen flex items-center justify-center bg-teal-50">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
         <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
         <p className="text-sm font-medium text-purple-700">กำลังโหลดข้อมูล...</p>
@@ -40,7 +40,7 @@ export default function CsrHubPage() {
   );
 
   return (
-    <div className="min-h-screen flex flex-col bg-teal-50">
+    <div className="min-h-screen flex flex-col bg-background">
 
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
 
@@ -99,8 +99,8 @@ export default function CsrHubPage() {
           </div>
         </div>
 
-        {/* ── Action Grid — การ์ดขาวสด ไอคอนพื้นม่วง/อินดิโก/ชมพูม่วง(fuchsia) แยกแต่ละใบ ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+        {/* ── Action Grid — การ์ดขาวสด ไอคอนพื้นม่วง/อินดิโก/ชมพูม่วง(fuchsia)/เหลืองอำพัน(amber) แยกแต่ละใบ ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
           {/* Card: กรอกแบบฟอร์มแทนลูกค้า */}
           <Link href="/admin/csr/form" className="group block h-full">
             <div className="h-full flex flex-col bg-white rounded-3xl border border-purple-100 shadow-sm hover:shadow-lg hover:border-purple-300 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
@@ -161,6 +161,29 @@ export default function CsrHubPage() {
                   <Users className="w-5 h-5 opacity-70" />
                   <span className="font-bold text-xs flex items-center gap-1">
                     ดูลูกค้าที่รออนุมัติ <ArrowRight className="w-3.5 h-3.5" />
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Link>
+
+          {/* Card: ศูนย์รายงาน (Report Center) */}
+          <Link href="/admin/csr/reports" className="group block h-full">
+            <div className="h-full flex flex-col bg-white rounded-3xl border border-purple-100 shadow-sm hover:shadow-lg hover:border-purple-300 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="p-7 flex-1 flex flex-col">
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-amber-100 shrink-0">
+                    <FileBarChart2 className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-foreground">ศูนย์รายงาน (Report Center)</h2>
+                    <p className="text-xs text-muted-foreground">สรุปสถิติและออกรายงานคำร้องคืน/แลกเปลี่ยนสินค้า</p>
+                  </div>
+                </div>
+                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-amber-200 rounded-2xl text-sm text-amber-700 bg-amber-50 gap-1 group-hover:bg-amber-100 group-hover:border-amber-300 transition-colors">
+                  <FileBarChart2 className="w-5 h-5 opacity-70" />
+                  <span className="font-bold text-xs flex items-center gap-1">
+                    ดูรายงาน/ดาวน์โหลด Excel <ArrowRight className="w-3.5 h-3.5" />
                   </span>
                 </div>
               </div>

@@ -167,7 +167,7 @@ export async function getCustomerSession() {
 
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, b2b_customers!inner(id, email, hospital_name, contact_name, customer_code, phone, position)')
+    .select('expires_at, b2b_customers!inner(id, email, hospital_name, contact_name, customer_code, phone, position, province)')
     .eq('token', token)
     .eq('actor_type', 'customer')
     .maybeSingle();

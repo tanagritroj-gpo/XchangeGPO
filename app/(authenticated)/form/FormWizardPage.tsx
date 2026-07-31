@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createReturnRequest } from '@/app/actions/form-actions';
+import FormStepper from '@/components/FormStepper';
 import Step1Info from './components/Step1Info';
 import Step2Items from './components/Step2Items';
 import Step3Reason from './components/Step3Reason';
@@ -71,26 +72,7 @@ export default function FormWizardPage({ session }: { session?: any }) {
         <p className="text-sm font-bold text-teal-700">องค์การเภสัชกรรม สาขาภาคใต้</p>
       </div>
 
-      <div className="mb-6 md:mb-10 overflow-x-auto">
-        <div className="flex justify-between min-w-[280px] px-2">
-          {STEPS.map((s) => (
-            <div key={s.id} className="flex flex-col items-center gap-1.5">
-              <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base transition-all ${
-                step >= s.id
-                  ? 'bg-teal-600 text-white shadow-lg shadow-teal-200'
-                  : 'bg-slate-100 text-muted-foreground'
-              }`}>
-                {s.id}
-              </div>
-              <span className={`text-[9px] md:text-[10px] font-black uppercase ${
-                step >= s.id ? 'text-teal-700' : 'text-muted-foreground'
-              }`}>
-                {s.label}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <FormStepper steps={STEPS} currentStep={step} />
 
       {step === 1 && (
         <Step1Info next={nextStep} updateData={setFormData} initialRequestType={initialRequestType} />

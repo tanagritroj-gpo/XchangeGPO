@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createStaffReturnRequest, generateStaffPdfAction, sendStaffPdfEmailAction } from '@/app/actions/staff-form-actions';
+import FormStepper from '@/components/FormStepper';
 import Step1InfoStaff from './components/Step1InfoStaff';
 import Step2Items from '../../../(authenticated)/form/components/Step2Items';
 import Step3Reason from '../../../(authenticated)/form/components/Step3Reason';
@@ -76,25 +77,8 @@ export default function FormWizardPageStaff() {
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
 
         {/* Stepper — เหลือ 4 ขั้น ไม่มีขั้นลงนาม */}
-        <div className="mb-6 md:mb-10 overflow-x-auto max-w-3xl mx-auto">
-          <div className="flex justify-between min-w-[220px] px-2">
-            {STEPS.map((s) => (
-              <div key={s.id} className="flex flex-col items-center gap-1.5">
-                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl flex items-center justify-center font-black text-sm md:text-base transition-all ${
-                  step >= s.id
-                    ? 'bg-teal-600 text-white shadow-lg shadow-teal-200'
-                    : 'bg-slate-100 text-muted-foreground'
-                }`}>
-                  {s.id}
-                </div>
-                <span className={`text-[9px] md:text-[10px] font-black uppercase ${
-                  step >= s.id ? 'text-teal-700' : 'text-muted-foreground'
-                }`}>
-                  {s.label}
-                </span>
-              </div>
-            ))}
-          </div>
+        <div className="max-w-3xl mx-auto">
+          <FormStepper steps={STEPS} currentStep={step} />
         </div>
 
         {/* Step content */}

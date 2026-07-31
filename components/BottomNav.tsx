@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { logoutCustomer } from '@/app/actions/auth-actions';
 import { useState } from 'react';
-import { Home, History, LogOut, Loader2 } from 'lucide-react';
+import { Home, History, Building2, LogOut, Loader2 } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
@@ -18,8 +18,9 @@ export default function BottomNav() {
   };
 
   const tabs = [
-    { href: '/welcome',          icon: Home,    label: 'หน้าหลัก' },
-    { href: '/customer/history', icon: History, label: 'ประวัติ'  },
+    { href: '/welcome',              icon: Home,      label: 'หน้าหลัก' },
+    { href: '/customer/history',     icon: History,   label: 'ประวัติ'  },
+    { href: '/customer/org-history', icon: Building2, label: 'หน่วยงาน' },
   ];
 
   return (

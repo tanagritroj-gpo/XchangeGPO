@@ -59,6 +59,12 @@ export default function Sidebar({ customer }: { customer: any }) {
         >
           <History className="w-4 h-4" /> ประวัติการแลกเปลี่ยน
         </Link>
+        <Link
+          href="/customer/org-history"
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-teal-700 transition-all"
+        >
+          <Building2 className="w-4 h-4" /> ประวัติงานรวมทั้งหน่วยงาน
+        </Link>
         <button
           onClick={handleLogout}
           disabled={isLoggingOut}
