@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, FileEdit, FolderKanban, ArrowRight, LogOut, Users, Loader2, FileBarChart2 } from 'lucide-react';
+import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, ArrowRight, LogOut, Users, Loader2, BarChart3 } from 'lucide-react';
 
 export default function CsrHubPage() {
   const router = useRouter();
@@ -107,7 +107,7 @@ export default function CsrHubPage() {
               <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-purple-100 shrink-0">
-                    <FileEdit className="w-5 h-5 text-purple-600" />
+                    <PenLine className="w-5 h-5 text-purple-600" />
                   </div>
                   <div>
                     <h2 className="text-sm font-black text-foreground">กรอกแบบฟอร์มแทนลูกค้า</h2>
@@ -115,7 +115,7 @@ export default function CsrHubPage() {
                   </div>
                 </div>
                 <div className="mt-auto h-16 w-full rounded-2xl font-bold text-white text-sm bg-purple-600 shadow-md shadow-purple-200 group-hover:bg-purple-700 group-hover:shadow-xl group-hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
-                  <FileEdit className="w-4 h-4" /> เริ่มสร้างคำร้องใหม่
+                  <PenLine className="w-4 h-4" /> เริ่มสร้างคำร้องใหม่
                 </div>
               </div>
             </div>
@@ -127,7 +127,7 @@ export default function CsrHubPage() {
               <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-indigo-100 shrink-0">
-                    <Building2 className="w-5 h-5 text-indigo-600" />
+                    <LayoutDashboard className="w-5 h-5 text-indigo-600" />
                   </div>
                   <div>
                     <h2 className="text-sm font-black text-foreground">CSR Dashboard</h2>
@@ -135,7 +135,7 @@ export default function CsrHubPage() {
                   </div>
                 </div>
                 <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-indigo-200 rounded-2xl text-sm text-indigo-700 bg-indigo-50 gap-1 group-hover:bg-indigo-100 group-hover:border-indigo-300 transition-colors">
-                  <FolderKanban className="w-5 h-5 opacity-70" />
+                  <LayoutDashboard className="w-5 h-5 opacity-70" />
                   <span className="font-bold text-xs flex items-center gap-1">
                     ดูรายการที่รอดำเนินการ <ArrowRight className="w-3.5 h-3.5" />
                   </span>
@@ -173,7 +173,7 @@ export default function CsrHubPage() {
               <div className="p-7 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-amber-100 shrink-0">
-                    <FileBarChart2 className="w-5 h-5 text-amber-600" />
+                    <BarChart3 className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
                     <h2 className="text-sm font-black text-foreground">ศูนย์รายงาน (Report Center)</h2>
@@ -181,7 +181,7 @@ export default function CsrHubPage() {
                   </div>
                 </div>
                 <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-amber-200 rounded-2xl text-sm text-amber-700 bg-amber-50 gap-1 group-hover:bg-amber-100 group-hover:border-amber-300 transition-colors">
-                  <FileBarChart2 className="w-5 h-5 opacity-70" />
+                  <BarChart3 className="w-5 h-5 opacity-70" />
                   <span className="font-bold text-xs flex items-center gap-1">
                     ดูรายงาน/ดาวน์โหลด Excel <ArrowRight className="w-3.5 h-3.5" />
                   </span>
