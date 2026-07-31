@@ -1,4 +1,7 @@
-import { Truck, FileCheck, XCircle, Clock, Check } from 'lucide-react';
+import {
+  Truck, FileCheck, XCircle, Clock, Check, Warehouse, PackageSearch,
+  ClipboardCheck, Boxes, RefreshCw, FileText, Mail, PackageCheck,
+} from 'lucide-react';
 
 export const REJECTED_STATUS = 'rejected';
 
@@ -58,8 +61,13 @@ type StatusMeta = { icon: typeof Clock; bg: string; fg: string };
 const RED: StatusMeta = { icon: XCircle, bg: 'bg-red-50', fg: 'text-red-600' };
 const GREEN_CHECK: StatusMeta = { icon: Check, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
 const GREEN_APPROVE: StatusMeta = { icon: FileCheck, bg: 'bg-emerald-50', fg: 'text-emerald-600' };
-const AMBER: StatusMeta = { icon: Truck, bg: 'bg-amber-50', fg: 'text-amber-600' };
 const DEFAULT: StatusMeta = { icon: Clock, bg: 'bg-sky-50', fg: 'text-sky-600' };
+
+// สีเดียวกันหมด (โทนอำพัน/ฟ้า) แต่ไอคอนต่างกันไปตามความหมายจริงของแต่ละสถานะ —
+// เดิมทุกสถานะช่วง "กำลังดำเนินการ" ใช้ไอคอนรถบรรทุก (Truck) เหมือนกันหมด ทั้งที่
+// มีแค่บางสถานะเท่านั้นที่เกี่ยวกับการขนส่งจริงๆ
+const amber = (icon: StatusMeta['icon']): StatusMeta => ({ icon, bg: 'bg-amber-50', fg: 'text-amber-600' });
+const sky = (icon: StatusMeta['icon']): StatusMeta => ({ icon, bg: 'bg-sky-50', fg: 'text-sky-600' });
 
 // ทุกค่าที่โค้ดใน app/actions/*.ts เขียนลง status_logs.status_name จริง ณ วันที่เขียนไฟล์นี้
 // (ยืนยันด้วย grep ทั้ง repo) — ค่าที่ไม่อยู่ใน list นี้ (เช่น remark ที่พนักงานพิมพ์เป็นประโยคไทยเอง
@@ -68,18 +76,19 @@ const STATUS_META: Record<string, StatusMeta> = {
   rejected: RED,
   completed: GREEN_CHECK,
   approved: GREEN_APPROVE,
-  checked_in: AMBER,
-  checked_in_confirmed: AMBER,
-  receiving: AMBER,
-  at_warehouse: AMBER,
-  in_transit: AMBER,
-  exchanging: AMBER,
-  document_generated: DEFAULT,
-  email_sent: DEFAULT,
+  pending_review: sky(Clock),
+  in_transit: amber(Truck),               // อยู่ระหว่างรับคืนสินค้า — ขนส่งจริง คงไอคอนรถไว้
+  out_for_delivery: amber(Truck),         // อยู่ระหว่างจัดส่งคืน — ขนส่งจริงเช่นกัน
+  at_warehouse: amber(Warehouse),         // สินค้ากลับคืนถึงคลังแล้ว
+  checked_in: amber(PackageSearch),       // ตรวจสอบสภาพสินค้ารับคืน
+  checked_in_confirmed: amber(ClipboardCheck), // ยืนยันตรวจรับทั้งใบงาน
+  receiving: amber(Boxes),                // จัดเก็บเข้าคลัง
+  exchanging: amber(RefreshCw),           // กำลังดำเนินการแลกเปลี่ยน
+  document_generated: sky(FileText),
+  email_sent: sky(Mail),
   // ไม่ใช่ status_logs.status_name จริง แต่เป็น key ของ STAGES (4-step stepper) —
   // ใส่ไว้ในตารางเดียวกันเพราะ customer/history/page.tsx เรียก getStatusMeta(stage.key)
-  pending_review: DEFAULT,
-  processing: AMBER,
+  processing: amber(PackageCheck),
 };
 
 export function getStatusMeta(statusName: string = '') {

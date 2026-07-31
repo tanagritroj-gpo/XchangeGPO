@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check } from 'lucide-react';
+import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check, User, LogOut, ClipboardList } from 'lucide-react';
 import { getLogisticsDashboardData, updateLogisticsStatus } from '@/app/actions/logistics-actions';
+import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
@@ -29,6 +30,28 @@ function StatusBadge({ status }: { status: string }) {
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       {cfg.label}
     </span>
+  );
+}
+
+// ── การ์ดสถิติสรุปย่อ — ใช้แทนป้าย "N ใบงาน" ตัวเดียวเดิมในแถบด้านบน ──
+function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing }: {
+  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  isActive?: boolean; activeBorder?: string; activeRing?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 ${
+        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
+      }`}
+    >
+      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
+        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
+        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+    </div>
   );
 }
 
@@ -236,6 +259,13 @@ export default function LogisticsDashboard() {
   const [isLoading, setIsLoading]             = useState(true);
   const [expandedReq, setExpandedReq]         = useState<number | null>(null);
   const [activeTab, setActiveTab]             = useState<'approved' | 'in_transit' | 'photos'>('approved');
+  const [staff, setStaff]                     = useState<any>(null);
+  const [today, setToday]                     = useState('');
+  const [isLoggingOut, setIsLoggingOut]       = useState(false);
+
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
+  }, []);
 
   // ══ Modal ยืนยันส่งรถไปรับคืน — แทนที่ prompt() เดิม ด้วย modal มาตรฐานแบบเดียวกับ
   // LOGDrugrow.tsx / CSR dashboard (overlay + card + gradient bar + ReasonSelectFields) ══
@@ -246,12 +276,19 @@ export default function LogisticsDashboard() {
 
   const fetchData = async () => {
     setIsLoading(true);
-    const data = await getLogisticsDashboardData();
+    const [staffSession, data] = await Promise.all([getStaffSession(), getLogisticsDashboardData()]);
+    setStaff(staffSession);
     if (data.success) setRequests(data.requests || []);
     setIsLoading(false);
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
 
   const openTransitModal = (req: any) => {
     setTransitCode('');
@@ -329,15 +366,66 @@ export default function LogisticsDashboard() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal • Logistics Dashboard</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] md:text-xs font-bold shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0" />
-            <span>{requests.length}</span>
-            <span className="hidden sm:inline">ใบงาน</span>
-          </span>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-blue-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none shrink-0"
+          >
+            {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+            <span className="hidden sm:inline">ออกจากระบบ</span>
+          </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8">
+      <div className="max-w-6xl mx-auto px-4 md:px-6 py-4 md:py-8 space-y-6">
+
+        {/* ── Welcome Banner — โทนน้ำเงินให้เข้ากับสีของหน้านี้ (เหมือนแนวคิด CSR/WH welcome page) ── */}
+        <div className="relative overflow-hidden rounded-3xl bg-blue-600 p-8 text-white shadow-lg shadow-blue-200">
+          <div className="absolute -top-12 -right-12 w-48 h-48 rounded-full opacity-20 bg-white" />
+          <div className="absolute -bottom-8 -left-8 w-36 h-36 rounded-full opacity-15 bg-white" />
+          <div className="absolute top-1/2 right-24 w-20 h-20 rounded-full opacity-10 bg-white hidden md:block" />
+          <div className="absolute top-6 left-1/3 w-3 h-3 rounded-full bg-sky-200 opacity-80 hidden md:block" />
+          <div className="absolute bottom-10 right-1/3 w-2 h-2 rounded-full bg-sky-200 opacity-70 hidden md:block" />
+
+          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <p className="text-blue-100 text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-200 animate-pulse" /> ยินดีต้อนรับ
+              </p>
+              <h1 className="text-2xl md:text-3xl font-black leading-tight flex items-center gap-2">
+                สวัสดีคุณ {staff?.full_name || staff?.username}
+                <User className="w-6 h-6 opacity-80" />
+              </h1>
+              <p className="text-blue-50 mt-1.5 flex items-center gap-1.5 text-sm">
+                <Truck className="w-4 h-4" /> แผนกโลจิสติกส์ (Logistics)
+              </p>
+              <p className="text-blue-50/90 mt-3 text-sm leading-relaxed">
+                ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
+              </p>
+            </div>
+            <div className="bg-white/15 border border-white/25 rounded-2xl px-5 py-4 text-center hidden md:block backdrop-blur-sm">
+              <p className="text-blue-100 text-[11px] font-semibold uppercase tracking-wide mb-1">สถานะบัญชี</p>
+              <div className="flex items-center gap-1.5 justify-center">
+                <span className="w-2 h-2 rounded-full bg-sky-300 animate-pulse" />
+                <span className="text-white font-bold text-sm">Active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── สถิติสรุปย่อ — แทนป้าย "N ใบงาน" ตัวเดียวเดิมที่เคยอยู่บนแถบด้านบน ── */}
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <StatCard icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600" />
+          <StatCard
+            icon={PackageCheck} value={approvedRequests.length} label="อนุมัติรับคืนสินค้า" iconBg="bg-blue-50" iconText="text-blue-600"
+            isActive={activeTab === 'approved'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+          />
+          <StatCard
+            icon={Truck} value={inTransitRequests.length} label="อยู่ระหว่างขนส่ง" iconBg="bg-indigo-50" iconText="text-indigo-600"
+            isActive={activeTab === 'in_transit'} activeBorder="border-indigo-300" activeRing="ring-2 ring-indigo-100"
+          />
+        </div>
+
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — เหมือน CSR/Manager Dashboard) ══ */}

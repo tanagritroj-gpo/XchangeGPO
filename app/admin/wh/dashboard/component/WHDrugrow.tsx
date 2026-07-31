@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, PackageCheck, Loader2, Check } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, PackageCheck, Loader2, Check, Tag, X } from 'lucide-react';
 import { stampCheckedIn, stampReceiving, rejectWHItem } from '@/app/actions/wh-actions';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
@@ -120,7 +120,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
       <div className="col-span-2 md:col-span-4">
         <p className="text-sm font-bold text-foreground truncate">{item.drug_name}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
-          <span>🏷️</span> {item.lot_number ?? '—'}
+          <Tag size={11} strokeWidth={2.5} /> {item.lot_number ?? '—'}
         </p>
       </div>
       <div className="col-span-1 md:col-span-2 text-xs text-muted-foreground">
@@ -144,6 +144,15 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
           </div>
         ) : (
           <>
+            {/* ปุ่มอนุมัติ: แสดงในขั้นตอน at_warehouse เท่านั้น — เรียงก่อนปฏิเสธ */}
+            {item.current_status === 'at_warehouse' && (
+              <button
+                onClick={() => openActionModal('checked_in')}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
+                style={{ background: 'linear-gradient(135deg,#0f766e,#14b8a6)' }}
+              ><Check size={11} strokeWidth={3} /> อนุมัติ</button>
+            )}
+
             {/* ปุ่มปฏิเสธ: แสดงในขั้นตอน at_warehouse และ checked_in (ที่ยังไม่ผ่านจัดเก็บ) */}
             {item.current_status === 'at_warehouse' && (
               <button
@@ -152,37 +161,28 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
               >X ปฏิเสธ</button>
             )}
 
-            {/* ปุ่มรับเข้า */}
-            {item.current_status === 'at_warehouse' && (
-              <button
-                onClick={() => openActionModal('checked_in')}
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                style={{ background: 'linear-gradient(135deg,#0f766e,#14b8a6)' }}
-              >✓ ผ่าน</button>
-            )}
-
             {/* สถานะตรวจรับแล้ว (รอ confirm ทั้งใบ) */}
             {item.current_status === 'checked_in' && !reqConfirmed && (
-              <span className="text-[10px] font-bold text-teal-600 flex items-center gap-1">✓ ตรวจรับแล้ว</span>
+              <span className="text-[10px] font-bold text-teal-600 flex items-center gap-1"><Check size={11} strokeWidth={3} /> ตรวจรับแล้ว</span>
             )}
 
             {/* ปุ่มจัดเก็บ (หลัง confirm ทั้งใบแล้ว) */}
             {item.current_status === 'checked_in' && reqConfirmed && (
               <button
                 onClick={() => openActionModal('receiving')}
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
                 style={{ background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)' }}
-              >📦 จัดเก็บ</button>
+              ><PackageCheck size={11} strokeWidth={2.5} /> จัดเก็บ</button>
             )}
 
             {/* สถานะหลังจัดเก็บแล้ว */}
             {item.current_status === 'receiving' && (
-              <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1">✓ จัดเก็บแล้ว</span>
+              <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1"><Check size={11} strokeWidth={3} /> จัดเก็บแล้ว</span>
             )}
 
             {/* สถานะปฏิเสธ */}
             {item.current_status === 'rejected' && (
-              <span className="text-[10px] font-bold text-rose-500">❌ ปฏิเสธแล้ว</span>
+              <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1"><X size={11} strokeWidth={3} /> ปฏิเสธแล้ว</span>
             )}
           </>
         )}
