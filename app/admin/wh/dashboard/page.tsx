@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Warehouse, User, LogOut, Loader2, Building2, CheckCircle2, Check,
-  PackageCheck, PackageSearch, Boxes, ChevronLeft, ChevronRight,
+  PackageCheck, PackageSearch, Boxes, ChevronLeft, ChevronRight, ClipboardList,
 } from 'lucide-react';
 import { getWHData, confirmCheckedInBatch } from '@/app/actions/wh-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
@@ -141,6 +141,29 @@ function WHTabButton({ icon: Icon, label, count, active, onClick, accentBg, acce
         {count}
       </span>
     </button>
+  );
+}
+
+// ── การ์ดสถิติสรุปย่อ — ใช้แทนป้าย "N ใบงาน" ตัวเดียวเดิมในแถบด้านบน
+// (เหมือน Logistics Dashboard) ไฮไลต์กรอบสีตามแท็บที่กำลังเลือกอยู่ ──
+function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing }: {
+  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  isActive?: boolean; activeBorder?: string; activeRing?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 ${
+        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
+      }`}
+    >
+      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
+        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
+        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+    </div>
   );
 }
 
@@ -322,10 +345,6 @@ export default function WHDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-50 border border-rose-100 text-rose-700 text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
-              รอดำเนินการ {data.length} ใบงาน
-            </span>
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
@@ -386,6 +405,19 @@ export default function WHDashboard() {
               <p className="text-xs text-muted-foreground">{data.length} ใบงาน • ตรวจรับและจัดเก็บสินค้าเข้าคลัง</p>
             </div>
           </div>
+        </div>
+
+        {/* ── สถิติสรุปย่อ — แทนป้าย "รอดำเนินการ N ใบงาน" ตัวเดียวเดิมที่เคยอยู่บนแถบด้านบน ── */}
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <StatCard icon={ClipboardList} value={data.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600" />
+          <StatCard
+            icon={PackageSearch} value={atWarehouseRequests.length} label="รอตรวจรับ" iconBg="bg-amber-100" iconText="text-amber-600"
+            isActive={activeTab === 'at_warehouse'} activeBorder="border-amber-300" activeRing="ring-2 ring-amber-100"
+          />
+          <StatCard
+            icon={Boxes} value={checkedInRequests.length} label="รอจัดเก็บเข้าคลัง" iconBg="bg-blue-100" iconText="text-blue-600"
+            isActive={activeTab === 'checked_in'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+          />
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">

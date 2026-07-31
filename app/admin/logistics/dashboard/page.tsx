@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check, User } from 'lucide-react';
+import { PackageCheck, Truck, Camera, Inbox, ChevronLeft, ChevronRight, Loader2, Check, User, LogOut, ClipboardList } from 'lucide-react';
 import { getLogisticsDashboardData, updateLogisticsStatus } from '@/app/actions/logistics-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
+import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
@@ -30,6 +30,28 @@ function StatusBadge({ status }: { status: string }) {
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       {cfg.label}
     </span>
+  );
+}
+
+// ── การ์ดสถิติสรุปย่อ — ใช้แทนป้าย "N ใบงาน" ตัวเดียวเดิมในแถบด้านบน ──
+function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing }: {
+  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  isActive?: boolean; activeBorder?: string; activeRing?: string;
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 ${
+        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
+      }`}
+    >
+      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
+        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
+        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+    </div>
   );
 }
 
@@ -239,6 +261,7 @@ export default function LogisticsDashboard() {
   const [activeTab, setActiveTab]             = useState<'approved' | 'in_transit' | 'photos'>('approved');
   const [staff, setStaff]                     = useState<any>(null);
   const [today, setToday]                     = useState('');
+  const [isLoggingOut, setIsLoggingOut]       = useState(false);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -260,6 +283,12 @@ export default function LogisticsDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
 
   const openTransitModal = (req: any) => {
     setTransitCode('');
@@ -337,11 +366,14 @@ export default function LogisticsDashboard() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal • Logistics Dashboard</p>
             </div>
           </div>
-          <span className="flex items-center gap-1 md:gap-1.5 px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] md:text-xs font-bold shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse shrink-0" />
-            <span>{requests.length}</span>
-            <span className="hidden sm:inline">ใบงาน</span>
-          </span>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-blue-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none shrink-0"
+          >
+            {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+            <span className="hidden sm:inline">ออกจากระบบ</span>
+          </button>
         </div>
       </div>
 
@@ -379,6 +411,19 @@ export default function LogisticsDashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* ── สถิติสรุปย่อ — แทนป้าย "N ใบงาน" ตัวเดียวเดิมที่เคยอยู่บนแถบด้านบน ── */}
+        <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <StatCard icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600" />
+          <StatCard
+            icon={PackageCheck} value={approvedRequests.length} label="อนุมัติรับคืนสินค้า" iconBg="bg-blue-50" iconText="text-blue-600"
+            isActive={activeTab === 'approved'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+          />
+          <StatCard
+            icon={Truck} value={inTransitRequests.length} label="อยู่ระหว่างขนส่ง" iconBg="bg-indigo-50" iconText="text-indigo-600"
+            isActive={activeTab === 'in_transit'} activeBorder="border-indigo-300" activeRing="ring-2 ring-indigo-100"
+          />
         </div>
 
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
