@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Check,
   X,
+  XCircle,
   Loader2,
   Pill,
   RefreshCw,
@@ -14,10 +15,14 @@ import {
   Inbox,
   AlertTriangle,
   ClipboardCheck,
+  Clock,
   History,
   ClipboardEdit,
   Eye,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
+import { getStatusMeta } from '@/lib/tracking-status';
 import {
   getCSRDashboardData,
   approveRequest,
@@ -64,17 +69,27 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function StatPill({ icon: Icon, value, label, tone }: { icon: any; value: number; label: string; tone: 'amber' | 'teal' }) {
-  const tones = {
-    amber: 'bg-amber-50 border-amber-100 text-amber-700',
-    teal:  'bg-teal-50 border-teal-100 text-teal-700',
-  };
+// ── การ์ดสถิติด้านบน — คลิกได้จริง (ต่างจาก StatCard เวอร์ชัน highlight-only ของ
+// Logistics/WH) กดแล้วกระโดดไปดูเฉพาะกลุ่มสถานะนั้น ข้ามระบบแท็บ/แท็บย่อยไปเลย ──
+function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing, onClick }: {
+  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  isActive?: boolean; activeBorder?: string; activeRing?: string; onClick: () => void;
+}) {
   return (
-    <span className={`flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border text-[11px] md:text-xs font-semibold ${tones[tone]}`}>
-      <Icon size={13} strokeWidth={2.5} />
-      <span>{value}</span>
-      <span className="hidden sm:inline opacity-80">{label}</span>
-    </span>
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md ${
+        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
+      }`}
+    >
+      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
+        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
+        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      </div>
+    </button>
   );
 }
 
@@ -177,16 +192,30 @@ const isAllItemsReviewed = (req: any) =>
   (req.drug_items?.length ?? 0) > 0 &&
   req.drug_items.every((item: any) => item.current_status !== 'pending_review');
 
+// วันที่เริ่มสร้างใบงาน — ใช้ในคอลัมน์ "วันที่" ของ "ประวัติใบงาน" เท่านั้น
+const formatRequestDate = (createdAt: string) =>
+  new Date(createdAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+
 // สถานะที่ CSR เป็นคนกดอัปเดตเอง (มีปุ่ม action ให้กดใน RequestListSection)
 // สถานะอื่นนอกจากนี้ (approved, in_transit, at_warehouse, checked_in, out_for_delivery) เป็นของฝ่าย log/wh — CSR แค่มอนิเตอร์
 const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging'];
 
 // ── ส่วนแสดงรายการใบงาน — logic เหมือนกันทุกอย่าง แค่รับ items แยกกันเพื่อแยกหัวข้อ ──
+// pageSize เป็น optional — ใส่ค่าถึงจะแบ่งหน้า (เผื่ออนาคตรายการเยอะขึ้น) ไม่ใส่ = แสดง
+// ทั้งหมดแบบเดิม (คงพฤติกรรมเดิมของแท็บ CSR Workflow ที่ยังไม่ต้องแบ่งหน้า)
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
-  emptyIcon: EmptyIcon, emptyText, completingId,
+  emptyIcon: EmptyIcon, emptyText, completingId, pageSize, readOnly,
 }: any) {
+  const [page, setPage] = useState(1);
+
+  useEffect(() => { setPage(1); }, [items]);
+
+  const totalPages = pageSize ? Math.max(1, Math.ceil(items.length / pageSize)) : 1;
+  const currentPage = Math.min(page, totalPages);
+  const pagedItems = pageSize ? items.slice((currentPage - 1) * pageSize, currentPage * pageSize) : items;
+
   return (
     <section>
       <div className="flex items-center gap-2.5 mb-3 px-1">
@@ -205,7 +234,7 @@ function RequestListSection({
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
-            <div className="col-span-2 text-right">การดำเนินการ</div>
+            <div className="col-span-2 text-right">{readOnly ? 'วันที่' : 'การดำเนินการ'}</div>
           </div>
         )}
 
@@ -216,7 +245,7 @@ function RequestListSection({
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {items.map((req: any) => {
+            {pagedItems.map((req: any) => {
               const isExpanded = expandedReq === req.id;
               const drugCount  = req.drug_items?.length ?? 0;
               return (
@@ -251,7 +280,7 @@ function RequestListSection({
                       </button>
                     </div>
                     <div className="col-span-2 flex flex-col items-end gap-2">
-                      {req.current_status === 'pending_review' && (
+                      {!readOnly && req.current_status === 'pending_review' && (
                         isAllItemsReviewed(req) ? (
                           <>
                             <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
@@ -264,11 +293,14 @@ function RequestListSection({
                           </p>
                         )
                       )}
-                      {req.current_status === 'receiving' && (
+                      {!readOnly && req.current_status === 'receiving' && (
                         <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
                       )}
-                      {req.current_status === 'exchanging' && (
+                      {!readOnly && req.current_status === 'exchanging' && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                      )}
+                      {readOnly && (
+                        <p className="text-xs font-semibold text-muted-foreground">{formatRequestDate(req.created_at)}</p>
                       )}
                     </div>
                   </div>
@@ -279,6 +311,7 @@ function RequestListSection({
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
                         {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
+                        {readOnly && <p className="text-[11px] text-muted-foreground mt-0.5">{formatRequestDate(req.created_at)}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
@@ -292,27 +325,29 @@ function RequestListSection({
                       <ChevronDown size={14} strokeWidth={2.5} className={`ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                     </button>
 
-                    <div className="flex gap-2">
-                      {req.current_status === 'pending_review' && (
-                        isAllItemsReviewed(req) ? (
-                          <>
-                            <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
-                            <WorkflowDecisionButton icon={X} label="ปฏิเสธ" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
-                          </>
-                        ) : (
-                          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 py-2">
-                            <ClipboardCheck size={13} strokeWidth={2.5} />
-                            ตรวจรายการยาให้ครบก่อนอนุมัติ/ปฏิเสธ
-                          </p>
-                        )
-                      )}
-                      {req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
-                      )}
-                      {req.current_status === 'exchanging' && (
-                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
-                      )}
-                    </div>
+                    {!readOnly && (
+                      <div className="flex gap-2">
+                        {req.current_status === 'pending_review' && (
+                          isAllItemsReviewed(req) ? (
+                            <>
+                              <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
+                              <WorkflowDecisionButton icon={X} label="ปฏิเสธ" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
+                            </>
+                          ) : (
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 py-2">
+                              <ClipboardCheck size={13} strokeWidth={2.5} />
+                              ตรวจรายการยาให้ครบก่อนอนุมัติ/ปฏิเสธ
+                            </p>
+                          )
+                        )}
+                        {req.current_status === 'receiving' && (
+                          <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                        )}
+                        {req.current_status === 'exchanging' && (
+                          <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Drug items expanded */}
@@ -325,7 +360,7 @@ function RequestListSection({
                         <div className="col-span-1 text-center">Exp</div>
                         <div className="col-span-2">ประเภท</div>
                         <div className="col-span-1 text-center">เกณฑ์</div>
-                        <div className="col-span-3 text-right">Actions</div>
+                        <div className="col-span-3 text-right">{readOnly ? 'สถานะ' : 'Actions'}</div>
                       </div>
                       <div className="space-y-2 md:space-y-1.5">
                         {req.drug_items.map((item: any) => (
@@ -333,6 +368,7 @@ function RequestListSection({
                             key={item.id}
                             item={{ ...item, request_type: req.request_type }}
                             onUpdate={() => fetchData({ silent: true })}
+                            readOnly={readOnly}
                           />
                         ))}
                       </div>
@@ -355,6 +391,145 @@ function RequestListSection({
           </div>
         )}
       </div>
+
+      {pageSize && totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-3 px-1">
+          <p className="text-xs text-muted-foreground">
+            แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, items.length)} จาก {items.length} รายการ
+          </p>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              aria-label="หน้าก่อนหน้า"
+            >
+              <ChevronLeft size={16} strokeWidth={2.5} />
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
+                  p === currentPage ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-200'
+                }`}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              aria-label="หน้าถัดไป"
+            >
+              <ChevronRight size={16} strokeWidth={2.5} />
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ลำดับ pipeline จริงของ "Active Workflow" (สถานะที่ log/wh เป็นคนอัปเดต CSR แค่มอนิเตอร์)
+// เรียงตามลำดับที่ใบงานเคลื่อนผ่านจริง: อนุมัติ → ขนส่งไปรับ → ถึงคลัง → ตรวจรับ → จัดส่งคืน
+const MONITOR_STAGE_ORDER = ['approved', 'in_transit', 'at_warehouse', 'checked_in', 'out_for_delivery'];
+
+// การ์ดใบงาน 1 ใบในกระดาน — read-only ไม่มีปุ่ม action เพราะสถานะกลุ่มนี้ log/wh
+// เป็นคนอัปเดต ไม่ใช่ CSR (ต่างจาก CSRDrugRow ที่มีปุ่มอนุมัติ/ปฏิเสธสำหรับ workflow ของ CSR เอง)
+function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded: boolean; onToggle: () => void }) {
+  const drugCount = req.drug_items?.length ?? 0;
+  const totalValue = req.drug_items?.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0) ?? 0;
+  return (
+    <div className="bg-white rounded-xl border border-border p-3">
+      <p className="text-xs font-black text-foreground font-mono truncate">{req.ref_id}</p>
+      {req.hospital_name && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{req.hospital_name}</p>}
+
+      <button
+        onClick={onToggle}
+        className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-teal-700 font-semibold transition-colors"
+      >
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-teal-50 text-teal-600 font-bold text-[9px]">{drugCount}</span>
+        รายการสินค้า
+        <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isExpanded && drugCount > 0 && (
+        <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
+          {req.drug_items.map((item: any) => (
+            <div key={item.id} className="text-[10.5px] bg-slate-50 rounded-lg px-2 py-1.5">
+              <p className="font-bold text-slate-700 truncate">{item.drug_name}</p>
+              <p className="text-muted-foreground mt-0.5">
+                {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
+              </p>
+            </div>
+          ))}
+          {totalValue > 0 && (
+            <p className="text-right text-[10.5px] font-bold text-teal-700 pt-0.5">
+              ฿{totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── กระดานภาพรวม "Active Workflow" — จัดกลุ่มใบงานตามสถานะจริงเป็นคอลัมน์แนวนอน
+// (kanban) แทนรายการเรียงเดียวแบบเดิม ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังในจอเดียว
+// mobile: เลื่อนแนวนอนทีละคอลัมน์ (snap) — ความกว้างคอลัมน์เป็น vw ให้แอบเห็นคอลัมน์ถัดไป
+// เป็นคิวว่าเลื่อนดูต่อได้ ── ──
+function MonitorBoard({ items, expandedReq, setExpandedReq }: {
+  items: any[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
+}) {
+  return (
+    <section>
+      <div className="flex items-center gap-2.5 mb-3 px-1">
+        <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+          <Eye size={16} className="text-indigo-600" strokeWidth={2.5} />
+        </div>
+        <div>
+          <h2 className="text-sm font-bold text-foreground">Active Workflow</h2>
+          <p className="text-[11px] text-muted-foreground">{items.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า — จัดกลุ่มตามสถานะจริง</p>
+        </div>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1">
+        {MONITOR_STAGE_ORDER.map((statusKey) => {
+          const cfg = STATUS_CONFIG[statusKey];
+          const colItems = items.filter((r) => r.current_status === statusKey);
+          const meta = getStatusMeta(statusKey);
+          const StageIcon = meta.icon;
+          return (
+            <div key={statusKey} className="shrink-0 w-[85vw] sm:w-64 snap-start bg-slate-50 rounded-2xl border border-border p-3">
+              <div className="flex items-center gap-2 mb-3 px-0.5">
+                <span className={`flex items-center justify-center w-6 h-6 rounded-lg shrink-0 ${meta.bg}`}>
+                  <StageIcon className={`w-3.5 h-3.5 ${meta.fg}`} strokeWidth={2.5} />
+                </span>
+                <span className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
+                <span className="ml-auto text-[10px] font-bold text-muted-foreground bg-white px-1.5 py-0.5 rounded-full border border-border">
+                  {colItems.length}
+                </span>
+              </div>
+              <div className="space-y-2 max-h-[520px] overflow-y-auto">
+                {colItems.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
+                ) : (
+                  colItems.map((req) => (
+                    <MonitorBoardCard
+                      key={req.id}
+                      req={req}
+                      isExpanded={expandedReq === req.id}
+                      onToggle={() => setExpandedReq(expandedReq === req.id ? null : req.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
@@ -366,6 +541,9 @@ export default function CSRDashboard() {
   const [expandedReq, setExpandedReq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [workflowSubTab, setWorkflowSubTab] = useState<'csr' | 'monitor'>('csr');
+  // ตัวกรองด่วนจากแถบสถิติด้านบน — ข้ามระบบแท็บ/แท็บย่อยไปแสดงเฉพาะกลุ่มสถานะที่กด
+  // null = ไม่ได้กรอง (แสดงตามแท็บ/แท็บย่อยปกติ) — คลิกแท็บ/แท็บย่อยเดิมจะล้างตัวกรองนี้เสมอ
+  const [statusFilter, setStatusFilter] = useState<'pending_review' | 'in_progress' | 'completed' | 'rejected' | null>(null);
 
   // Modal ยืนยันอนุมัติ/ปฏิเสธใบงาน (พร้อมหมายเหตุ) — เปิดเมื่อรายการยาครบทุกตัวแล้วเท่านั้น
   const [confirmModal, setConfirmModal] = useState<{ requestId: number; action: 'approved' | 'rejected' } | null>(null);
@@ -472,11 +650,46 @@ export default function CSRDashboard() {
 
   // แยกใบงาน active ออกจากใบงานที่จบแล้ว (completed/rejected) เพื่อไม่ให้ปนกันในรายการเดียว
   const activeRequests  = requests.filter(r => r.current_status !== 'completed' && r.current_status !== 'rejected');
-  const historyRequests = requests.filter(r => r.current_status === 'completed' || r.current_status === 'rejected');
+  // "ประวัติใบงาน" แสดงใบงานทุกสถานะ (ไม่กรองเฉพาะ completed/rejected อีกต่อไป) — เป็น log
+  // รวมทุกใบงานที่เคยเข้าระบบ แยกจาก "จัดการใบงาน" ที่โฟกัสเฉพาะรายการที่ต้องดำเนินการ
+  // เรียงตามวันที่สร้างใหม่สุดก่อนเสมอ (ไม่พึ่งพา order จาก query อย่างเดียว กันกรณีลำดับเปลี่ยนในอนาคต)
+  const historyRequestsSorted = [...requests].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
 
   // แยกใบงาน active อีกชั้น: ที่ CSR ต้องอัปเดตเอง vs ที่ log/wh อัปเดต (CSR แค่มอนิเตอร์)
   const csrWorkflowRequests     = activeRequests.filter(r => CSR_ACTIONABLE_STATUSES.includes(r.current_status));
   const monitorWorkflowRequests = activeRequests.filter(r => !CSR_ACTIONABLE_STATUSES.includes(r.current_status));
+
+  // ── นับจำนวนต่อกลุ่มสำหรับแถบสถิติด้านบน ──
+  const pendingReviewCount = requests.filter(r => r.current_status === 'pending_review').length;
+  const inProgressCount    = activeRequests.length - pendingReviewCount;
+  const completedCount     = requests.filter(r => r.current_status === 'completed').length;
+  const rejectedCount      = requests.filter(r => r.current_status === 'rejected').length;
+
+  // ── เลือก item ที่จะแสดงตามตัวกรองด่วน (ถ้ามี) — ใช้แทนที่เนื้อหาแท็บ/แท็บย่อยปกติ ──
+  const statFilterMeta: Record<string, { title: string; subtitle: string; items: any[]; icon: any; iconBg: string; iconColor: string }> = {
+    pending_review: {
+      title: 'รอตรวจสอบ', subtitle: `${pendingReviewCount} ใบงานรอตรวจสอบ`, items: requests.filter(r => r.current_status === 'pending_review'),
+      icon: Clock, iconBg: 'bg-amber-100', iconColor: 'text-amber-600',
+    },
+    in_progress: {
+      title: 'กำลังดำเนินการ', subtitle: `${inProgressCount} ใบงานกำลังดำเนินการ (CSR + ฝ่ายขนส่ง/คลัง)`, items: activeRequests.filter(r => r.current_status !== 'pending_review'),
+      icon: RefreshCw, iconBg: 'bg-blue-100', iconColor: 'text-blue-600',
+    },
+    completed: {
+      title: 'เสร็จสิ้น', subtitle: `${completedCount} ใบงานเสร็จสิ้น`, items: requests.filter(r => r.current_status === 'completed'),
+      icon: CheckCircle2, iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600',
+    },
+    rejected: {
+      title: 'ถูกปฏิเสธ', subtitle: `${rejectedCount} ใบงานถูกปฏิเสธ`, items: requests.filter(r => r.current_status === 'rejected'),
+      icon: XCircle, iconBg: 'bg-rose-100', iconColor: 'text-rose-600',
+    },
+  };
+
+  // คลิกแท็บ/แท็บย่อยเดิมล้างตัวกรองด่วนเสมอ กันสับสนว่าทำไมกดแท็บแล้วเนื้อหาไม่เปลี่ยน
+  const selectTab = (tab: 'active' | 'history') => { setStatusFilter(null); setActiveTab(tab); };
+  const selectWorkflowSubTab = (tab: 'csr' | 'monitor') => { setStatusFilter(null); setWorkflowSubTab(tab); };
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -507,13 +720,40 @@ export default function CSRDashboard() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-            <StatPill icon={ClipboardList} value={requests.length} label="ใบงาน" tone="teal" />
-          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 md:space-y-7">
+
+        {/* ── แถบสถิติสรุป — คลิกได้จริง กดแล้วกระโดดไปดูเฉพาะกลุ่มสถานะนั้นทันที ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
+          <StatCard
+            icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600"
+            isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+            onClick={() => setStatusFilter(null)}
+          />
+          <StatCard
+            icon={Clock} value={pendingReviewCount} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600"
+            isActive={statusFilter === 'pending_review'} activeBorder="border-amber-300" activeRing="ring-2 ring-amber-100"
+            onClick={() => setStatusFilter('pending_review')}
+          />
+          <StatCard
+            icon={RefreshCw} value={inProgressCount} label="กำลังดำเนินการ" iconBg="bg-blue-50" iconText="text-blue-600"
+            isActive={statusFilter === 'in_progress'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+            onClick={() => setStatusFilter('in_progress')}
+          />
+          <StatCard
+            icon={CheckCircle2} value={completedCount} label="เสร็จสิ้น" iconBg="bg-emerald-50" iconText="text-emerald-600"
+            isActive={statusFilter === 'completed'} activeBorder="border-emerald-300" activeRing="ring-2 ring-emerald-100"
+            onClick={() => setStatusFilter('completed')}
+          />
+          <StatCard
+            icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-rose-50" iconText="text-rose-600"
+            isActive={statusFilter === 'rejected'} activeBorder="border-rose-300" activeRing="ring-2 ring-rose-100"
+            onClick={() => setStatusFilter('rejected')}
+          />
+        </div>
+
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — ตัด "ลูกค้าที่รออนุมัติ" ออก ย้ายไปหน้าแยกแล้ว) ══ */}
@@ -521,12 +761,12 @@ export default function CSRDashboard() {
             <nav className="flex md:flex-col gap-2 overflow-x-auto md:overflow-visible -mx-1 px-1 md:mx-0 md:px-0 pb-1 md:pb-0">
               <TabButton
                 icon={ClipboardList} label="จัดการใบงาน" count={activeRequests.length}
-                active={activeTab === 'active'} onClick={() => setActiveTab('active')}
+                active={statusFilter === null && activeTab === 'active'} onClick={() => selectTab('active')}
                 accentBg="bg-blue-100" accentColor="text-blue-600"
               />
               <TabButton
-                icon={History} label="ประวัติใบงาน" count={historyRequests.length}
-                active={activeTab === 'history'} onClick={() => setActiveTab('history')}
+                icon={History} label="ประวัติใบงาน" count={requests.length}
+                active={statusFilter === null && activeTab === 'history'} onClick={() => selectTab('history')}
                 accentBg="bg-slate-200" accentColor="text-slate-600"
               />
             </nav>
@@ -535,18 +775,38 @@ export default function CSRDashboard() {
           {/* ══ Content ══ */}
           <div className="flex-1 min-w-0">
 
+            {statusFilter ? (
+              <RequestListSection
+                title={statFilterMeta[statusFilter].title}
+                icon={statFilterMeta[statusFilter].icon}
+                iconBg={statFilterMeta[statusFilter].iconBg}
+                iconColor={statFilterMeta[statusFilter].iconColor}
+                subtitle={statFilterMeta[statusFilter].subtitle}
+                items={statFilterMeta[statusFilter].items}
+                expandedReq={expandedReq}
+                setExpandedReq={setExpandedReq}
+                openConfirmModal={openConfirmModal}
+                openExchangeModal={openExchangeModal}
+                handleUpdateStatus={handleUpdateStatus}
+                completingId={completingId}
+                fetchData={fetchData}
+                emptyIcon={Inbox}
+                emptyText="ไม่มีใบงานในกลุ่มนี้"
+              />
+            ) : (
+            <>
             {activeTab === 'active' && (
             <div>
               {/* ── Sub-tab แนวนอน (segmented control) ── */}
               <div className="inline-flex items-center gap-1 p-1 mb-4 rounded-xl bg-slate-100">
                 <SubTabButton
                   icon={ClipboardEdit} label="CSR Workflow" count={csrWorkflowRequests.length}
-                  active={workflowSubTab === 'csr'} onClick={() => setWorkflowSubTab('csr')}
+                  active={workflowSubTab === 'csr'} onClick={() => selectWorkflowSubTab('csr')}
                   accentColor="text-blue-600"
                 />
                 <SubTabButton
                   icon={Eye} label="Active Workflow" count={monitorWorkflowRequests.length}
-                  active={workflowSubTab === 'monitor'} onClick={() => setWorkflowSubTab('monitor')}
+                  active={workflowSubTab === 'monitor'} onClick={() => selectWorkflowSubTab('monitor')}
                   accentColor="text-indigo-600"
                 />
               </div>
@@ -572,22 +832,10 @@ export default function CSRDashboard() {
               )}
 
               {workflowSubTab === 'monitor' && (
-                <RequestListSection
-                  title="Active Workflow"
-                  icon={Eye}
-                  iconBg="bg-indigo-100"
-                  iconColor="text-indigo-600"
-                  subtitle={`${monitorWorkflowRequests.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า`}
+                <MonitorBoard
                   items={monitorWorkflowRequests}
                   expandedReq={expandedReq}
                   setExpandedReq={setExpandedReq}
-                  openConfirmModal={openConfirmModal}
-                  openExchangeModal={openExchangeModal}
-                  handleUpdateStatus={handleUpdateStatus}
-                  completingId={completingId}
-                  fetchData={fetchData}
-                  emptyIcon={Inbox}
-                  emptyText="ไม่มีใบงานที่กำลังดำเนินการโดยฝ่ายอื่น"
                 />
               )}
             </div>
@@ -595,12 +843,14 @@ export default function CSRDashboard() {
 
             {activeTab === 'history' && (
             <RequestListSection
-              title="ประวัติใบงาน (Complete)"
+              title="ประวัติใบงาน"
               icon={History}
               iconBg="bg-slate-100"
               iconColor="text-muted-foreground"
-              subtitle={`${historyRequests.length} ใบงานที่เสร็จสิ้นหรือถูกปฏิเสธ`}
-              items={historyRequests}
+              subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
+              items={historyRequestsSorted}
+              pageSize={10}
+              readOnly
               expandedReq={expandedReq}
               setExpandedReq={setExpandedReq}
               openConfirmModal={openConfirmModal}
@@ -609,8 +859,10 @@ export default function CSRDashboard() {
               completingId={completingId}
               fetchData={fetchData}
               emptyIcon={Inbox}
-              emptyText="ยังไม่มีประวัติใบงาน"
+              emptyText="ยังไม่มีใบงานในระบบ"
             />
+            )}
+            </>
             )}
 
           </div>
