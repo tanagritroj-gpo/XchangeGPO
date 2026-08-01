@@ -13,7 +13,7 @@ const REQUEST_TYPE_STYLE: Record<string, { icon: any; color: string; bg: string 
 };
 const DEFAULT_TYPE_STYLE = { icon: MoreHorizontal, color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200' };
 
-export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: () => void }) {
+export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: any; onUpdate: () => void; readOnly?: boolean }) {
   const isExchangeRequest = item.request_type === 'รับคืนแลกเปลี่ยน';
   const [productType, setProductType] = useState(item.product_type || '');
   const [status, setStatus] = useState({ pass: item.is_compliant, msg: item.compliance_remark || '' });
@@ -139,34 +139,40 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
           <>
             <div className="md:col-span-2">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 md:hidden">ประเภท</p>
-              <div className={`relative flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
-                ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('GPO')}
-                  className={`flex-1 py-2 px-2 text-center transition-all border-r border-slate-200
-                    ${productType === 'GPO'
-                      ? 'bg-teal-600 text-white border-r-teal-600'
-                      : 'bg-white text-slate-400 hover:bg-teal-50 hover:text-teal-700'}`}
-                >
-                  GPO
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleTypeChange('OTHER')}
-                  className={`flex-1 py-2 px-2 text-center transition-all
-                    ${productType === 'OTHER'
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-white text-slate-400 hover:bg-orange-50 hover:text-orange-600'}`}
-                >
-                  สมุนไพร/ผู้ผลิตอื่น
-                </button>
-                {isTypeSaving && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                    <Loader2 size={13} className="animate-spin text-slate-500" strokeWidth={2.5} />
-                  </div>
-                )}
-              </div>
+              {readOnly ? (
+                <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold">
+                  {productType === 'GPO' ? 'GPO' : productType === 'OTHER' ? 'สมุนไพร/ผู้ผลิตอื่น' : 'ยังไม่ระบุ'}
+                </span>
+              ) : (
+                <div className={`relative flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
+                  ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange('GPO')}
+                    className={`flex-1 py-2 px-2 text-center transition-all border-r border-slate-200
+                      ${productType === 'GPO'
+                        ? 'bg-teal-600 text-white border-r-teal-600'
+                        : 'bg-white text-slate-400 hover:bg-teal-50 hover:text-teal-700'}`}
+                  >
+                    GPO
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleTypeChange('OTHER')}
+                    className={`flex-1 py-2 px-2 text-center transition-all
+                      ${productType === 'OTHER'
+                        ? 'bg-orange-500 text-white'
+                        : 'bg-white text-slate-400 hover:bg-orange-50 hover:text-orange-600'}`}
+                  >
+                    สมุนไพร/ผู้ผลิตอื่น
+                  </button>
+                  {isTypeSaving && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                      <Loader2 size={13} className="animate-spin text-slate-500" strokeWidth={2.5} />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="md:col-span-1 flex md:justify-center items-start md:items-center">
@@ -180,9 +186,9 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
           <div className="hidden md:block md:col-span-3" />
         )}
 
-        {/* Actions */}
+        {/* Actions — ซ่อนทั้งหมดเมื่อ readOnly (ใช้กับ "ประวัติใบงาน" ที่เป็นแค่ดูข้อมูล) */}
         <div className="md:col-span-3 flex justify-end gap-2 pt-1 md:pt-0 border-t border-slate-100 md:border-0">
-          {localStatus === 'pending_review' ? (
+          {!readOnly && localStatus === 'pending_review' ? (
             <>
               <button onClick={() => openActionModal('approve')}
                 className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all">
@@ -193,6 +199,8 @@ export default function CSRDrugRow({ item, onUpdate }: { item: any; onUpdate: ()
                 ปฏิเสธ
               </button>
             </>
+          ) : localStatus === 'pending_review' ? (
+            <span className="text-xs font-bold text-amber-600">รอตรวจสอบ</span>
           ) : (
             <span className={`text-xs font-bold ${localStatus === 'rejected' ? 'text-red-500' : 'text-emerald-600'}`}>
               {localStatus === 'rejected' ? 'ปฏิเสธแล้ว' : 'อนุมัติแล้ว'}

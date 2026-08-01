@@ -50,7 +50,7 @@ export async function searchB2BCustomers(query: string) {
 
   const { data, error } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, hospital_name, contact_name, position, phone, email, customer_code')
+    .select('id, hospital_name, contact_name, position, phone, email, customer_code, org_type')
     .or(
       `hospital_name.ilike.${pattern},contact_name.ilike.${pattern},customer_code.ilike.${pattern},email.ilike.${pattern}`
     )

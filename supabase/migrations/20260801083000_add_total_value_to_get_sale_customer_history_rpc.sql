@@ -1,0 +1,40 @@
+-- เพิ่ม total_value ต่อคำร้อง เพื่อให้หน้า sale history แสดงมูลค่ารวมในรายการ
+-- แบบเดียวกับ ประวัติใบงาน ของ CSR (getCustomerRequestHistory ก็ select total_value)
+CREATE OR REPLACE FUNCTION public.get_sale_customer_history(p_org_types text[], p_provinces text[])
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF p_org_types IS NULL OR array_length(p_org_types, 1) IS NULL
+     OR p_provinces IS NULL OR array_length(p_provinces, 1) IS NULL THEN
+    RETURN '[]'::json;
+  END IF;
+
+  RETURN (
+    SELECT json_agg(res)
+    FROM (
+      SELECT
+        r.id, r.ref_id, r.created_at, r.current_status, r.request_type, r.total_value,
+        c.hospital_name, c.province, c.customer_code,
+        (
+          SELECT json_agg(d)
+          FROM (
+            SELECT id, drug_name, current_status, qty, unit, lot_number, exp_date, value_amount
+            FROM public.drug_items
+            WHERE request_id = r.id
+          ) d
+        ) AS drug_items
+      FROM public.requests r
+      JOIN public.b2b_customers c ON c.id = r.b2b_customer_id
+      WHERE c.org_type = ANY(p_org_types) AND c.province = ANY(p_provinces)
+      ORDER BY r.created_at DESC
+    ) res
+  );
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.get_sale_customer_history(text[], text[]) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.get_sale_customer_history(text[], text[]) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_sale_customer_history(text[], text[]) TO service_role;

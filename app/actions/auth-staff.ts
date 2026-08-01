@@ -14,6 +14,14 @@ export async function registerStaff(payload: any) {
     const hashedPassword = await bcrypt.hash(payload.password, salt);
     const userRole = payload.department === 'manager' ? 'manager' : 'staff';
 
+    // ขอบเขตดูแลของ sale — มีค่าเฉพาะ department 'sale' เท่านั้น (undefined สำหรับแผนกอื่น)
+    const saleCustomerTypes = payload.department === 'sale'
+      ? (Array.isArray(payload.sale_customer_types) ? payload.sale_customer_types : payload.sale_customer_types ? [payload.sale_customer_types] : [])
+      : null;
+    const saleProvinces = payload.department === 'sale'
+      ? (Array.isArray(payload.sale_provinces) ? payload.sale_provinces : payload.sale_provinces ? [payload.sale_provinces] : [])
+      : null;
+
     const { error } = await supabaseAdmin
       .from('staff_users')
       .insert([
@@ -24,7 +32,9 @@ export async function registerStaff(payload: any) {
           full_name: payload.full_name,
           department: payload.department,
           is_approved: false,
-          role: userRole
+          role: userRole,
+          sale_customer_types: saleCustomerTypes,
+          sale_provinces: saleProvinces,
         }
       ]);
 
@@ -131,7 +141,7 @@ export async function getStaffSession() {
 
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved)')
+    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved, sale_customer_types, sale_provinces)')
     .eq('token', token)
     .eq('actor_type', 'staff')
     .maybeSingle();
@@ -155,6 +165,8 @@ export async function getStaffSession() {
     full_name: staffUser.full_name,
     role: staffUser.role,
     department: staffUser.department,
+    sale_customer_types: staffUser.sale_customer_types as string[] | null,
+    sale_provinces: staffUser.sale_provinces as string[] | null,
   };
 }
 

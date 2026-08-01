@@ -4,14 +4,23 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
+import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 
 export function StaffSignUpForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const { register, handleSubmit, formState: { errors } } = useForm();
+  const { register, handleSubmit, watch, formState: { errors } } = useForm();
+  const department = watch('department');
+  const isSale = department === 'sale';
 
   const onSubmit = async (data: any) => {
+    if (isSale) {
+      const types = Array.isArray(data.sale_customer_types) ? data.sale_customer_types : data.sale_customer_types ? [data.sale_customer_types] : [];
+      const provinces = Array.isArray(data.sale_provinces) ? data.sale_provinces : data.sale_provinces ? [data.sale_provinces] : [];
+      if (types.length === 0) { alert('กรุณาเลือกประเภทลูกค้าที่ดูแลอย่างน้อย 1 รายการ'); return; }
+      if (provinces.length === 0) { alert('กรุณาเลือกจังหวัดที่ดูแลอย่างน้อย 1 จังหวัด'); return; }
+    }
     setLoading(true);
     const result = await registerStaff(data);
     
@@ -69,9 +78,42 @@ export function StaffSignUpForm() {
             <option value="log">Logistics (LOG)</option>
             <option value="wh">Warehouse (WH)</option>
             <option value="manager">Manager (Admin)</option>
+            <option value="sale">Sale (พนักงานขาย)</option>
           </select>
           {errors.department && <p className={errorStyle}>{errors.department.message as string}</p>}
         </div>
+
+        {/* ขอบเขตดูแลของ sale — เลือกได้มากกว่า 1 ทั้ง 2 กลุ่ม บังคับตรวจใน onSubmit
+            แทนที่จะใช้ react-hook-form required เพราะเป็น checkbox กลุ่มไม่ใช่ field เดี่ยว */}
+        {isSale && (
+          <div className="space-y-4 p-4 rounded-xl bg-teal-50/60 border border-teal-100">
+            <div>
+              <label className={labelStyle}>ประเภทลูกค้าที่ดูแล</label>
+              <div className="space-y-2">
+                {SALE_CUSTOMER_TYPE_OPTIONS.map((o) => (
+                  <label key={o.value} className="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" value={o.value} {...register('sale_customer_types')} className="mt-0.5 w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                    <span className="text-sm text-foreground">
+                      {o.label}
+                      <span className="block text-[11px] text-muted-foreground font-normal">{o.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className={labelStyle}>จังหวัดที่ดูแล</label>
+              <div className="grid grid-cols-2 gap-2">
+                {SOUTHERN_PROVINCES.map((p) => (
+                  <label key={p} className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" value={p} {...register('sale_provinces')} className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500" />
+                    <span className="text-sm text-foreground">{p}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 import { buildRegistrationConfirmationPdf } from '@/app/services/registration-pdf-service';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -108,6 +109,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           position: client.position,
           customer_code: customerCode!.trim(),
           province: client.province,
+          org_type: client.org_type,
         })
         .select('id')
         .single();
@@ -267,6 +269,25 @@ export async function getRegistrationDocumentUrl(b2bCustomerId: number) {
     }
 
     return { success: true, url: signed.signedUrl };
+  });
+}
+
+// แก้ไขประเภทหน่วยงานของลูกค้าที่อนุมัติไปแล้วก่อนหน้านี้ — จำเป็นสำหรับลูกค้าเก่า
+// ที่ลงทะเบียนก่อนมีฟีเจอร์นี้ (org_type เป็น NULL) เพื่อให้พนักงาน sale จับคู่ขอบเขต
+// ดูแลกับลูกค้าเก่าได้ ลูกค้าใหม่ที่ลงทะเบียนหลังจากนี้จะมี org_type มาตั้งแต่แรกอยู่แล้ว
+export async function updateCustomerOrgType(b2bCustomerId: number, orgType: string) {
+  return withCSRAuth(async () => {
+    if (!ORG_TYPE_OPTIONS.some((o) => o.value === orgType)) {
+      return { success: false, error: 'ประเภทหน่วยงานไม่ถูกต้อง' };
+    }
+
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ org_type: orgType })
+      .eq('id', b2bCustomerId);
+
+    if (error) return { success: false, error: 'บันทึกไม่สำเร็จ' };
+    return { success: true };
   });
 }
 

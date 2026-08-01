@@ -22,7 +22,7 @@ const { stampCheckedIn, confirmCheckedInBatch, stampReceiving, rejectWHItem } = 
   '../wh-actions'
 );
 
-const WH_STAFF = { id: 'wh-1', username: 'wh-1', full_name: 'Test Staff', department: 'wh', role: 'staff' };
+const WH_STAFF = { id: 'wh-1', username: 'wh-1', full_name: 'Test Staff', department: 'wh', role: 'staff', sale_customer_types: null, sale_provinces: null };
 
 function seedRequest(requestId: number, items: { id: number; current_status: string }[], requestStatus = 'at_warehouse') {
   fakeAdmin.seed({
@@ -46,14 +46,14 @@ describe('authorization guard', () => {
   });
 
   it('rejects staff outside the wh department', async () => {
-    mockGetStaffSession.mockResolvedValue({ id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff' });
+    mockGetStaffSession.mockResolvedValue({ id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff', sale_customer_types: null, sale_provinces: null });
     seedRequest(1, [{ id: 1, current_status: 'at_warehouse' }]);
     const res = await stampCheckedIn(1, '');
     expect(res).toEqual({ success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' });
   });
 
   it('allows a manager regardless of their department', async () => {
-    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager' });
+    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager', sale_customer_types: null, sale_provinces: null });
     seedRequest(1, [{ id: 1, current_status: 'at_warehouse' }]);
     const res = await stampCheckedIn(1, '');
     expect(res.success).toBe(true);

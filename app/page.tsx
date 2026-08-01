@@ -91,9 +91,10 @@ function HomePageContent() {
           'manager': '/admin/manager/staff-approvals',
           'csr': '/admin/csr',
           'log': '/admin/logistics/dashboard',
-          'wh': '/admin/wh/dashboard'
+          'wh': '/admin/wh/dashboard',
+          'sale': '/admin/sale'
         };
-        
+
         const destination = deptRoutes[result.department] || '/dashboard';
         router.push(destination);
       } else {

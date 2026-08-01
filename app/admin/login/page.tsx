@@ -25,7 +25,8 @@ export default function LoginPage() {
         'manager': '/admin/manager/staff-approvals',
         'csr': '/admin/csr',
         'log': '/admin/logistics/dashboard',
-        'wh': '/admin/wh/dashboard'
+        'wh': '/admin/wh/dashboard',
+        'sale': '/admin/sale'
       };
       
       const destination = departmentRoutes[res.department] || '/';
