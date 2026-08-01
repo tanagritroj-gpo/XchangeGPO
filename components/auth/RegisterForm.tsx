@@ -6,14 +6,18 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
+import { SOUTHERN_PROVINCES, ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 
 // หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
 // ลูกค้าค้างอยู่หน้าลงทะเบียนเดิมแล้วงงว่าต้องทำอะไรต่อ (เดิมใช้ alert() เฉยๆ
 // ปิดแล้วก็ยังค้างอยู่หน้าเดิม)
 const SUCCESS_REDIRECT_DELAY_MS = 2200;
 
+const ORG_TYPE_VALUES = ORG_TYPE_OPTIONS.map((o) => o.value) as [string, ...string[]];
+
 const registerSchema = z.object({
   hospital_name: z.string().min(1, "กรุณากรอกชื่อหน่วยงาน"),
+  org_type: z.enum(ORG_TYPE_VALUES, { message: "กรุณาเลือกประเภทหน่วยงาน" }),
   province: z.string().min(1, "กรุณาเลือกจังหวัด"),
   contact_name: z.string().min(1, "กรุณากรอกชื่อผู้ติดต่อ"),
   position: z.string().min(1, "กรุณากรอกตำแหน่ง"),
@@ -93,12 +97,20 @@ export function RegisterForm() {
             <label className={labelStyle}>ชื่อหน่วยงาน / โรงพยาบาล</label>
             <input {...register("hospital_name")} placeholder="เช่น โรงพยาบาลส่งเสริมสุขภาพ..." className={inputStyle} />
             {errors.hospital_name && <p className={errorStyle}>⚠ {errors.hospital_name.message as string}</p>}
+            <div className="mt-4">
+              <label className={labelStyle}>ประเภทหน่วยงาน</label>
+              <select {...register("org_type")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
+                <option value="">เลือกประเภทหน่วยงาน</option>
+                {ORG_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {errors.org_type && <p className={errorStyle}>⚠ {errors.org_type.message as string}</p>}
+            </div>
             <div className="grid grid-cols-2 gap-3 mt-4">
               <div>
                 <label className={labelStyle}>จังหวัด</label>
                 <select {...register("province")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
                   <option value="">เลือกจังหวัด</option>
-                  {["สงขลา", "ตรัง", "สตูล", "พัทลุง", "ยะลา", "ปัตตานี", "นราธิวาส"].map(p => <option key={p} value={p}>{p}</option>)}
+                  {SOUTHERN_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 {errors.province && <p className={errorStyle}>⚠ {errors.province.message as string}</p>}
               </div>

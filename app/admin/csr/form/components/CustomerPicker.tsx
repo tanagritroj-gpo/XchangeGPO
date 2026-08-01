@@ -11,6 +11,7 @@ interface Customer {
   phone: string | null;
   email: string;
   customer_code: string | null;
+  org_type?: string | null;
 }
 
 interface CustomerPickerProps {

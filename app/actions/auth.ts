@@ -3,9 +3,13 @@
 import { z } from 'zod';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
+
+const ORG_TYPE_VALUES = ORG_TYPE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
 const RegisterSchema = z.object({
   hospital_name: z.string().min(1).max(200),
+  org_type: z.enum(ORG_TYPE_VALUES),
   province: z.string().min(1).max(100),
   contact_name: z.string().min(1).max(100),
   position: z.string().min(1).max(100),
@@ -52,6 +56,7 @@ export async function registerCustomer(payload: unknown) {
       .insert([
         {
           hospital_name: data.hospital_name,
+          org_type: data.org_type,
           province: data.province,
           contact_name: data.contact_name,
           position: data.position,

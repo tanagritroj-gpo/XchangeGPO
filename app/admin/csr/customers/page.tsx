@@ -1,19 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Inbox, Pill, ChevronDown, Download } from 'lucide-react';
-import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl } from '@/app/actions/csr-actions';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil } from 'lucide-react';
+import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
+import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
-import {
-  STAGES,
-  getStatusLabel,
-  getStatusMeta,
-  getTimelineDescription,
-  getCurrentStageIndex,
-  formatCurrency,
-  REJECTED_STATUS,
-} from '@/lib/tracking-status';
+import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 
 interface Customer {
   id: number;
@@ -23,6 +16,70 @@ interface Customer {
   phone: string | null;
   email: string;
   customer_code: string | null;
+  org_type?: string | null;
+}
+
+// แก้ไขประเภทหน่วยงานของลูกค้าที่อนุมัติไปแล้ว — จำเป็นสำหรับลูกค้าเก่าที่ org_type
+// ยังเป็น NULL (ลงทะเบียนก่อนมีฟีเจอร์นี้) เพื่อให้พนักงาน sale จับคู่ขอบเขตดูแลได้
+function OrgTypeEditor({ customer, onSaved }: { customer: Customer; onSaved: (orgType: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(customer.org_type ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const currentLabel = ORG_TYPE_OPTIONS.find((o) => o.value === customer.org_type)?.label;
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 mt-2">
+        {currentLabel ? (
+          <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg">{currentLabel}</span>
+        ) : (
+          <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg">ยังไม่ได้กำหนดประเภทหน่วยงาน</span>
+        )}
+        <button
+          type="button"
+          onClick={() => { setDraft(customer.org_type ?? ''); setEditing(true); }}
+          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-teal-700 transition-colors"
+        >
+          <Pencil size={12} strokeWidth={2.5} /> แก้ไขประเภทหน่วยงาน
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-2">
+      <select
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        className="px-3 py-1.5 rounded-lg border border-border text-xs focus:outline-none focus:border-teal-400 focus:ring-2 focus:ring-teal-50"
+      >
+        <option value="">เลือกประเภทหน่วยงาน</option>
+        {ORG_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <button
+        type="button"
+        disabled={!draft || saving}
+        onClick={async () => {
+          setSaving(true);
+          const res = await updateCustomerOrgType(customer.id, draft);
+          setSaving(false);
+          if (res.success) { onSaved(draft); setEditing(false); }
+          else alert((res as any).error || 'บันทึกไม่สำเร็จ');
+        }}
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-40 transition-colors"
+      >
+        {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} strokeWidth={3} />} บันทึก
+      </button>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="text-xs font-semibold text-muted-foreground hover:text-slate-700 transition-colors"
+      >
+        ยกเลิก
+      </button>
+    </div>
+  );
 }
 
 // StatPill เวอร์ชันย่อ — ใช้แค่ tone เดียว (amber) เพราะหน้านี้มีแค่ตัวเลขลูกค้าอย่างเดียว
@@ -57,157 +114,6 @@ function SubTabButton({ icon: Icon, label, count, active, onClick }: {
   );
 }
 
-// ── การ์ดรายละเอียดใบงานแบบเต็ม — สไตล์เดียวกับหน้า tracking ที่ต้อง login ของลูกค้า ──
-// (ref_id + badge สถานะ + stepper + รายการยา + timeline พร้อมหมายเหตุ staff)
-function RequestDetailPanel({ requestId, customerId }: { requestId: number; customerId: number }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError('');
-      const res = await getStaffRequestDetail(requestId, customerId);
-      if (cancelled) return;
-      if (res.success) setData(res.data);
-      else setError(res.error || 'โหลดรายละเอียดไม่สำเร็จ');
-      setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [requestId, customerId]);
-
-  if (loading) {
-    return (
-      <div className="py-8 text-center">
-        <Loader2 className="w-6 h-6 text-teal-600 animate-spin mx-auto mb-2" strokeWidth={2.5} />
-        <p className="text-xs text-muted-foreground font-medium">กำลังโหลดรายละเอียด...</p>
-      </div>
-    );
-  }
-  if (error || !data) {
-    return <p className="py-8 text-center text-sm text-rose-500 font-medium">{error}</p>;
-  }
-
-  const currentStageIndex = getCurrentStageIndex(data.current_status);
-  const isRejected = data.current_status === REJECTED_STATUS;
-
-  return (
-    <div className="px-4 md:px-6 py-5 bg-slate-50 border-t border-slate-100 space-y-5">
-
-      {/* Stepper สรุปภาพรวม — ซ่อนถ้า rejected */}
-      {currentStageIndex >= 0 && (
-        <div className="flex items-center bg-white rounded-2xl border border-border p-4">
-          {STAGES.map((stage, i) => (
-            <div key={stage.key} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center flex-1">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                  i < currentStageIndex ? 'bg-emerald-500' : i === currentStageIndex ? 'bg-amber-500' : 'bg-slate-200'
-                }`}>
-                  {i < currentStageIndex && <Check className="w-3.5 h-3.5 text-white" />}
-                </div>
-                <p className={`text-[10px] mt-1.5 text-center ${i <= currentStageIndex ? 'text-slate-700 font-semibold' : 'text-muted-foreground'}`}>
-                  {stage.label}
-                </p>
-              </div>
-              {i < STAGES.length - 1 && (
-                <div className={`h-0.5 flex-1 -mt-5 ${i < currentStageIndex ? 'bg-emerald-500' : 'bg-slate-200'}`} />
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* รายละเอียดคำร้อง */}
-      <div className="bg-white rounded-2xl border border-border p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">เหตุผลการคืน</p>
-          <p className="font-medium text-slate-700">{data.return_reason || '-'}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">วิธีคืนสินค้า</p>
-          <p className="font-medium text-slate-700">{data.delivery_type || '-'}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-muted-foreground mb-0.5">มูลค่ารวม</p>
-          <p className="font-bold text-teal-700">{formatCurrency(data.total_value) || '-'}</p>
-        </div>
-      </div>
-
-      {/* รายการยา */}
-      {data.drug_items?.length > 0 && (
-        <div className="bg-white rounded-2xl border border-border p-4">
-          <p className="text-xs font-bold text-muted-foreground mb-3 flex items-center gap-1.5">
-            <Pill className="w-3.5 h-3.5" /> รายการยา
-          </p>
-          <div className="space-y-2">
-            {data.drug_items.map((item: any, i: number) => {
-              const itemRejected = item.current_status === REJECTED_STATUS;
-              return (
-                <div key={i} className={`rounded-xl p-3 border flex items-center justify-between gap-3 ${
-                  itemRejected ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'
-                }`}>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-bold text-foreground text-xs truncate">{item.drug_name}</p>
-                      {itemRejected && (
-                        <span className="text-[9px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded shrink-0">ถูกปฏิเสธ</span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {item.lot_number && <>ล็อต {item.lot_number}</>}
-                      {item.lot_number && item.exp_date && ' · '}
-                      {item.exp_date && <>หมดอายุ {new Date(item.exp_date).toLocaleDateString('th-TH')}</>}
-                    </p>
-                  </div>
-                  <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap shrink-0">{item.qty} {item.unit}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Timeline พร้อมหมายเหตุ staff */}
-      <div>
-        <p className="text-xs font-bold text-muted-foreground mb-3 px-1">ประวัติการดำเนินการ</p>
-        <div className="relative border-l-2 border-border ml-3 space-y-6">
-          {data.timeline?.map((log: any, i: number) => {
-            const meta = getStatusMeta(log.status_name);
-            const Icon = meta.icon;
-            return (
-              <div key={i} className="relative pl-7">
-                <div className={`absolute -left-[15px] top-0 w-7 h-7 rounded-full ${meta.bg} flex items-center justify-center shadow-sm`}>
-                  <Icon className={`w-3.5 h-3.5 ${meta.fg}`} />
-                </div>
-                <p className="text-[10px] text-muted-foreground font-mono">
-                  {new Date(log.log_date).toLocaleString('th-TH')}
-                </p>
-                <h4 className="font-bold text-teal-900 text-sm">{log.status_name}</h4>
-                {getTimelineDescription(log.status_name) && (
-                  <p className="text-xs text-muted-foreground mt-0.5">{getTimelineDescription(log.status_name)}</p>
-                )}
-                {log.drug_name && (
-                  <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                    <Pill className="w-3 h-3" /> {log.drug_name}
-                  </p>
-                )}
-                {log.staff_remark && (
-                  <p className="text-xs text-slate-600 mt-1.5 bg-white border border-border rounded-lg px-2.5 py-1.5 flex items-start gap-1.5">
-                    <FileText className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-                    {log.staff_remark}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CSRCustomersPage() {
   const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
@@ -221,7 +127,6 @@ export default function CSRCustomersPage() {
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
-  const [expandedRequestId, setExpandedRequestId] = useState<number | null>(null);
   const [docLoading, setDocLoading] = useState(false);
   // signed URL ของเอกสารที่กำลังแสดงอยู่ในโมดัล — ใช้แทน window.open() เพราะ window.open()
   // ที่เรียกหลัง await (คำขอ signed URL) ไม่นับเป็น user gesture ตรงๆ อีกต่อไป ทำให้ browser
@@ -250,7 +155,6 @@ export default function CSRCustomersPage() {
 
   // โหลดประวัติใบงานทุกครั้งที่เลือกลูกค้าใหม่ในแท็บค้นหา
   useEffect(() => {
-    setExpandedRequestId(null);
     if (!selectedCustomer) {
       setHistory([]);
       setHistoryError('');
@@ -447,6 +351,12 @@ export default function CSRCustomersPage() {
                   onSelect={setSelectedCustomer}
                   onClear={() => setSelectedCustomer(null)}
                 />
+                {selectedCustomer && (
+                  <OrgTypeEditor
+                    customer={selectedCustomer}
+                    onSaved={(orgType) => setSelectedCustomer((prev) => prev ? { ...prev, org_type: orgType } : prev)}
+                  />
+                )}
               </div>
             </section>
 
@@ -471,67 +381,13 @@ export default function CSRCustomersPage() {
                   </button>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-border overflow-hidden">
-                  {historyLoading ? (
-                    <div className="py-10 text-center">
-                      <Loader2 className="w-7 h-7 text-teal-600 animate-spin mx-auto mb-2" strokeWidth={2.5} />
-                      <p className="text-xs text-muted-foreground font-medium">กำลังโหลดประวัติใบงาน...</p>
-                    </div>
-                  ) : historyError ? (
-                    <div className="py-10 text-center px-4">
-                      <p className="text-sm text-rose-500 font-medium">{historyError}</p>
-                    </div>
-                  ) : history.length === 0 ? (
-                    <div className="py-10 text-center">
-                      <Inbox className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.75} />
-                      <p className="text-sm text-muted-foreground font-medium">ลูกค้ารายนี้ยังไม่มีประวัติใบงาน</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {history.map((req) => {
-                        const isExpanded = expandedRequestId === req.id;
-                        return (
-                          <div key={req.id}>
-                            <button
-                              onClick={() => setExpandedRequestId(isExpanded ? null : req.id)}
-                              className="w-full flex items-center justify-between px-4 md:px-6 py-3.5 gap-3 hover:bg-slate-50 transition-colors text-left"
-                            >
-                              <div className="min-w-0">
-                                <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {req.request_type} · {new Date(req.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-3 shrink-0">
-                                {req.total_value != null && (
-                                  <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">
-                                    {formatCurrency(req.total_value)}
-                                  </span>
-                                )}
-                                <span
-                                  className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                                    req.current_status === REJECTED_STATUS
-                                      ? 'bg-red-50 text-red-700'
-                                      : req.current_status === 'completed'
-                                      ? 'bg-emerald-50 text-emerald-700'
-                                      : 'bg-amber-50 text-amber-700'
-                                  }`}
-                                >
-                                  {getStatusLabel(req.current_status)}
-                                </span>
-                                <ChevronDown size={16} strokeWidth={2.5} className={`text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                              </div>
-                            </button>
-
-                            {isExpanded && (
-                              <RequestDetailPanel requestId={req.id} customerId={selectedCustomer.id} />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <RequestHistoryList
+                  history={history}
+                  loading={historyLoading}
+                  error={historyError}
+                  emptyText="ลูกค้ารายนี้ยังไม่มีประวัติใบงาน"
+                  fetchDetail={(id) => getStaffRequestDetail(id, selectedCustomer.id)}
+                />
               </section>
             )}
           </div>

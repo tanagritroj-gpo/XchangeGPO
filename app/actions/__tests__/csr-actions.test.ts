@@ -30,7 +30,7 @@ const {
   getRegistrationDocumentUrl,
 } = await import('../csr-actions');
 
-const CSR_STAFF = { id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff' };
+const CSR_STAFF = { id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff', sale_customer_types: null, sale_provinces: null };
 
 function seedRequest(
   requestId: number,
@@ -57,14 +57,14 @@ describe('authorization guard uses department, not role — unlike wh/logistics'
     // wins" guard: csr-actions checks department only. A staff member who
     // somehow has role='manager' but department='wh' must still be rejected
     // here, even though the same session would pass the WH/logistics guard.
-    mockGetStaffSession.mockResolvedValue({ id: 'x', username: 'x', full_name: 'Test Staff', department: 'wh', role: 'manager' });
+    mockGetStaffSession.mockResolvedValue({ id: 'x', username: 'x', full_name: 'Test Staff', department: 'wh', role: 'manager', sale_customer_types: null, sale_provinces: null });
     seedRequest(1, [{ id: 1, current_status: 'approved' }]);
     const res = await approveRequest(1);
     expect(res).toEqual({ success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' });
   });
 
   it('allows department=manager', async () => {
-    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager' });
+    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager', sale_customer_types: null, sale_provinces: null });
     seedRequest(1, [{ id: 1, current_status: 'approved' }]);
     const res = await approveRequest(1);
     expect(res.success).toBe(true);
