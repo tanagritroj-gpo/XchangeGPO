@@ -191,24 +191,34 @@ function HomePageContent() {
                       <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
                         {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
                       </button>
-                      
-                      <div className="relative flex py-2 items-center">
-                        <div className="flex-grow border-t border-border"></div>
-                        <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase">หรือ</span>
-                        <div className="flex-grow border-t border-border"></div>
+
+                      {/* ── ห่อ divider+ปุ่ม Google เป็นก้อนเดียว (ระยะห่างภายในกำหนดเอง)
+                          ให้กล่อง auth ฝั่งลูกค้า/พนักงานสูงเท่ากัน — ยึดสัดส่วนฝั่งพนักงานเป็นหลัก
+                          (พนักงานไม่มี Google sign-in ให้ยึด จึงต้องบีบระยะฝั่งลูกค้าให้พอดี) ── */}
+                      <div className="space-y-0">
+                        <div className="relative flex py-0 items-center">
+                          <div className="flex-grow border-t border-border"></div>
+                          <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase">หรือ</span>
+                          <div className="flex-grow border-t border-border"></div>
+                        </div>
+                        <button
+                          onClick={handleGoogleLogin}
+                          disabled={loadingLogin}
+                          className="mx-auto flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {/* ★ ใช้ width/height ตรงๆ แทน fill — fill ต้องพึ่งกล่องแม่
+                              คำนวณขนาดถูกต้องก่อนเสมอ ถ้า CSS โหลดช้า/พังจะกลายเป็นล่องหน
+                              ไปเลย (กล่องสูง 0) ส่วน width/height ทำให้ตัว <img> มีขนาด
+                              จริงในตัวเองเสมอ ไม่ขึ้นกับ CSS ของกล่องแม่เลย */}
+                          <Image
+                            src="/web_light_rd_SI@2x.png"
+                            alt="Sign in with Google"
+                            width={116}
+                            height={26}
+                            className="h-[32px] w-auto"
+                          />
+                        </button>
                       </div>
-                      <button
-                        onClick={handleGoogleLogin}
-                        disabled={loadingLogin}
-                        className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Image 
-                          src="/web_light_rd_SI@2x.png" 
-                          alt="Sign in with Google" 
-                          fill
-                          className="object-contain"
-                        />
-                      </button>
                     </>
                   ) : (
                     <>
