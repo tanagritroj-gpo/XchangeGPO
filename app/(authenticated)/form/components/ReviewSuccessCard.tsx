@@ -47,6 +47,7 @@ export function ReviewSuccessCard({
   const [copyLabel, setCopyLabel] = useState('คัดลอกเลขอ้างอิง');
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [downloading, setDownloading] = useState(false);
+  const [docModalUrl, setDocModalUrl] = useState<string | null>(null);
 
   // 1. เตรียมเอกสารอัตโนมัติทันทีที่โหลดหน้าจอ
   useEffect(() => {
@@ -84,7 +85,11 @@ export function ReviewSuccessCard({
     }
   };
 
-  // 3. ฟังก์ชันดาวน์โหลด (ขอ URL ใหม่เสมอ ป้องกันลิงก์หมดอายุ 5 นาที)
+  // 3. ฟังก์ชันเปิดเอกสาร (ขอ URL ใหม่เสมอ ป้องกันลิงก์หมดอายุ 5 นาที) — เปิดเป็น modal
+  //    แทนการจำลองคลิก <a download> เดิม เพราะ URL เป็น signed URL ของ Supabase Storage
+  //    (คนละ origin กับหน้าเว็บ) ทำให้ attribute `download` ใช้ไม่ได้จริงกับ cross-origin
+  //    URL — browser จะเปลี่ยนไป "เปิดหน้าเดิม" แทนการดาวน์โหลดแทน (pattern เดียวกับ
+  //    เอกสารยืนยันการลงทะเบียนฝั่ง CSR ใน app/admin/csr/customers/page.tsx)
   const handleDownload = async () => {
     setDownloading(true);
     try {
@@ -94,12 +99,7 @@ export function ReviewSuccessCard({
         setPdfState('error');
         return;
       }
-      const a = document.createElement('a');
-      a.href = fresh.url;
-      a.download = `FM-AJJ0-008_${refId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      setDocModalUrl(fresh.url);
     } finally {
       setDownloading(false);
     }
@@ -254,6 +254,42 @@ export function ReviewSuccessCard({
       <p className="text-center text-[11px] text-muted-foreground mt-3">
         ลิงก์ดาวน์โหลดมีอายุ 5 นาทีต่อการกดหนึ่งครั้ง เพื่อความปลอดภัยของข้อมูล — กดดาวน์โหลดใหม่ได้ทุกเมื่อ
       </p>
+
+      {/* ══ โมดัลดูใบรับคืน — เปิดในหน้าเดียวกันแทน window.open()/<a download> เดิม
+          (pattern เดียวกับเอกสารยืนยันการลงทะเบียนฝั่ง CSR) ══ */}
+      {docModalUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => setDocModalUrl(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-sm font-bold text-foreground">ใบรับคืนสินค้า</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={docModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
+                >
+                  📥 เปิดในแท็บใหม่ / ดาวน์โหลด
+                </a>
+                <button
+                  onClick={() => setDocModalUrl(null)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-slate-600 transition-all"
+                  aria-label="ปิด"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <iframe src={docModalUrl} className="flex-1 w-full" title="ใบรับคืนสินค้า" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
