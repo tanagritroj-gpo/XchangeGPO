@@ -28,7 +28,7 @@
 2. ยืนยันผลการรัน UAT ทุก test case ในส่วนที่ 2 ผ่านทั้งหมด โดยไม่มี defect ระดับ Critical/High ค้างอยู่
 3. ทดสอบ **staff-chat function calling กับ Gemini API จริงอีกครั้ง** (ตามที่ระบุใน SYSTEM_ASSESSMENT.md ว่ายังไม่ได้ verify แบบ live หลังแก้บั๊ก thought_signature)
 4. กำหนดนโยบาย data retention/backup อย่างเป็นทางการ (ดูหัวข้อ 4 ในเอกสาร self-hosting)
-5. Pin เวอร์ชัน Next.js ให้ชัดเจนแทน `"latest"` เพื่อความสามารถในการ reproduce build
+5. ~~Pin เวอร์ชัน Next.js ให้ชัดเจนแทน `"latest"` เพื่อความสามารถในการ reproduce build~~ **แก้แล้ว 2 สิงหาคม 2569** — pin เป็น `16.2.9` (เวอร์ชันที่ `"latest"` เคย resolve มาให้และผ่าน build/test ทั้งหมดอยู่แล้ว) หมายเหตุ: พบว่า `eslint-config-next` ยังค้างอยู่ที่ `15.3.1` ไม่ตรงกับ Next.js 16 ที่ใช้จริง ควรพิจารณาอัปเดตให้ตรงกันในรอบถัดไป (ยังไม่กระทบการทำงาน เพราะเป็นแค่ config การ lint)
 
 ---
 
