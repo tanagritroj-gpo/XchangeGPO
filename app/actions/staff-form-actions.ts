@@ -5,6 +5,7 @@ import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
 import { Resend } from 'resend';
+import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -77,7 +78,7 @@ export async function getStaffNextDocNumber() {
 }
 
 // ── 3. สร้างคำร้องแทนลูกค้า — ไม่มีลายเซ็น ไม่ส่งอีเมล ──
-export async function createStaffReturnRequest(formData: any) {
+export async function createStaffReturnRequest(formData: ReturnFormData) {
   const session = await requireCsrSession();
 
   const allowed = await checkRateLimit(`create-staff-request:${session.id}`, 30, 3600);
@@ -109,14 +110,14 @@ export async function createStaffReturnRequest(formData: any) {
     throw new Error('ไม่พบข้อมูลลูกค้าที่เลือก กรุณาเลือกใหม่');
   }
 
-  const items: ReturnItemInput[] = formData.items.map((item: any): ReturnItemInput => ({
+  const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => ({
     drug_name: String(item.drugName ?? '').slice(0, 200),
     qty: Math.max(0, Number(item.qty) || 0),
     unit: item.unit || 'ไม่ระบุ',
     lot_number: item.lot || '',
     exp_date: sanitizeDate(item.exp),
     value_amount: Math.max(0, Number(item.val) || 0),
-    invoice_number: item.inv || item.invoiceNumber || '',
+    invoice_number: item.inv || '',
   }));
 
   const computedTotal = items.reduce((sum: number, i: { value_amount?: number }) => {
@@ -125,8 +126,8 @@ export async function createStaffReturnRequest(formData: any) {
 
   const requestData = {
     ref_id: `REF-${crypto.randomUUID().substring(0, 8).toUpperCase()}`,
-    doc_number: formData.sender.doc_number,
-    request_type: formData.sender.request_type,
+    doc_number: formData.sender?.doc_number,
+    request_type: formData.sender?.request_type,
 
     // ★ ข้อมูลหน่วยงาน/ผู้ติดต่อ ยึดจากลูกค้าที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
     hospital_name: customer.hospital_name,
@@ -343,7 +344,7 @@ export async function sendStaffPdfEmailAction(requestId: number) {
     });
 
     return { success: true, message: 'ส่งอีเมลสำเร็จแล้ว' };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Send Staff Email Catch Error:', err);
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' };
   }

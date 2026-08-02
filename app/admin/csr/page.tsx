@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import Link from 'next/link';
 import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, ArrowRight, LogOut, Users, Loader2, BarChart3 } from 'lucide-react';
+import type { StaffSessionInfo } from '@/lib/types';
 
 export default function CsrHubPage() {
   const router = useRouter();
-  const [staff, setStaff] = useState<any>(null);
+  const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 

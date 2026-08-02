@@ -7,6 +7,8 @@ import { getStaffSession } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import type { LucideIcon } from 'lucide-react';
+import type { ClientRow, HistorySummaryRow } from '@/lib/types';
 
 interface Customer {
   id: number;
@@ -65,7 +67,7 @@ function OrgTypeEditor({ customer, onSaved }: { customer: Customer; onSaved: (or
           const res = await updateCustomerOrgType(customer.id, draft);
           setSaving(false);
           if (res.success) { onSaved(draft); setEditing(false); }
-          else alert((res as any).error || 'บันทึกไม่สำเร็จ');
+          else alert(('error' in res && res.error) || 'บันทึกไม่สำเร็จ');
         }}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-40 transition-colors"
       >
@@ -95,7 +97,7 @@ function StatPill({ value, label }: { value: number; label: string }) {
 
 // Sub-tab แบบ segmented control — สไตล์เดียวกับที่ใช้ใน CSR Dashboard
 function SubTabButton({ icon: Icon, label, count, active, onClick }: {
-  icon: any; label: string; count?: number; active: boolean; onClick: () => void;
+  icon: LucideIcon; label: string; count?: number; active: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -116,7 +118,7 @@ function SubTabButton({ icon: Icon, label, count, active, onClick }: {
 
 export default function CSRCustomersPage() {
   const router = useRouter();
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<ClientRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [tab, setTab] = useState<'pending' | 'search' | 'export'>('pending');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -124,7 +126,7 @@ export default function CSRCustomersPage() {
   const [customerCodes, setCustomerCodes] = useState<Record<string, string>>({});
 
   // ประวัติใบงานของลูกค้าที่เลือกในแท็บค้นหา
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistorySummaryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
   const [docLoading, setDocLoading] = useState(false);
@@ -188,7 +190,7 @@ export default function CSRCustomersPage() {
         });
         fetchData();
       } else {
-        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
         // รีเฟรชด้วยแม้ล้มเหลว — สถานะจริงใน DB อาจเปลี่ยนไปแล้ว (เช่น ถูกดำเนินการไปแล้ว
         // จากคำขออื่น) ไม่อยากให้ list ค้างข้อมูลเก่าที่ไม่ตรงกับ DB จริง
         fetchData();
@@ -207,10 +209,10 @@ export default function CSRCustomersPage() {
     setDocLoading(true);
     const res = await getRegistrationDocumentUrl(selectedCustomer.id);
     setDocLoading(false);
-    if (res.success && (res as any).url) {
-      setDocModalUrl((res as any).url);
+    if (res.success && 'url' in res && res.url) {
+      setDocModalUrl(res.url);
     } else {
-      alert((res as any).error || 'ไม่สามารถเปิดเอกสารได้');
+      alert(('error' in res && res.error) || 'ไม่สามารถเปิดเอกสารได้');
     }
   };
 

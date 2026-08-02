@@ -22,6 +22,8 @@ import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs, getUnansweredChatbotQuestions } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
+import type { LucideIcon } from 'lucide-react';
+import type { RequestRow, DrugItemRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow } from '@/lib/types';
 
 // ── Status config: ใช้ชุดสีเดียวกับ CSR Dashboard ให้ทั้งระบบสอดคล้องกัน ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
@@ -49,7 +51,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard ──
 function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
-  icon: any; label: string; count: number; active: boolean; onClick: () => void;
+  icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
   accentBg: string; accentColor: string;
 }) {
   return (
@@ -75,7 +77,7 @@ const OVERVIEW_PAGE_SIZE = 5;
 
 // ── รายการใบงาน แบบดูอย่างเดียว (ไม่มีปุ่ม action — manager มอนิเตอร์ ไม่ได้แก้ไขจากหน้านี้) ──
 // แบ่งหน้าละ 5 รายการ (เหมือน CSR Report Center) กันรายการยาวเกะกะหน้าจอ
-function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: string }) {
+function RequestOverviewList({ items, emptyText }: { items: RequestRow[]; emptyText: string }) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
 
@@ -101,7 +103,7 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
-          {pagedItems.map((req: any) => {
+          {pagedItems.map((req: RequestRow) => {
             const isExpanded = expandedId === req.id;
             const drugCount = req.drug_items?.length ?? 0;
             return (
@@ -173,7 +175,7 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
                 {isExpanded && drugCount > 0 && (
                   <div className="px-4 md:px-6 pb-4">
                     <div className="space-y-1.5">
-                      {req.drug_items.map((item: any) => (
+                      {(req.drug_items ?? []).map((item: DrugItemRow) => (
                         <div key={item.id} className="grid grid-cols-2 md:grid-cols-12 gap-1.5 md:gap-2 text-xs bg-slate-50 px-3.5 py-2.5 rounded-xl items-start md:items-center border border-border">
                           <div className="col-span-2 md:col-span-4 font-semibold text-slate-700 truncate">{item.drug_name}</div>
                           <div className="col-span-1 md:col-span-2 text-muted-foreground">
@@ -185,7 +187,7 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
                             {item.lot_number ?? '-'}
                           </div>
                           <div className="col-span-1 md:col-span-2">
-                            <StatusBadge status={item.current_status} />
+                            <StatusBadge status={item.current_status ?? ''} />
                           </div>
                           <div className="col-span-1 md:col-span-2 text-left md:text-right font-bold text-teal-600">
                             ฿{Number(item.value_amount || 0).toLocaleString()}
@@ -193,13 +195,13 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
                         </div>
                       ))}
                     </div>
-                    {req.drug_items.some((i: any) => i.value_amount) && (
+                    {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
                       <div className="mt-2.5 flex justify-end">
                         <div className="flex items-center gap-2 bg-teal-50 border border-teal-100 rounded-xl px-4 py-2 text-xs">
                           <Pill size={13} className="text-teal-500" strokeWidth={2.5} />
                           <span className="text-muted-foreground">มูลค่ารวม:</span>
                           <span className="font-bold text-teal-700">
-                            ฿{req.drug_items.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                           </span>
                         </div>
                       </div>
@@ -256,10 +258,10 @@ function RequestOverviewList({ items, emptyText }: { items: any[]; emptyText: st
 
 export default function StaffApprovalPage() {
   const router = useRouter();
-  const [pendingStaff, setPendingStaff] = useState<any[]>([]);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [statusLogs, setStatusLogs] = useState<any[]>([]);
-  const [unansweredQuestions, setUnansweredQuestions] = useState<any[]>([]);
+  const [pendingStaff, setPendingStaff] = useState<PendingStaffRow[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
+  const [unansweredQuestions, setUnansweredQuestions] = useState<UnansweredQuestionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -317,7 +319,7 @@ export default function StaffApprovalPage() {
         alert("อนุมัติเรียบร้อยแล้ว");
         fetchData();
       } else {
-        alert("เกิดข้อผิดพลาด: " + ((res as any).error || 'ไม่ทราบสาเหตุ'));
+        alert("เกิดข้อผิดพลาด: " + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
       }
     } finally {
       setApprovingId(null);

@@ -6,6 +6,7 @@ import { stampCheckedIn, stampReceiving, rejectWHItem } from '@/app/actions/wh-a
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
+import type { DrugItemRow } from '@/lib/types';
 
 // หมายเหตุตรวจสภาพ/จัดเก็บ — preset ให้เลือกเร็วๆ ไม่ต้องพิมพ์เองทุกครั้ง (ยังพิมพ์
 // เพิ่มเติมได้ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติใดต้อง group
@@ -73,7 +74,7 @@ const MODAL_META: Record<Exclude<ActionModal, null>, {
 
 // ── WH Drug Row ───────────────────────────────────────────────
 export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
-  item: any;
+  item: DrugItemRow;
   reqConfirmed: boolean;
   onUpdate: (itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected') => void;
 }) {
@@ -132,7 +133,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
         {item.qty} <span className="font-normal text-muted-foreground">{item.unit}</span>
       </div>
       <div className="col-span-1 md:col-span-2">
-        <StatusBadge status={item.current_status} />
+        <StatusBadge status={item.current_status ?? ''} />
       </div>
 
       {/* Action Area */}

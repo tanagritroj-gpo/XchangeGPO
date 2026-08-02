@@ -3,12 +3,23 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
+import { getErrorMessage } from '@/lib/error-message';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
+interface StaffRegisterPayload {
+  employee_id: string;
+  username: string;
+  password: string;
+  full_name: string;
+  department: string;
+  sale_customer_types?: string | string[];
+  sale_provinces?: string | string[];
+}
+
 // --- ลงทะเบียนพนักงาน ---
-export async function registerStaff(payload: any) {
+export async function registerStaff(payload: StaffRegisterPayload) {
   try {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(payload.password, salt);
@@ -45,14 +56,14 @@ export async function registerStaff(payload: any) {
       throw error;
     }
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Staff Registration Error:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: getErrorMessage(error) };
   }
 }
 
 // --- ล็อกอินพนักงาน ---
-export async function loginStaffAction(payload: any) {
+export async function loginStaffAction(payload: { username: string; password: string }) {
   const { username, password } = payload;
 
   try {
@@ -95,7 +106,7 @@ export async function loginStaffAction(payload: any) {
     });
 
     return { success: true, role: user.role, department: user.department };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Login Error:", error);
     return { success: false, error: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ" };
   }

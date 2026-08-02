@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import { getErrorMessage } from '@/lib/error-message';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
@@ -41,6 +42,8 @@ const registerSchema = z.object({
   { message: "กรุณาระบุตำแหน่ง", path: ["position_other"] }
 );
 
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
 export function RegisterForm() {
   const router = useRouter();
   const [signature, setSignature] = useState<string>("");
@@ -49,13 +52,13 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema)
   });
 
   const selectedPosition = watch("position");
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: RegisterFormValues) => {
     if (!signature) {
       setSignatureError("กรุณาลงลายเซ็นต์ผู้มีอำนาจก่อนดำเนินการต่อ");
       return;
@@ -64,7 +67,7 @@ export function RegisterForm() {
 
     try {
       const { position_other, ...rest } = data;
-      const resolvedPosition = data.position === POSITION_OTHER_VALUE ? position_other.trim() : data.position;
+      const resolvedPosition = data.position === POSITION_OTHER_VALUE ? (position_other ?? '').trim() : data.position;
       const payload = { ...rest, position: resolvedPosition, signature_url: signature };
       const result = await registerCustomer(payload);
 
@@ -75,8 +78,8 @@ export function RegisterForm() {
         alert("เกิดข้อผิดพลาด: " + result.error);
         setLoading(false);
       }
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + getErrorMessage(err));
       setLoading(false);
     }
   };

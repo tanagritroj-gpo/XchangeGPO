@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { getStaffNextDocNumber } from '@/app/actions/staff-form-actions';
 import CustomerPicker from './CustomerPicker';
+import type { ReturnFormData } from '../../../../(authenticated)/form/form-types';
 
 interface Step1StaffProps {
   next: () => void;
-  updateData: React.Dispatch<React.SetStateAction<any>>;
+  updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
 }
 
 interface Customer {
@@ -68,7 +69,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
 
     const latestDocNumber = await getStaffNextDocNumber();
-    updateData((prev: any) => ({
+    updateData((prev) => ({
       ...prev,
       sender: {
         ...prev.sender,

@@ -7,6 +7,7 @@ import {
   getUnreadPings,
   markPingsAsRead,
 } from '@/app/actions/staff-ping-actions';
+import { getErrorMessage } from '@/lib/error-message';
 
 type ChatMessage = { role: 'user' | 'assistant'; text: string };
 
@@ -146,8 +147,8 @@ export function StaffChatWidget() {
         copy[copy.length - 1] = { role: 'assistant', text: assistantText };
         return copy;
       });
-    } catch (err: any) {
-      setError(err?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
       setMessages((prev) => (prev[prev.length - 1]?.text === '' ? prev.slice(0, -1) : prev));
     } finally {
       setIsLoading(false);

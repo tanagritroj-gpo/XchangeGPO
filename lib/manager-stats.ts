@@ -12,6 +12,7 @@
  * ──────────────────────────────────────────────────────────────────── */
 
 import { getRejectionReasonLabel } from './rejection-reasons';
+import type { RequestRow, StatusLogRow, DrugItemRow } from './types';
 
 export const MONTH_LABELS_TH = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -67,7 +68,7 @@ const STAGE_LABEL: Record<string, string> = {
   completed: 'เสร็จสิ้น',
 };
 
-function normalizeReason(reason: string) {
+function normalizeReason(reason: string | null) {
   if (!reason) return 'ไม่ระบุ';
   if (reason.startsWith('อื่นๆ')) return 'อื่นๆ';
   return reason;
@@ -75,7 +76,7 @@ function normalizeReason(reason: string) {
 
 /** สถิติภาพรวมทั้งหมด — ใช้ทั้งกับ ManagerInsights.tsx (โชว์กราฟ) และ
  *  staff-chat route (สรุปให้บอท) เพื่อให้ตัวเลขตรงกันเสมอ */
-export function computeManagerStats(requests: any[], statusLogs: any[]) {
+export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLogRow[]) {
   const totalValue = requests.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
   const totalDrugItems = requests.reduce((s, r) => s + (r.drug_items?.length ?? 0), 0);
 
@@ -87,7 +88,7 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
       ? null
       : Math.round(
           doneRequests.reduce(
-            (s, r) => s + (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime()) / 86400000,
+            (s, r) => s + (new Date(r.updated_at || 0).getTime() - new Date(r.created_at || 0).getTime()) / 86400000,
             0,
           ) / doneRequests.length,
         );
@@ -105,7 +106,7 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
     return d.getFullYear() === y && d.getMonth() === m;
   };
   const inYear = (dateStr: string, y: number) => new Date(dateStr).getFullYear() === y;
-  const sumValue = (arr: any[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
+  const sumValue = (arr: RequestRow[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
 
   const thisMonthReqs = requests.filter((r) => r.created_at && inMonth(r.created_at, now.getFullYear(), now.getMonth()));
   const lastMonthReqs = requests.filter((r) => r.created_at && inMonth(r.created_at, lastMonthDate.getFullYear(), lastMonthDate.getMonth()));
@@ -127,7 +128,7 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
 
   // เวลาเฉลี่ยแต่ละขั้นตอน (จาก status_logs)
   const byRequest: Record<string, Record<string, string>> = {};
-  statusLogs.forEach((log: any) => {
+  statusLogs.forEach((log) => {
     if (!log.request_id || !log.status_name || !log.log_date) return;
     const key = String(log.request_id);
     if (!byRequest[key]) byRequest[key] = {};
@@ -188,7 +189,7 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
 
   // ยาที่ถูกส่งคืนบ่อยที่สุด
   const drugMap: Record<string, number> = {};
-  requests.forEach((r) => (r.drug_items || []).forEach((i: any) => {
+  requests.forEach((r) => (r.drug_items || []).forEach((i: DrugItemRow) => {
     drugMap[i.drug_name] = (drugMap[i.drug_name] || 0) + (Number(i.qty) || 1);
   }));
   const topReturnedDrugs = Object.entries(drugMap)
@@ -201,8 +202,8 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
   // นับแยกกันทั้งที่ความหมายเดียวกัน — log เก่าก่อนมี column นี้ไม่มี code จะรวมเป็น "ไม่ระบุ"
   const rejectionReasonMap: Record<string, number> = {};
   statusLogs
-    .filter((log: any) => log.status_name === 'rejected')
-    .forEach((log: any) => {
+    .filter((log) => log.status_name === 'rejected')
+    .forEach((log) => {
       const reason = log.rejection_reason_code
         ? getRejectionReasonLabel(log.rejection_reason_code)
         : 'ไม่ระบุ (ข้อมูลเก่า)';
@@ -243,7 +244,7 @@ export function computeManagerStats(requests: any[], statusLogs: any[]) {
 /** สรุปสถิติเป็นข้อความอ่านง่าย ใช้ฉีดเข้า system prompt ของบอท —
  *  ตั้งใจสรุปเฉพาะ top-line + top 5-8 ของแต่ละหมวด ไม่ใส่ trend รายเดือน
  *  ย้อนหลัง 12 เดือนแบบเต็ม (กิน token เยอะเกินจำเป็นสำหรับคำถามทั่วไป) */
-export function summarizeManagerStatsForChatbot(requests: any[], statusLogs: any[]): string {
+export function summarizeManagerStatsForChatbot(requests: RequestRow[], statusLogs: StatusLogRow[]): string {
   const s = computeManagerStats(requests, statusLogs);
   const fmtBaht = (n: number) => `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
 

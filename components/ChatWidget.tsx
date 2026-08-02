@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { MessageCircle, X, Send, Loader2, Bot } from 'lucide-react';
 import { CHATBOT_GREETING } from '@/lib/chatbot-knowledge';
+import { getErrorMessage } from '@/lib/error-message';
 
 type ChatMessage = { role: 'user' | 'assistant'; text: string };
 
@@ -119,8 +120,8 @@ export function ChatWidget() {
       if (!assistantText.trim()) {
         throw new Error('ผู้ช่วยไม่ได้ตอบกลับ กรุณาลองใหม่');
       }
-    } catch (err: any) {
-      setError(err?.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
       // ลบ assistant message ที่ว่างเปล่าออก ถ้า stream ล้มเหลวตั้งแต่ต้น
       setMessages((prev) => (prev[prev.length - 1]?.text === '' ? prev.slice(0, -1) : prev));
     } finally {

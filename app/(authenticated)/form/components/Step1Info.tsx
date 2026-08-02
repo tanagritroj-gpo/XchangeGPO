@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { getNextDocNumber } from '@/app/actions/form-actions';
 import { getCustomerSession } from '@/app/actions/auth-actions';
+import type { ReturnFormData, CustomerSessionInfo } from '../form-types';
 
 interface Step1Props {
   next: () => void;
-  updateData: React.Dispatch<React.SetStateAction<any>>;
+  updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
   initialRequestType?: string;
 }
 
@@ -36,7 +37,7 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
   const [docNumber, setDocNumber] = useState('กำลังโหลด...');
-  const [clientData, setClientData] = useState<any>(null);
+  const [clientData, setClientData] = useState<CustomerSessionInfo | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -66,7 +67,7 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
     const latestDocNumber = await getNextDocNumber();
-    updateData((prev: any) => ({
+    updateData((prev) => ({
       ...prev,
       sender: {
         ...prev.sender,

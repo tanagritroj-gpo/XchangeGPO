@@ -2,6 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getCustomerSession } from './auth-actions';
+import { getErrorMessage } from '@/lib/error-message';
 
 // คำร้องที่ถือว่า "จบงานแล้ว" — กระดิ่งใช้ไม่ได้กับคำร้องกลุ่มนี้ เพราะเร่งงาน
 // ที่จบแล้วไม่มีความหมาย (ตรงกับ current_status check constraint จริงของ
@@ -91,8 +92,8 @@ export async function pingRequestAttention(requestId: number) {
     }
 
     return { success: true };
-  } catch (e: any) {
-    console.error('pingRequestAttention error:', e.message);
+  } catch (e: unknown) {
+    console.error('pingRequestAttention error:', getErrorMessage(e));
     return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
   }
 }
@@ -132,8 +133,8 @@ export async function getPingStatus(requestId: number) {
       onCooldown: remaining > 0,
       cooldownRemainingHours: remaining > 0 ? Math.ceil(remaining / (60 * 60 * 1000)) : 0,
     };
-  } catch (e: any) {
-    console.error('getPingStatus error:', e.message);
+  } catch (e: unknown) {
+    console.error('getPingStatus error:', getErrorMessage(e));
     return { success: false, error: 'เกิดข้อผิดพลาด' };
   }
 }

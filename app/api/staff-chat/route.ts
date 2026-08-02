@@ -4,6 +4,20 @@ import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs } from '@/app/actions/manager-actions';
 import { summarizeManagerStatsForChatbot } from '@/lib/manager-stats';
 import { executeStaffChatTool } from '@/app/actions/staff-chat-tools';
+import { getErrorMessage } from '@/lib/error-message';
+
+// ★ ใช้ index signature เผื่อฟิลด์อื่นที่ Gemini แนบมา (เช่น thoughtSignature ของรุ่น 3.x)
+// ที่ต้อง echo กลับไปทั้งก้อนโดยไม่แตะ — ดูคอมเมนต์ใกล้ functionCallPart ด้านล่าง
+interface GeminiPart {
+  text?: string;
+  functionCall?: { name: string; args?: Record<string, unknown> };
+  functionResponse?: { name: string; response: unknown };
+  [key: string]: unknown;
+}
+
+interface GeminiResponse {
+  candidates?: { content?: { parts?: GeminiPart[] } }[];
+}
 
 /**
  * POST /api/staff-chat
@@ -99,7 +113,7 @@ const TOOLS = [
   },
 ];
 
-async function callGemini(payload: Record<string, unknown>) {
+async function callGemini(payload: Record<string, unknown>): Promise<GeminiResponse> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     {
@@ -157,14 +171,14 @@ export async function POST(req: NextRequest) {
   ]);
 
   if (!requestsRes?.success) {
-    console.error('staff-chat: getCSRDashboardData failed:', (requestsRes as any)?.error);
+    console.error('staff-chat: getCSRDashboardData failed:', requestsRes?.error);
   }
   if (!logsRes?.success) {
-    console.error('staff-chat: getManagerStatusLogs failed:', (logsRes as any)?.error);
+    console.error('staff-chat: getManagerStatusLogs failed:', logsRes?.error);
   }
 
-  const requests = requestsRes?.success ? (requestsRes as any).requests ?? [] : [];
-  const statusLogs = logsRes?.success ? (logsRes as any).data ?? [] : [];
+  const requests = requestsRes?.success ? requestsRes.requests ?? [] : [];
+  const statusLogs = logsRes?.success ? logsRes.data ?? [] : [];
   const statsSummary = summarizeManagerStatsForChatbot(requests, statusLogs);
 
   const systemPrompt = `คุณคือผู้ช่วยสรุปข้อมูลสถิติสำหรับทีมงาน (Manager/CSR) ของ "GPO Xchange Portal" ระบบรับคืน/แลกเปลี่ยนสินค้าขององค์การเภสัชกรรม สาขาภาคใต้
@@ -187,7 +201,7 @@ ${statsSummary}
     parts: [{ text: m.text }],
   }));
 
-  let data: any;
+  let data: GeminiResponse;
   try {
     data = await callGemini({
       systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -196,17 +210,17 @@ ${statsSummary}
       generationConfig: { maxOutputTokens: 600, temperature: 0.2 },
       safetySettings: SAFETY_SETTINGS,
     });
-  } catch (e: any) {
-    return Response.json({ error: e.message }, { status: 502 });
+  } catch (e: unknown) {
+    return Response.json({ error: getErrorMessage(e) }, { status: 502 });
   }
 
-  let parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
+  let parts: GeminiPart[] = data?.candidates?.[0]?.content?.parts ?? [];
   const functionCallPart = parts.find((p) => p.functionCall);
 
   // ถ้าโมเดลขอเรียก tool: รันฟังก์ชันจริง แล้วส่งผลลัพธ์กลับไปให้โมเดลตอบต่อ
   // อีกรอบ (รูปแบบ 2-turn function calling มาตรฐานของ Gemini API)
   if (functionCallPart) {
-    const { name, args } = functionCallPart.functionCall;
+    const { name, args } = functionCallPart.functionCall!;
     const toolResult = await executeStaffChatTool(name, args ?? {});
 
     try {
@@ -226,8 +240,8 @@ ${statsSummary}
         generationConfig: { maxOutputTokens: 600, temperature: 0.2 },
         safetySettings: SAFETY_SETTINGS,
       });
-    } catch (e: any) {
-      return Response.json({ error: e.message }, { status: 502 });
+    } catch (e: unknown) {
+      return Response.json({ error: getErrorMessage(e) }, { status: 502 });
     }
     parts = data?.candidates?.[0]?.content?.parts ?? [];
   }

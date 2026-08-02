@@ -9,6 +9,7 @@ import Step2Items from './components/Step2Items';
 import Step3Reason from './components/Step3Reason';
 import Step4Sign from './components/Step4Sign';
 import ReviewPage from './components/ReviewPage';
+import type { CustomerSessionInfo, ReturnFormData } from './form-types';
 
 const STEPS = [
   { id: 1, label: 'ข้อมูล' },
@@ -25,13 +26,13 @@ const REQUEST_TYPE_MAP: Record<string, string> = {
   'debt-reduction': 'รับคืนลดหนี้',
 };
 
-export default function FormWizardPage({ session }: { session?: any }) {
+export default function FormWizardPage({ session }: { session?: CustomerSessionInfo }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRequestType = REQUEST_TYPE_MAP[searchParams.get('type') || ''] || '';
 
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ReturnFormData>({
     sender: session || {},
     items: [],
     reason: '',
@@ -46,7 +47,7 @@ export default function FormWizardPage({ session }: { session?: any }) {
     try {
       const cleanData = {
         ...formData,
-        items: formData.items.map((item: any) => ({
+        items: formData.items.map((item) => ({
           drugName: item.drugName,
           qty:      item.qty,
           unit:     item.unit,

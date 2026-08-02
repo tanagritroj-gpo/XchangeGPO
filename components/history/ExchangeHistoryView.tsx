@@ -23,11 +23,16 @@ import {
   getCurrentStageIndex,
   formatCurrency,
 } from '@/lib/tracking-status';
+import type { RequestRow, DrugItemRow as DrugItemRowType } from '@/lib/types';
+
+// history RPC (get_customer_history / get_org_history) แนบ submitted_by เพิ่มมา
+// เหนือคอลัมน์ปกติของ requests — ไม่มีในตารางจริง เป็นผลจาก RPC เท่านั้น
+type HistoryRequestRow = RequestRow & { submitted_by?: string };
 
 /** badge/ขอบสีของการ์ด — อิงจาก "สถานะจริงของทั้งใบงาน" (request.current_status)
  *  เท่านั้น ไม่ผูกกับสถานะของรายการย่อยข้างในอีกต่อไป — ถ้าใบงานยังไม่ถูก
  *  ยกเลิกทั้งใบ (แค่บางรายการถูกปฏิเสธ) การ์ดจะยังโชว์สถานะจริงตามปกติ */
-function getCardTone(request: any) {
+function getCardTone(request: HistoryRequestRow) {
   if (request.current_status === REJECTED_STATUS) {
     return { badge: 'bg-red-50 text-red-700', border: 'border-l-red-500' };
   }
@@ -53,7 +58,7 @@ const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
 
 const GROUP_ORDER: Group[] = [REJECTED_GROUP, ...STAGE_GROUPS];
 
-function getGroupKey(request: any): string {
+function getGroupKey(request: HistoryRequestRow): string {
   if (request.current_status === REJECTED_STATUS) return 'rejected';
   const idx = getCurrentStageIndex(request.current_status);
   if (idx === -1) return 'rejected';
@@ -71,7 +76,7 @@ function formatExp(value: string | null) {
  *  เดิมใช้ grid-cols-12 ตัวเดียวกันทุกขนาดจอ พอมือถือแคบ 5 คอลัมน์ (ชื่อยา/
  *  จำนวน/Lot/Exp/มูลค่า) ถูกบีบจนตัวอักษรชนกัน โดยเฉพาะ Lot ที่มี icon Hash
  *  + font-mono กับ Exp ที่มี icon Calendar ในคอลัมน์แคบเกินไป */
-function DrugItemRow({ item }: { item: any }) {
+function DrugItemRow({ item }: { item: DrugItemRowType }) {
   const itemRejected = item.current_status === REJECTED_STATUS;
   const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-border bg-slate-50';
 
@@ -140,7 +145,7 @@ function DrugItemRow({ item }: { item: any }) {
   );
 }
 
-function RequestCard({ request, showSubmitter }: { request: any; showSubmitter?: boolean }) {
+function RequestCard({ request, showSubmitter }: { request: HistoryRequestRow; showSubmitter?: boolean }) {
   const tone = getCardTone(request);
 
   return (
@@ -158,7 +163,7 @@ function RequestCard({ request, showSubmitter }: { request: any; showSubmitter?:
             )}
           </div>
           <p className="text-xs font-medium text-muted-foreground">
-            {new Date(request.created_at).toLocaleDateString('th-TH', { dateStyle: 'long' })}
+            {new Date(request.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'long' })}
           </p>
           {showSubmitter && request.submitted_by && (
             <p className="mt-1 flex items-center gap-1 text-xs font-bold text-slate-500">
@@ -184,7 +189,7 @@ function RequestCard({ request, showSubmitter }: { request: any; showSubmitter?:
         </div>
 
         <div className="space-y-2">
-          {request.drug_items?.map((item: any) => (
+          {request.drug_items?.map((item: DrugItemRowType) => (
             <DrugItemRow key={item.id} item={item} />
           ))}
         </div>
@@ -236,7 +241,7 @@ export function ExchangeHistoryView({
   emptyText = 'ยังไม่มีคำร้องคืนสินค้า',
   emptySubtext = 'คำร้องที่คุณยื่นจะแสดงที่นี่',
 }: {
-  fetcher: () => Promise<any[]>;
+  fetcher: () => Promise<HistoryRequestRow[]>;
   title: string;
   subtitle: string;
   icon?: LucideIcon;
@@ -244,7 +249,7 @@ export function ExchangeHistoryView({
   emptyText?: string;
   emptySubtext?: string;
 }) {
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistoryRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string>(GROUP_ORDER[0].key);
 
@@ -287,7 +292,7 @@ export function ExchangeHistoryView({
     (sum, r) =>
       sum +
       (r.drug_items?.reduce(
-        (s: number, item: any) =>
+        (s: number, item: DrugItemRowType) =>
           item.current_status === REJECTED_STATUS ? s : s + Number(item.value_amount || 0),
         0,
       ) ?? 0),

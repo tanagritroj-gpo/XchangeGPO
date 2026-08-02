@@ -8,12 +8,13 @@ import { logoutStaffAction } from '@/app/actions/auth-staff';
 import { getSaleCustomerHistory, getSaleRequestDetail } from '@/app/actions/sale-actions';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import { StatCard } from '@/components/StatCard';
+import type { HistorySummaryRow } from '@/lib/types';
 
 type StatusFilter = 'pending_review' | 'in_progress' | 'completed' | 'rejected' | null;
 
 export default function SaleHistoryPage() {
   const router = useRouter();
-  const [history, setHistory] = useState<any[]>([]);
+  const [history, setHistory] = useState<HistorySummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
 

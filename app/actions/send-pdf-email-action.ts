@@ -95,7 +95,7 @@ export async function sendPdfEmailAction(requestId: number) {
 
     return { success: true, message: 'ส่งอีเมลสำเร็จแล้ว' };
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Send Email Catch Error:', err); // log เต็มไว้ฝั่ง server
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ err.message ดิบ
   }

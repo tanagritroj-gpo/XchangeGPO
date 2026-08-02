@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCustomerSession } from './auth-actions';
+import type { DrugItemRow } from '@/lib/types';
 
 function getClientIp(headerList: Headers): string {
   // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
@@ -126,7 +127,7 @@ export async function trackMyRequestByRefId(refId: string) {
     .order('log_date', { ascending: true });
 
   const drugNameById: Record<number, string> = Object.fromEntries(
-    (request.drug_items ?? []).map((i: any) => [i.id, i.drug_name])
+    (request.drug_items ?? []).map((i: DrugItemRow) => [i.id, i.drug_name])
   );
 
   const timeline = (timelineRaw ?? []).map((t) => ({

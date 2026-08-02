@@ -2,6 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getManagerOrCsrSession } from './manager-actions';
+import { getErrorMessage } from '@/lib/error-message';
 
 /**
  * Server actions ฝั่งทีมงาน (Manager/CSR) สำหรับ "กระดิ่งเร่งงาน" ที่ลูกค้า
@@ -27,8 +28,8 @@ export async function getUnreadPingCount() {
 
     if (error) return { success: false, error: error.message };
     return { success: true, count: count ?? 0 };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -44,8 +45,8 @@ export async function getUnreadPings() {
 
     if (error) return { success: false, error: error.message };
     return { success: true, data: data ?? [] };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -60,7 +61,7 @@ export async function markPingsAsRead() {
 
     if (error) return { success: false, error: error.message };
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }

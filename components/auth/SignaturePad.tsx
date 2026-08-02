@@ -10,17 +10,17 @@ export function SignaturePad({
   onSave: (data: string) => void, 
   onClear?: () => void // เป็น Optional เพราะเราอาจจะไม่ได้ใช้ทุกที่
 }) {
-  const sigPad = useRef<any>(null);
+  const sigPad = useRef<SignatureCanvas>(null);
 
   const clear = () => {
-    sigPad.current.clear();
+    sigPad.current?.clear();
     // ถ้ามีการส่ง onClear เข้ามา ให้สั่งรันฟังก์ชันนั้นด้วย
     if (onClear) onClear();
   };
 
   const save = () => {
-    const data = sigPad.current.toDataURL();
-    onSave(data);
+    const data = sigPad.current?.toDataURL();
+    if (data) onSave(data);
   };
 
   return (
