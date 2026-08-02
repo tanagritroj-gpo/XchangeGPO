@@ -47,7 +47,7 @@ function HomePageContent() {
 
   const coverImages = [
     { src: '/gpo-xchange-graphic2.png', alt: 'GPO Xchange Graphic' },
-    { src: '/coverpage2.png', alt: 'GPO Xchange Portal Cover' },
+    { src: '/coverpage3.png', alt: 'GPO Xchange Portal Cover' },
   ];
   const [coverIndex, setCoverIndex] = useState(0);
 
