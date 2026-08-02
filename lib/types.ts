@@ -111,21 +111,14 @@ export interface ClientRow {
   org_type: string | null;
 }
 
-// เท่ากับสิ่งที่ getPendingStaff() คืนจริงจาก select('*') รวม password_hash ด้วย
-// (ตาราง staff_users ทั้งแถว) — พิมพ์ตามข้อมูลจริงที่ query คืนมา ไม่ใช่ตามที่ "ควรจะเป็น"
+// เท่ากับสิ่งที่ getPendingStaff() คืนจริง — select() เฉพาะคอลัมน์ที่หน้า
+// staff-approvals ใช้แสดงผลจริงเท่านั้น (ไม่ดึง password_hash หรือคอลัมน์อื่น
+// ของ staff_users มาเลย กันข้อมูลอ่อนไหวหลุดไปฝั่ง client โดยไม่จำเป็น)
 export interface PendingStaffRow {
   id: string;
-  username: string;
-  password_hash: string;
+  employee_id: string;
   full_name: string | null;
   department: string;
-  created_at: string;
-  is_approved: boolean | null;
-  role: string | null;
-  updated_at: string;
-  employee_id: string;
-  sale_customer_types: string[] | null;
-  sale_provinces: string[] | null;
 }
 
 export interface UnansweredQuestionRow {
