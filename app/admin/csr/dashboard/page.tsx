@@ -21,6 +21,8 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
+  Truck,
+  Warehouse,
 } from 'lucide-react';
 import { getStatusMeta } from '@/lib/tracking-status';
 import {
@@ -35,6 +37,7 @@ import CSRDrugRow from './component/CSRDrugRow';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
+import { StatCard } from '@/components/StatCard';
 
 // หมายเหตุตอนเริ่มกระบวนการแลกเปลี่ยน — preset ให้เลือกเร็วๆ (ยังพิมพ์เพิ่มเติมได้
 // ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติใดต้อง group ตามหมายเหตุ
@@ -66,30 +69,6 @@ function StatusBadge({ status }: { status: string }) {
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
       {cfg.label}
     </span>
-  );
-}
-
-// ── การ์ดสถิติด้านบน — คลิกได้จริง (ต่างจาก StatCard เวอร์ชัน highlight-only ของ
-// Logistics/WH) กดแล้วกระโดดไปดูเฉพาะกลุ่มสถานะนั้น ข้ามระบบแท็บ/แท็บย่อยไปเลย ──
-function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing, onClick }: {
-  icon: any; value: number; label: string; iconBg: string; iconText: string;
-  isActive?: boolean; activeBorder?: string; activeRing?: string; onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md ${
-        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
-      }`}
-    >
-      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
-        <Icon className="h-5 w-5" strokeWidth={2.25} />
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
-        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
-      </div>
-    </button>
   );
 }
 
@@ -436,14 +415,34 @@ function RequestListSection({
 // เรียงตามลำดับที่ใบงานเคลื่อนผ่านจริง: อนุมัติ → ขนส่งไปรับ → ถึงคลัง → ตรวจรับ → จัดส่งคืน
 const MONITOR_STAGE_ORDER = ['approved', 'in_transit', 'at_warehouse', 'checked_in', 'out_for_delivery'];
 
+// ฝ่ายที่รับผิดชอบอยู่ ณ สถานะนั้นๆ — approved/in_transit/out_for_delivery เป็นช่วงที่
+// ของอยู่บนรถ/รอรถ (โลจิสติกส์) ส่วน at_warehouse/checked_in คือของถึง/อยู่ในคลังแล้ว (คลังสินค้า)
+const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+  approved:         { label: 'โลจิสติกส์', icon: Truck,     color: 'text-blue-700',   bg: 'bg-blue-50' },
+  in_transit:       { label: 'โลจิสติกส์', icon: Truck,     color: 'text-blue-700',   bg: 'bg-blue-50' },
+  at_warehouse:     { label: 'คลังสินค้า', icon: Warehouse, color: 'text-purple-700', bg: 'bg-purple-50' },
+  checked_in:       { label: 'คลังสินค้า', icon: Warehouse, color: 'text-purple-700', bg: 'bg-purple-50' },
+  out_for_delivery: { label: 'โลจิสติกส์', icon: Truck,     color: 'text-blue-700',   bg: 'bg-blue-50' },
+};
+
 // การ์ดใบงาน 1 ใบในกระดาน — read-only ไม่มีปุ่ม action เพราะสถานะกลุ่มนี้ log/wh
 // เป็นคนอัปเดต ไม่ใช่ CSR (ต่างจาก CSRDrugRow ที่มีปุ่มอนุมัติ/ปฏิเสธสำหรับ workflow ของ CSR เอง)
 function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded: boolean; onToggle: () => void }) {
   const drugCount = req.drug_items?.length ?? 0;
   const totalValue = req.drug_items?.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0) ?? 0;
+  const role = MONITOR_STAGE_ROLE[req.current_status];
+  const RoleIcon = role?.icon;
   return (
     <div className="bg-white rounded-xl border border-border p-3">
-      <p className="text-xs font-black text-foreground font-mono truncate">{req.ref_id}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-black text-foreground font-mono truncate">{req.ref_id}</p>
+        {role && (
+          <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${role.bg} ${role.color}`}>
+            <RoleIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
+            {role.label}
+          </span>
+        )}
+      </div>
       {req.hospital_name && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{req.hospital_name}</p>}
 
       <button
@@ -476,10 +475,9 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded:
   );
 }
 
-// ── กระดานภาพรวม "Active Workflow" — จัดกลุ่มใบงานตามสถานะจริงเป็นคอลัมน์แนวนอน
-// (kanban) แทนรายการเรียงเดียวแบบเดิม ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังในจอเดียว
-// mobile: เลื่อนแนวนอนทีละคอลัมน์ (snap) — ความกว้างคอลัมน์เป็น vw ให้แอบเห็นคอลัมน์ถัดไป
-// เป็นคิวว่าเลื่อนดูต่อได้ ── ──
+// ── กระดานภาพรวม "Active Workflow" — จัดกลุ่มใบงานตามสถานะจริงเป็นบล็อกเรียงแนวตั้ง
+// ทีละสถานะ (บนลงล่าง) ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังโดยไม่ต้องเลื่อนแนวนอน
+// การ์ดภายในแต่ละบล็อกจัดเป็น grid responsive ใช้พื้นที่แนวนอนที่ว่างจากการเลิกเป็นคอลัมน์แคบๆ ──
 function MonitorBoard({ items, expandedReq, setExpandedReq }: {
   items: any[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
 }) {
@@ -495,14 +493,14 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
         </div>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1">
+      <div className="space-y-3">
         {MONITOR_STAGE_ORDER.map((statusKey) => {
           const cfg = STATUS_CONFIG[statusKey];
           const colItems = items.filter((r) => r.current_status === statusKey);
           const meta = getStatusMeta(statusKey);
           const StageIcon = meta.icon;
           return (
-            <div key={statusKey} className="shrink-0 w-[85vw] sm:w-64 snap-start bg-slate-50 rounded-2xl border border-border p-3">
+            <div key={statusKey} className="bg-slate-50 rounded-2xl border border-border p-3">
               <div className="flex items-center gap-2 mb-3 px-0.5">
                 <span className={`flex items-center justify-center w-6 h-6 rounded-lg shrink-0 ${meta.bg}`}>
                   <StageIcon className={`w-3.5 h-3.5 ${meta.fg}`} strokeWidth={2.5} />
@@ -512,20 +510,20 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
                   {colItems.length}
                 </span>
               </div>
-              <div className="space-y-2 max-h-[520px] overflow-y-auto">
-                {colItems.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
-                ) : (
-                  colItems.map((req) => (
+              {colItems.length === 0 ? (
+                <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {colItems.map((req) => (
                     <MonitorBoardCard
                       key={req.id}
                       req={req}
                       isExpanded={expandedReq === req.id}
                       onToggle={() => setExpandedReq(expandedReq === req.id ? null : req.id)}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -729,8 +727,8 @@ export default function CSRDashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
           <StatCard
             icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600"
-            isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
-            onClick={() => setStatusFilter(null)}
+            isActive={statusFilter === null && activeTab === 'history'} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+            onClick={() => selectTab('history')}
           />
           <StatCard
             icon={Clock} value={pendingReviewCount} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600"

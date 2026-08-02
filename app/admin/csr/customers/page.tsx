@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet } from 'lucide-react';
 import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType } from '@/app/actions/csr-actions';
 import { getStaffSession } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
@@ -118,7 +118,7 @@ export default function CSRCustomersPage() {
   const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [tab, setTab] = useState<'pending' | 'search'>('pending');
+  const [tab, setTab] = useState<'pending' | 'search' | 'export'>('pending');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // รหัสลูกค้าที่ CSR พิมพ์เอง ก่อนกดอนุมัติ — เก็บแยกตาม client.id เพราะมีหลายแถวพร้อมกัน
   const [customerCodes, setCustomerCodes] = useState<Record<string, string>>({});
@@ -260,6 +260,10 @@ export default function CSRCustomersPage() {
             icon={Search} label="ค้นหาลูกค้าในระบบ"
             active={tab === 'search'} onClick={() => setTab('search')}
           />
+          <SubTabButton
+            icon={FileSpreadsheet} label="Export"
+            active={tab === 'export'} onClick={() => setTab('export')}
+          />
         </div>
 
         {/* ── Tab: ลูกค้าที่รออนุมัติ (ของเดิม) ── */}
@@ -391,6 +395,40 @@ export default function CSRCustomersPage() {
               </section>
             )}
           </div>
+        )}
+
+        {/* ── Tab: Export รายชื่อลูกค้าทั้งหมดเป็น Excel ── */}
+        {tab === 'export' && (
+          <section>
+            <div className="flex items-center gap-2.5 mb-3 px-1">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <FileSpreadsheet size={16} className="text-amber-600" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-foreground">Export รายชื่อลูกค้า</h2>
+                <p className="text-[11px] text-muted-foreground">ส่งออกรายชื่อลูกค้าที่อนุมัติแล้วทั้งหมด พร้อมข้อมูลเบื้องต้น</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-border p-6 md:p-8 flex flex-col items-center text-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center">
+                <FileSpreadsheet size={26} className="text-amber-600" strokeWidth={2} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">รายชื่อลูกค้าทั้งหมด (Excel)</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md">
+                  ไฟล์ .xlsx ประกอบด้วย รหัสลูกค้า, ชื่อหน่วยงาน, ประเภทหน่วยงาน, จังหวัด, ชื่อผู้ติดต่อ, ตำแหน่ง, เบอร์โทรศัพท์, อีเมล และวันที่ลงทะเบียน ของลูกค้าที่อนุมัติแล้วทุกราย
+                </p>
+              </div>
+              <a
+                href="/admin/csr/customers/export"
+                className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 shadow-sm hover:shadow-md transition-all"
+              >
+                <Download size={16} strokeWidth={2.5} />
+                ดาวน์โหลด Excel
+              </a>
+            </div>
+          </section>
         )}
       </div>
 

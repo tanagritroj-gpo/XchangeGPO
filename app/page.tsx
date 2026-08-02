@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Building2, User, Search, BookOpen } from 'lucide-react';
+import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
@@ -44,6 +44,27 @@ function HomePageContent() {
   const [password, setPassword] = useState('');
 
   const isCustomer = activeTab === 'customer';
+
+  const coverImages = [
+    { src: '/gpo-xchange-graphic2.png', alt: 'GPO Xchange Graphic' },
+    { src: '/coverpage3.png', alt: 'GPO Xchange Portal Cover' },
+  ];
+  const [coverIndex, setCoverIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCoverIndex((prev) => (prev + 1) % coverImages.length);
+    }, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const goToPrevCover = () => {
+    setCoverIndex((prev) => (prev - 1 + coverImages.length) % coverImages.length);
+  };
+  const goToNextCover = () => {
+    setCoverIndex((prev) => (prev + 1) % coverImages.length);
+  };
 
   const handleGoogleLogin = async () => {
     setLoadingLogin(true);
@@ -112,18 +133,52 @@ function HomePageContent() {
       <div className="flex flex-col md:flex-row flex-1 w-full px-4 md:px-16 py-8 gap-4">
 
         {/* ── LEFT: GPO Graphic ── */}
-        <div className="relative w-full aspect-[4/3] rounded-[2rem] overflow-hidden">
-          <Image
-            src="/gpo-xchange-graphic2.png"
-            sizes="(max-width: 768px) 100vw, 50vw"
-            alt="GPO Xchange Graphic"
-            fill
-            className="object-cover"
-            priority
-          />
-          <div className="absolute inset-0 z-10">
+        <div className="group relative w-full aspect-[3/2] rounded-[2rem] overflow-hidden bg-white">
+          {coverImages.map((img, idx) => (
+            <Image
+              key={img.src}
+              src={img.src}
+              sizes="(max-width: 768px) 100vw, 50vw"
+              alt={img.alt}
+              fill
+              className={`object-contain transition-opacity duration-700 ${idx === coverIndex ? 'opacity-100' : 'opacity-0'}`}
+              priority={idx === 0}
+            />
+          ))}
+          <div className="absolute inset-0 z-10 pointer-events-none">
             <div className="absolute -top-10 -left-10 w-48 h-48 rounded-full opacity-30" style={{ background: 'radial-gradient(circle, #38b27a, transparent)' }} />
             <div className="absolute -bottom-10 -right-10 w-56 h-56 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, #2d8cf0, transparent)' }} />
+          </div>
+
+          {/* Arrow controls */}
+          <button
+            type="button"
+            onClick={goToPrevCover}
+            aria-label="Previous cover image"
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-black/30 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={goToNextCover}
+            aria-label="Next cover image"
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-black/30 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/50"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          {/* Dots */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+            {coverImages.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setCoverIndex(idx)}
+                aria-label={`Go to cover image ${idx + 1}`}
+                className={`w-2.5 h-2.5 rounded-full transition-colors ${idx === coverIndex ? 'bg-white' : 'bg-white/40'}`}
+              />
+            ))}
           </div>
         </div>
 
@@ -191,24 +246,34 @@ function HomePageContent() {
                       <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition-all">
                         {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
                       </button>
-                      
-                      <div className="relative flex py-2 items-center">
-                        <div className="flex-grow border-t border-border"></div>
-                        <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase">หรือ</span>
-                        <div className="flex-grow border-t border-border"></div>
+
+                      {/* ── ห่อ divider+ปุ่ม Google เป็นก้อนเดียว (ระยะห่างภายในกำหนดเอง)
+                          ให้กล่อง auth ฝั่งลูกค้า/พนักงานสูงเท่ากัน — ยึดสัดส่วนฝั่งพนักงานเป็นหลัก
+                          (พนักงานไม่มี Google sign-in ให้ยึด จึงต้องบีบระยะฝั่งลูกค้าให้พอดี) ── */}
+                      <div className="space-y-0">
+                        <div className="relative flex py-0 items-center">
+                          <div className="flex-grow border-t border-border"></div>
+                          <span className="flex-shrink mx-4 text-muted-foreground text-[10px] uppercase">หรือ</span>
+                          <div className="flex-grow border-t border-border"></div>
+                        </div>
+                        <button
+                          onClick={handleGoogleLogin}
+                          disabled={loadingLogin}
+                          className="mx-auto flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {/* ★ ใช้ width/height ตรงๆ แทน fill — fill ต้องพึ่งกล่องแม่
+                              คำนวณขนาดถูกต้องก่อนเสมอ ถ้า CSS โหลดช้า/พังจะกลายเป็นล่องหน
+                              ไปเลย (กล่องสูง 0) ส่วน width/height ทำให้ตัว <img> มีขนาด
+                              จริงในตัวเองเสมอ ไม่ขึ้นกับ CSS ของกล่องแม่เลย */}
+                          <Image
+                            src="/web_light_rd_SI@2x.png"
+                            alt="Sign in with Google"
+                            width={116}
+                            height={26}
+                            className="h-[32px] w-auto"
+                          />
+                        </button>
                       </div>
-                      <button
-                        onClick={handleGoogleLogin}
-                        disabled={loadingLogin}
-                        className="w-full h-[40px] relative flex items-center justify-center transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Image 
-                          src="/web_light_rd_SI@2x.png" 
-                          alt="Sign in with Google" 
-                          fill
-                          className="object-contain"
-                        />
-                      </button>
                     </>
                   ) : (
                     <>

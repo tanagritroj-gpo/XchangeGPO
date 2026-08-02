@@ -3,15 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { History, ArrowLeft, LogOut } from 'lucide-react';
+import { History, ArrowLeft, LogOut, ClipboardList, Clock, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { logoutStaffAction } from '@/app/actions/auth-staff';
 import { getSaleCustomerHistory, getSaleRequestDetail } from '@/app/actions/sale-actions';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import { StatCard } from '@/components/StatCard';
+
+type StatusFilter = 'pending_review' | 'in_progress' | 'completed' | 'rejected' | null;
 
 export default function SaleHistoryPage() {
   const router = useRouter();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +27,17 @@ export default function SaleHistoryPage() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // ── นับจำนวนต่อกลุ่มสำหรับแถบสถิติด้านบน — แพทเทิร์นเดียวกับ CSR Dashboard ──
+  const pendingReviewCount = history.filter((r) => r.current_status === 'pending_review').length;
+  const completedCount = history.filter((r) => r.current_status === 'completed').length;
+  const rejectedCount = history.filter((r) => r.current_status === 'rejected').length;
+  const inProgressCount = history.length - pendingReviewCount - completedCount - rejectedCount;
+
+  const filteredHistory = !statusFilter ? history
+    : statusFilter === 'in_progress'
+      ? history.filter((r) => !['pending_review', 'completed', 'rejected'].includes(r.current_status))
+      : history.filter((r) => r.current_status === statusFilter);
 
   const handleLogout = async () => {
     await logoutStaffAction();
@@ -54,8 +69,38 @@ export default function SaleHistoryPage() {
           </div>
         </div>
 
+        {!loading && history.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-5">
+            <StatCard
+              icon={ClipboardList} value={history.length} label="ทั้งหมด" iconBg="bg-slate-100" iconText="text-slate-600"
+              isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+              onClick={() => setStatusFilter(null)}
+            />
+            <StatCard
+              icon={Clock} value={pendingReviewCount} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600"
+              isActive={statusFilter === 'pending_review'} activeBorder="border-amber-300" activeRing="ring-2 ring-amber-100"
+              onClick={() => setStatusFilter('pending_review')}
+            />
+            <StatCard
+              icon={RefreshCw} value={inProgressCount} label="กำลังดำเนินการ" iconBg="bg-blue-50" iconText="text-blue-600"
+              isActive={statusFilter === 'in_progress'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+              onClick={() => setStatusFilter('in_progress')}
+            />
+            <StatCard
+              icon={CheckCircle2} value={completedCount} label="เสร็จสิ้น" iconBg="bg-emerald-50" iconText="text-emerald-600"
+              isActive={statusFilter === 'completed'} activeBorder="border-emerald-300" activeRing="ring-2 ring-emerald-100"
+              onClick={() => setStatusFilter('completed')}
+            />
+            <StatCard
+              icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-rose-50" iconText="text-rose-600"
+              isActive={statusFilter === 'rejected'} activeBorder="border-rose-300" activeRing="ring-2 ring-rose-100"
+              onClick={() => setStatusFilter('rejected')}
+            />
+          </div>
+        )}
+
         <RequestHistoryList
-          history={history}
+          history={filteredHistory}
           loading={loading}
           emptyText="ยังไม่มีคำร้องจากลูกค้าในพื้นที่ดูแลของคุณ"
           fetchDetail={getSaleRequestDetail}
