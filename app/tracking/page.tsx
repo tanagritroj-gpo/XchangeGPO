@@ -21,10 +21,18 @@ import {
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
 
+// รูปแบบข้อมูลที่ getTrackingTimeline() (public, ไม่ต้อง login) คืนจริง — ตัดคอลัมน์
+// การเงิน/ภายในออกหมดแล้ว (ดูคอมเมนต์ SAFE_DRUG_ITEM_COLUMNS ใน tracking-actions.ts)
+interface PublicTrackingDetail {
+  request: { id: number; ref_id: string; current_status: string; created_at: string | null; request_type: string | null };
+  timeline: { status_name: string; log_date: string | null; drug_name: string | null }[];
+  drug_items: { drug_name: string; qty: number; unit: string; lot_number: string | null; exp_date: string | null; current_status: string | null }[];
+}
+
 function TrackingContent() {
   const searchParams = useSearchParams();
   const [refId, setRefId] = useState(searchParams.get('ref') || '');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<PublicTrackingDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -43,10 +51,10 @@ function TrackingContent() {
 
     try {
       const result = await getTrackingTimeline(cleaned);
-      if (result.error) {
-        setError(result.error);
+      if (result.request) {
+        setData(result as PublicTrackingDetail);
       } else {
-        setData(result);
+        setError(result.error ?? 'เกิดข้อผิดพลาด');
       }
     } catch (err) {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อกับฐานข้อมูล');
@@ -218,7 +226,7 @@ function TrackingContent() {
                 <p className="text-sm font-bold text-muted-foreground">รายการยา</p>
               </div>
               <div className="space-y-3">
-                {data.drug_items.map((item: any, index: number) => {
+                {data.drug_items.map((item, index: number) => {
                   const itemRejected = item.current_status === REJECTED_STATUS;
                   return (
                     <div
@@ -258,7 +266,7 @@ function TrackingContent() {
           <div>
             <p className="text-sm font-bold text-muted-foreground mb-3">ประวัติการดำเนินการ</p>
             <div className="relative border-l-2 border-border ml-3 space-y-8">
-              {data.timeline?.map((log: any, index: number) => {
+              {data.timeline?.map((log, index: number) => {
                 const meta = getStatusMeta(log.status_name);
                 const Icon = meta.icon;
                 return (
@@ -269,7 +277,7 @@ function TrackingContent() {
                       <Icon className={`w-4 h-4 ${meta.fg}`} />
                     </div>
                     <p className="text-xs text-muted-foreground font-mono">
-                      {new Date(log.log_date).toLocaleString('th-TH')}
+                      {new Date(log.log_date || 0).toLocaleString('th-TH')}
                     </p>
                     <h4 className="font-bold text-teal-900">{log.status_name}</h4>
                     {getTimelineDescription(log.status_name) && (

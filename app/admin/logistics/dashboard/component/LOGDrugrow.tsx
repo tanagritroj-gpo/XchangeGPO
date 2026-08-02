@@ -5,6 +5,7 @@ import { updateItemStatus, rejectItemStatus } from '@/app/actions/logistics-acti
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
+import type { DrugItemRow } from '@/lib/types';
 
 // หมายเหตุตรวจรับสินค้าถึงคลัง — preset ให้เลือกเร็วๆ ไม่ต้องพิมพ์เองทุกครั้ง
 // (ยังพิมพ์เพิ่มเติมได้ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติ
@@ -16,7 +17,7 @@ const LOG_ACCEPT_NOTES = [
 ] as const;
 
 export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
-  item: any;
+  item: DrugItemRow;
   reqStatus: string;
   onUpdate: (itemId: number, newStatus: 'at_warehouse' | 'rejected') => void;
 }) {
@@ -46,7 +47,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
         setActionModal(null);
         setDetail('');
       } else {
-        alert('บันทึกไม่สำเร็จ: ' + (res as any).error);
+        alert('บันทึกไม่สำเร็จ: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       console.error('Error:', err);

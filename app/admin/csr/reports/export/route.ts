@@ -5,6 +5,8 @@ import { getManagerStatusLogs, getManagerOrCsrSession } from '@/app/actions/mana
 import { computeManagerStats } from '@/lib/manager-stats';
 import { filterCsrRequests, parseCsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
+import { getErrorMessage } from '@/lib/error-message';
+import type { RequestRow, StatusLogRow, DrugItemRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +26,8 @@ function addTableHeader(sheet: ExcelJS.Worksheet, cols: string[]) {
 export async function GET(request: NextRequest) {
   try {
     await getManagerOrCsrSession();
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'ไม่มีสิทธิ์เข้าถึงข้อมูลนี้' }, { status: 403 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
 
   const filters = parseCsrReportFilters(request.nextUrl.searchParams);
@@ -37,9 +39,9 @@ export async function GET(request: NextRequest) {
 
   const allRequests = dashboard.success ? dashboard.requests ?? [] : [];
   const requests = filterCsrRequests(allRequests, filters);
-  const requestIds = new Set(requests.map((r: any) => r.id));
+  const requestIds = new Set(requests.map((r: RequestRow) => r.id));
   const statusLogs = (logsResult.success ? logsResult.data ?? [] : []).filter(
-    (l: any) => requestIds.has(l.request_id),
+    (l: StatusLogRow) => requestIds.has(l.request_id),
   );
 
   const stats = computeManagerStats(requests, statusLogs);
@@ -112,7 +114,7 @@ export async function GET(request: NextRequest) {
   requestsSheet.getRow(1).font = { bold: true };
   requestsSheet.getRow(1).eachCell((cell) => { cell.fill = HEADER_FILL; });
 
-  requests.forEach((r: any) => {
+  requests.forEach((r: RequestRow) => {
     requestsSheet.addRow({
       ref_id: r.ref_id,
       created_at: r.created_at ? new Date(r.created_at).toLocaleDateString('th-TH') : '-',
@@ -140,8 +142,8 @@ export async function GET(request: NextRequest) {
   drugSheet.getRow(1).font = { bold: true };
   drugSheet.getRow(1).eachCell((cell) => { cell.fill = HEADER_FILL; });
 
-  requests.forEach((r: any) => {
-    (r.drug_items || []).forEach((item: any) => {
+  requests.forEach((r: RequestRow) => {
+    (r.drug_items || []).forEach((item: DrugItemRow) => {
       drugSheet.addRow({
         ref_id: r.ref_id,
         drug_name: item.drug_name,
@@ -150,7 +152,7 @@ export async function GET(request: NextRequest) {
         lot_number: item.lot_number ?? '-',
         exp_date: item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH') : '-',
         value_amount: Number(item.value_amount) || 0,
-        status_label: getStatusLabel(item.current_status),
+        status_label: getStatusLabel(item.current_status ?? undefined),
       });
     });
   });

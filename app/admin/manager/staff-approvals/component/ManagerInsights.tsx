@@ -8,6 +8,8 @@ import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
+import type { LucideIcon } from 'lucide-react';
+import type { RequestRow, StatusLogRow, DrugItemRow } from '@/lib/types';
 
 // ── Helper: จัดกลุ่มข้อมูลรายเดือน/รายปี ──
 const MONTH_LABELS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -68,7 +70,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 // ── UI Sub-components ──
 function StatCard({ icon: Icon, label, value, sub, accentBg, accentColor }: {
-  icon: any; label: string; value: string; sub?: string; accentBg: string; accentColor: string;
+  icon: LucideIcon; label: string; value: string; sub?: string; accentBg: string; accentColor: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-border p-4 md:p-5 flex items-center gap-3.5">
@@ -85,7 +87,7 @@ function StatCard({ icon: Icon, label, value, sub, accentBg, accentColor }: {
 }
 
 function ComparisonCard({ icon: Icon, label, periodLabel, current, previous, formatValue, accentBg, accentColor }: {
-  icon: any; label: string; periodLabel: string; current: number; previous: number;
+  icon: LucideIcon; label: string; periodLabel: string; current: number; previous: number;
   formatValue: (n: number) => string; accentBg: string; accentColor: string;
 }) {
   const change = pctChange(current, previous);
@@ -114,7 +116,7 @@ function ComparisonCard({ icon: Icon, label, periodLabel, current, previous, for
 }
 
 function ChartCard({ icon: Icon, title, subtitle, accentBg, accentColor, rightSlot, children }: {
-  icon: any; title: string; subtitle: string; accentBg: string; accentColor: string; rightSlot?: React.ReactNode; children: React.ReactNode;
+  icon: LucideIcon; title: string; subtitle: string; accentBg: string; accentColor: string; rightSlot?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-border p-4 md:p-6">
@@ -155,7 +157,7 @@ function PeriodToggle({ mode, onChange }: { mode: 'month' | 'year'; onChange: (m
 }
 
 // ── Main Component ──
-export default function ManagerInsights({ requests, statusLogs }: { requests: any[]; statusLogs: any[] }) {
+export default function ManagerInsights({ requests, statusLogs }: { requests: RequestRow[]; statusLogs: StatusLogRow[] }) {
   const [drugPeriodMode, setDrugPeriodMode] = useState<'month' | 'year'>('month');
   const [valuePeriodMode, setValuePeriodMode] = useState<'month' | 'year'>('month');
   const [reasonPeriodMode, setReasonPeriodMode] = useState<'month' | 'year'>('month');
@@ -166,7 +168,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   const avgTurnaroundDays = useMemo(() => {
     const done = requests.filter(r => r.current_status === 'completed' && r.updated_at && r.created_at);
     if (done.length === 0) return null;
-    const total = done.reduce((s, r) => s + (new Date(r.updated_at).getTime() - new Date(r.created_at).getTime()) / 86400000, 0);
+    const total = done.reduce((s, r) => s + (new Date(r.updated_at || 0).getTime() - new Date(r.created_at || 0).getTime()) / 86400000, 0);
     return Math.round(total / done.length);
   }, [requests]);
   const rejectionRateOverall = useMemo(() => {
@@ -191,7 +193,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
     const thisYearReqs = requests.filter(r => r.created_at && inYear(r.created_at, now.getFullYear()));
     const lastYearReqs = requests.filter(r => r.created_at && inYear(r.created_at, now.getFullYear() - 1));
 
-    const sumValue = (arr: any[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
+    const sumValue = (arr: RequestRow[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
 
     return {
       monthLabel: `${MONTH_LABELS_TH[now.getMonth()]} ${String(now.getFullYear() + 543).slice(2)}`,
@@ -222,7 +224,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   const stageDurations = useMemo(() => {
     // จัดกลุ่ม: request_id -> status_name -> วันที่แรกสุดที่ถึงสถานะนั้น
     const byRequest: Record<string, Record<string, string>> = {};
-    statusLogs.forEach((log: any) => {
+    statusLogs.forEach((log) => {
       if (!log.request_id || !log.status_name || !log.log_date) return;
       const key = String(log.request_id);
       if (!byRequest[key]) byRequest[key] = {};
@@ -284,7 +286,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   const valueByTypeTrend = useMemo(() => {
     const periods = getPeriods(valuePeriodMode);
     return periods.map(p => {
-      const row: Record<string, any> = { period: p.label };
+      const row: Record<string, string | number> = { period: p.label };
       requestTypes.forEach(type => {
         row[type] = requests
           .filter(r => r.created_at && getPeriodKey(r.created_at, valuePeriodMode) === p.key && r.request_type === type)
@@ -309,7 +311,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   }, [requests]);
 
   // ══ ใหม่ #2: สถิติเหตุผลที่ลูกค้าส่งเรื่องเข้ามา รายเดือน/ปี ══
-  const normalizeReason = (reason: string) => {
+  const normalizeReason = (reason: string | null) => {
     if (!reason) return 'ไม่ระบุ';
     if (reason.startsWith('อื่นๆ')) return 'อื่นๆ';
     return reason;
@@ -321,7 +323,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   const reasonTrend = useMemo(() => {
     const periods = getPeriods(reasonPeriodMode);
     return periods.map(p => {
-      const row: Record<string, any> = { period: p.label };
+      const row: Record<string, string | number> = { period: p.label };
       reasonCategories.forEach(reason => {
         row[reason] = requests.filter(r =>
           r.created_at &&
@@ -336,7 +338,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   // Bonus: ยาที่ถูกส่งคืนบ่อยที่สุด (เดิม)
   const topReturnedDrugs = useMemo(() => {
     const map: Record<string, number> = {};
-    requests.forEach(r => (r.drug_items || []).forEach((i: any) => {
+    requests.forEach(r => (r.drug_items || []).forEach((i: DrugItemRow) => {
       map[i.drug_name] = (map[i.drug_name] || 0) + (Number(i.qty) || 1);
     }));
     return Object.entries(map).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty).slice(0, 6);
@@ -357,9 +359,9 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
   const topRejectionReasons = useMemo(() => {
     const map: Record<string, number> = {};
     statusLogs
-      .filter((log: any) => log.status_name === 'rejected' && log.staff_remark && log.staff_remark.trim())
-      .forEach((log: any) => {
-        const remark = log.staff_remark.trim();
+      .filter((log) => log.status_name === 'rejected' && log.staff_remark && log.staff_remark.trim())
+      .forEach((log) => {
+        const remark = (log.staff_remark ?? '').trim();
         map[remark] = (map[remark] || 0) + 1;
       });
     return Object.entries(map)
@@ -432,7 +434,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} รายการ`, 'จำนวน']} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} รายการ`, 'จำนวน']} />
             <Bar dataKey="count" fill="#14b8a6" radius={[6, 6, 0, 0]} maxBarSize={36} />
           </BarChart>
         </ResponsiveContainer>
@@ -451,7 +453,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} unit=" วัน" />
               <YAxis type="category" dataKey="stage" width={150} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any, _n: any, p: any) => [`${v} วัน (${p.payload.count} ใบงาน)`, 'เฉลี่ย']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v, _n, p) => [`${v} วัน (${p.payload.count} ใบงาน)`, 'เฉลี่ย']} />
               <Bar dataKey="avgDays" fill="#06b6d4" radius={[0, 6, 6, 0]} maxBarSize={22} />
             </BarChart>
           </ResponsiveContainer>
@@ -467,7 +469,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} ใบงาน`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} ใบงาน`, '']} />
               <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -481,7 +483,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
                 tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
               <Bar dataKey="value" fill="#10b981" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -500,7 +502,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
             <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {requestTypes.map((type) => (
               <Bar key={type} dataKey={type} stackId="value" fill={REQUEST_TYPE_COLORS[type] ?? DEFAULT_TYPE_COLOR}
@@ -518,7 +520,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} ใบงาน`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} ใบงาน`, '']} />
               <Bar dataKey="count" fill="#f43f5e" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -531,7 +533,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
               <Bar dataKey="value" fill="#f97316" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -549,7 +551,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} ใบงาน`, '']} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} ใบงาน`, '']} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {reasonCategories.map((reason, idx) => (
               <Bar key={reason} dataKey={reason} stackId="reason" fill={PALETTE[idx % PALETTE.length]}
@@ -568,7 +570,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} หน่วย`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} หน่วย`, '']} />
               <Bar dataKey="qty" fill="#f43f5e" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>
@@ -580,7 +582,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v}%`, 'อัตราปฏิเสธ']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v}%`, 'อัตราปฏิเสธ']} />
               <Line type="monotone" dataKey="rate" stroke="#f97316" strokeWidth={2.5} dot={{ r: 3, fill: '#f97316' }} />
             </LineChart>
           </ResponsiveContainer>
@@ -598,7 +600,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: an
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <YAxis type="category" dataKey="reason" width={200} tick={{ fontSize: 10.5, fill: '#475569' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: string) => v.length > 28 ? v.slice(0, 28) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v: any) => [`${v} ครั้ง`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} ครั้ง`, '']} />
               <Bar dataKey="count" fill="#ef4444" radius={[0, 6, 6, 0]} maxBarSize={20} />
             </BarChart>
           </ResponsiveContainer>

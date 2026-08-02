@@ -9,6 +9,7 @@ import Step1InfoStaff from './components/Step1InfoStaff';
 import Step2Items from '../../../(authenticated)/form/components/Step2Items';
 import Step3Reason from '../../../(authenticated)/form/components/Step3Reason';
 import ReviewPage from '../../../(authenticated)/form/components/ReviewPage';
+import type { ReturnFormData } from '../../../(authenticated)/form/form-types';
 
 const STEPS = [
   { id: 1, label: 'ลูกค้า/ข้อมูล' },
@@ -20,7 +21,7 @@ const STEPS = [
 export default function FormWizardPageStaff() {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ReturnFormData>({
     sender: {},
     items: [],
     reason: '',
@@ -34,7 +35,7 @@ export default function FormWizardPageStaff() {
     try {
       const cleanData = {
         ...formData,
-        items: formData.items.map((item: any) => ({
+        items: formData.items.map((item) => ({
           drugName: item.drugName,
           qty:      item.qty,
           unit:     item.unit,

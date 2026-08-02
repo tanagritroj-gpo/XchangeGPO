@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
 import { Home, History, Building2, LogOut, Loader2 } from 'lucide-react';
+import type { CustomerSessionInfo } from '@/lib/types';
 
-export default function Sidebar({ customer }: { customer: any }) {
+export default function Sidebar({ customer }: { customer: CustomerSessionInfo | null }) {
   const router = useRouter();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 

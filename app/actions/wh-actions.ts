@@ -4,6 +4,8 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
+import { getErrorMessage } from '@/lib/error-message';
+import type { DrugItemRow } from '@/lib/types';
 
 // ดึง Session เพื่อเช็คว่าเป็น Warehouse หรือ Manager
 async function getWHSession() {
@@ -37,7 +39,7 @@ export async function getWHData() {
         .map(req => ({
           ...req,
           drug_items: req.drug_items.filter(
-            (item: any) => !['receiving', 'rejected'].includes(item.current_status)
+            (item: DrugItemRow) => !['receiving', 'rejected'].includes(item.current_status ?? '')
           )
         }))
         .filter(req => req.drug_items.length > 0);
@@ -46,8 +48,8 @@ export async function getWHData() {
     }
 
     return { success: true, data: [] };
-  } catch (e: any) {
-    return { success: false, data: [], error: e.message };
+  } catch (e: unknown) {
+    return { success: false, data: [], error: getErrorMessage(e) };
   }
 }
 
@@ -101,8 +103,8 @@ export async function stampCheckedIn(
 
     revalidatePath('/admin/wh/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -151,8 +153,8 @@ export async function confirmCheckedInBatch(
 
     revalidatePath('/admin/wh/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -208,8 +210,8 @@ export async function stampReceiving(
 
     revalidatePath('/admin/wh/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -270,7 +272,7 @@ export async function rejectWHItem(
 
     revalidatePath('/admin/wh/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }

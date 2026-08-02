@@ -38,6 +38,8 @@ import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { StatCard } from '@/components/StatCard';
+import type { LucideIcon } from 'lucide-react';
+import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 // หมายเหตุตอนเริ่มกระบวนการแลกเปลี่ยน — preset ให้เลือกเร็วๆ (ยังพิมพ์เพิ่มเติมได้
 // ผ่าน "อื่นๆ") ไม่มีคอลัมน์ enum แยกเก็บเพราะยังไม่มีสถิติใดต้อง group ตามหมายเหตุ
@@ -74,7 +76,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) ──
 function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
-  icon: any; label: string; count: number; active: boolean; onClick: () => void;
+  icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
   accentBg: string; accentColor: string;
 }) {
   return (
@@ -98,7 +100,7 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
 
 // ── Sub-tab แนวนอนแบบ segmented control (สำหรับสลับ CSR Workflow / Active Workflow ภายใน tab "จัดการใบงาน") ──
 function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }: {
-  icon: any; label: string; count: number; active: boolean; onClick: () => void; accentColor: string;
+  icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void; accentColor: string;
 }) {
   return (
     <button
@@ -116,7 +118,7 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
 }
 
 function ActionButton({ icon: Icon, label, onClick, tone, loading }: {
-  icon: any; label: string; onClick: () => void;
+  icon: LucideIcon; label: string; onClick: () => void;
   tone: 'blue' | 'red' | 'orange' | 'emerald';
   loading?: boolean;
 }) {
@@ -140,7 +142,7 @@ function ActionButton({ icon: Icon, label, onClick, tone, loading }: {
 
 // ── ปุ่มตัดสินใจระดับใบงาน (อนุมัติ/ปฏิเสธ) — outline ที่ fill สีตอน hover ดูพรีเมียมกว่าปุ่มทึบ ──
 function WorkflowDecisionButton({ icon: Icon, label, onClick, tone }: {
-  icon: any; label: string; onClick: () => void; tone: 'approve' | 'reject';
+  icon: LucideIcon; label: string; onClick: () => void; tone: 'approve' | 'reject';
 }) {
   const styles = {
     approve: {
@@ -167,13 +169,13 @@ function WorkflowDecisionButton({ icon: Icon, label, onClick, tone }: {
 }
 
 // ใบงานพร้อมให้อนุมัติ/ปฏิเสธระดับ card ก็ต่อเมื่อรายการยาทุกตัวถูกจัดการแล้ว (ไม่มีตัวไหนค้าง pending_review)
-const isAllItemsReviewed = (req: any) =>
+const isAllItemsReviewed = (req: RequestRow) =>
   (req.drug_items?.length ?? 0) > 0 &&
-  req.drug_items.every((item: any) => item.current_status !== 'pending_review');
+  (req.drug_items ?? []).every((item) => item.current_status !== 'pending_review');
 
 // วันที่เริ่มสร้างใบงาน — ใช้ในคอลัมน์ "วันที่" ของ "ประวัติใบงาน" เท่านั้น
-const formatRequestDate = (createdAt: string) =>
-  new Date(createdAt).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
+const formatRequestDate = (createdAt: string | null) =>
+  new Date(createdAt || 0).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
 
 // สถานะที่ CSR เป็นคนกดอัปเดตเอง (มีปุ่ม action ให้กดใน RequestListSection)
 // สถานะอื่นนอกจากนี้ (approved, in_transit, at_warehouse, checked_in, out_for_delivery) เป็นของฝ่าย log/wh — CSR แค่มอนิเตอร์
@@ -186,7 +188,15 @@ function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
   emptyIcon: EmptyIcon, emptyText, completingId, pageSize, readOnly,
-}: any) {
+}: {
+  title: string; icon: LucideIcon; iconBg: string; iconColor: string; subtitle: string; items: RequestRow[];
+  expandedReq: number | null; setExpandedReq: (id: number | null) => void;
+  openConfirmModal: (requestId: number, action: 'approved' | 'rejected') => void;
+  openExchangeModal: (requestId: number) => void;
+  handleUpdateStatus: (id: number, newStatus: string) => void;
+  fetchData: (opts?: { silent?: boolean }) => void;
+  emptyIcon: LucideIcon; emptyText: string; completingId: number | null; pageSize?: number; readOnly?: boolean;
+}) {
   const [page, setPage] = useState(1);
 
   useEffect(() => { setPage(1); }, [items]);
@@ -224,7 +234,7 @@ function RequestListSection({
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {pagedItems.map((req: any) => {
+            {pagedItems.map((req: RequestRow) => {
               const isExpanded = expandedReq === req.id;
               const drugCount  = req.drug_items?.length ?? 0;
               return (
@@ -342,22 +352,22 @@ function RequestListSection({
                         <div className="col-span-3 text-right">{readOnly ? 'สถานะ' : 'Actions'}</div>
                       </div>
                       <div className="space-y-2 md:space-y-1.5">
-                        {req.drug_items.map((item: any) => (
+                        {(req.drug_items ?? []).map((item: DrugItemRow) => (
                           <CSRDrugRow
                             key={item.id}
-                            item={{ ...item, request_type: req.request_type }}
+                            item={{ ...item, request_type: req.request_type ?? undefined }}
                             onUpdate={() => fetchData({ silent: true })}
                             readOnly={readOnly}
                           />
                         ))}
                       </div>
-                      {req.drug_items.some((i: any) => i.value_amount) && (
+                      {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
                         <div className="mt-3 flex justify-end">
                           <div className="flex items-center gap-2 bg-teal-50 border border-teal-100 rounded-xl px-4 py-2 text-xs">
                             <Pill size={13} className="text-teal-500" strokeWidth={2.5} />
                             <span className="text-muted-foreground">มูลค่ารวม:</span>
                             <span className="font-bold text-teal-700">
-                              ฿{req.drug_items.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                             </span>
                           </div>
                         </div>
@@ -417,7 +427,7 @@ const MONITOR_STAGE_ORDER = ['approved', 'in_transit', 'at_warehouse', 'checked_
 
 // ฝ่ายที่รับผิดชอบอยู่ ณ สถานะนั้นๆ — approved/in_transit/out_for_delivery เป็นช่วงที่
 // ของอยู่บนรถ/รอรถ (โลจิสติกส์) ส่วน at_warehouse/checked_in คือของถึง/อยู่ในคลังแล้ว (คลังสินค้า)
-const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: LucideIcon; color: string; bg: string }> = {
   approved:         { label: 'โลจิสติกส์', icon: Truck,     color: 'text-blue-700',   bg: 'bg-blue-50' },
   in_transit:       { label: 'โลจิสติกส์', icon: Truck,     color: 'text-blue-700',   bg: 'bg-blue-50' },
   at_warehouse:     { label: 'คลังสินค้า', icon: Warehouse, color: 'text-purple-700', bg: 'bg-purple-50' },
@@ -427,9 +437,9 @@ const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: any; color: stri
 
 // การ์ดใบงาน 1 ใบในกระดาน — read-only ไม่มีปุ่ม action เพราะสถานะกลุ่มนี้ log/wh
 // เป็นคนอัปเดต ไม่ใช่ CSR (ต่างจาก CSRDrugRow ที่มีปุ่มอนุมัติ/ปฏิเสธสำหรับ workflow ของ CSR เอง)
-function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded: boolean; onToggle: () => void }) {
+function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isExpanded: boolean; onToggle: () => void }) {
   const drugCount = req.drug_items?.length ?? 0;
-  const totalValue = req.drug_items?.reduce((s: number, i: any) => s + (Number(i.value_amount) || 0), 0) ?? 0;
+  const totalValue = req.drug_items?.reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0) ?? 0;
   const role = MONITOR_STAGE_ROLE[req.current_status];
   const RoleIcon = role?.icon;
   return (
@@ -456,7 +466,7 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded:
 
       {isExpanded && drugCount > 0 && (
         <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
-          {req.drug_items.map((item: any) => (
+          {(req.drug_items ?? []).map((item: DrugItemRow) => (
             <div key={item.id} className="text-[10.5px] bg-slate-50 rounded-lg px-2 py-1.5">
               <p className="font-bold text-slate-700 truncate">{item.drug_name}</p>
               <p className="text-muted-foreground mt-0.5">
@@ -479,7 +489,7 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: any; isExpanded:
 // ทีละสถานะ (บนลงล่าง) ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังโดยไม่ต้องเลื่อนแนวนอน
 // การ์ดภายในแต่ละบล็อกจัดเป็น grid responsive ใช้พื้นที่แนวนอนที่ว่างจากการเลิกเป็นคอลัมน์แคบๆ ──
 function MonitorBoard({ items, expandedReq, setExpandedReq }: {
-  items: any[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
+  items: RequestRow[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
 }) {
   return (
     <section>
@@ -534,7 +544,7 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
 
 export default function CSRDashboard() {
   const router = useRouter();
-  const [requests, setRequests]       = useState<any[]>([]);
+  const [requests, setRequests]       = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [expandedReq, setExpandedReq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
@@ -583,7 +593,7 @@ export default function CSRDashboard() {
       if (newStatus !== 'completed') { alert('สถานะไม่รู้จัก'); return; }
       const res = await completeRequest(id, remarkInput || '');
       if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
-      else alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
     } catch (err) { alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); console.error(err); }
     finally { setCompletingId(null); }
   };
@@ -605,7 +615,7 @@ export default function CSRDashboard() {
         setExchangeModal(null);
         fetchData();
       } else {
-        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
@@ -636,7 +646,7 @@ export default function CSRDashboard() {
         setRemark('');
         fetchData();
       } else {
-        alert('Error: ' + ((res as any).error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
@@ -652,7 +662,7 @@ export default function CSRDashboard() {
   // รวมทุกใบงานที่เคยเข้าระบบ แยกจาก "จัดการใบงาน" ที่โฟกัสเฉพาะรายการที่ต้องดำเนินการ
   // เรียงตามวันที่สร้างใหม่สุดก่อนเสมอ (ไม่พึ่งพา order จาก query อย่างเดียว กันกรณีลำดับเปลี่ยนในอนาคต)
   const historyRequestsSorted = [...requests].sort(
-    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   );
 
   // แยกใบงาน active อีกชั้น: ที่ CSR ต้องอัปเดตเอง vs ที่ log/wh อัปเดต (CSR แค่มอนิเตอร์)
@@ -666,7 +676,7 @@ export default function CSRDashboard() {
   const rejectedCount      = requests.filter(r => r.current_status === 'rejected').length;
 
   // ── เลือก item ที่จะแสดงตามตัวกรองด่วน (ถ้ามี) — ใช้แทนที่เนื้อหาแท็บ/แท็บย่อยปกติ ──
-  const statFilterMeta: Record<string, { title: string; subtitle: string; items: any[]; icon: any; iconBg: string; iconColor: string }> = {
+  const statFilterMeta: Record<string, { title: string; subtitle: string; items: RequestRow[]; icon: LucideIcon; iconBg: string; iconColor: string }> = {
     pending_review: {
       title: 'รอตรวจสอบ', subtitle: `${pendingReviewCount} ใบงานรอตรวจสอบ`, items: requests.filter(r => r.current_status === 'pending_review'),
       icon: Clock, iconBg: 'bg-amber-100', iconColor: 'text-amber-600',

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
+import { getErrorMessage } from '@/lib/error-message';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
@@ -15,18 +16,33 @@ const SUCCESS_REDIRECT_DELAY_MS = 2200;
 
 const ORG_TYPE_VALUES = ORG_TYPE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
+const POSITION_OPTIONS = [
+  { value: "เภสัชกร", label: "เภสัชกร" },
+  { value: "เจ้าหน้าที่พัสดุ", label: "เจ้าหน้าที่พัสดุ" },
+  { value: "เจ้าของกิจการ", label: "เจ้าของกิจการ" },
+  { value: "อื่นๆ", label: "อื่นๆ (ระบุ)" },
+];
+const POSITION_VALUES = POSITION_OPTIONS.map((o) => o.value) as [string, ...string[]];
+const POSITION_OTHER_VALUE = "อื่นๆ";
+
 const registerSchema = z.object({
   hospital_name: z.string().min(1, "กรุณากรอกชื่อหน่วยงาน"),
   org_type: z.enum(ORG_TYPE_VALUES, { message: "กรุณาเลือกประเภทหน่วยงาน" }),
   province: z.string().min(1, "กรุณาเลือกจังหวัด"),
   contact_name: z.string().min(1, "กรุณากรอกชื่อผู้ติดต่อ"),
-  position: z.string().min(1, "กรุณากรอกตำแหน่ง"),
+  position: z.enum(POSITION_VALUES, { message: "กรุณาเลือกตำแหน่ง" }),
+  position_other: z.string().optional(),
   phone: z.string().min(9, "เบอร์โทรศัพท์ไม่ถูกต้อง"),
   email: z.string().email("อีเมลไม่ถูกต้อง"),
   pdpa_consent: z.boolean().refine((val) => val === true, {
     message: "กรุณากดยินยอม PDPA เพื่อดำเนินการต่อ",
   }),
-});
+}).refine(
+  (data) => data.position !== POSITION_OTHER_VALUE || !!data.position_other?.trim(),
+  { message: "กรุณาระบุตำแหน่ง", path: ["position_other"] }
+);
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const router = useRouter();
@@ -36,11 +52,13 @@ export function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema)
   });
 
-  const onSubmit = async (data: any) => {
+  const selectedPosition = watch("position");
+
+  const onSubmit = async (data: RegisterFormValues) => {
     if (!signature) {
       setSignatureError("กรุณาลงลายเซ็นต์ผู้มีอำนาจก่อนดำเนินการต่อ");
       return;
@@ -48,7 +66,9 @@ export function RegisterForm() {
     setLoading(true);
 
     try {
-      const payload = { ...data, signature_url: signature };
+      const { position_other, ...rest } = data;
+      const resolvedPosition = data.position === POSITION_OTHER_VALUE ? (position_other ?? '').trim() : data.position;
+      const payload = { ...rest, position: resolvedPosition, signature_url: signature };
       const result = await registerCustomer(payload);
 
       if (result.success) {
@@ -58,8 +78,8 @@ export function RegisterForm() {
         alert("เกิดข้อผิดพลาด: " + result.error);
         setLoading(false);
       }
-    } catch (err: any) {
-      alert("เกิดข้อผิดพลาด: " + err.message);
+    } catch (err: unknown) {
+      alert("เกิดข้อผิดพลาด: " + getErrorMessage(err));
       setLoading(false);
     }
   };
@@ -94,31 +114,24 @@ export function RegisterForm() {
               <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>🏥</div>
               <h2 className="text-sm font-black text-foreground">ข้อมูลหน่วยงาน</h2>
             </div>
-            <label className={labelStyle}>ชื่อหน่วยงาน / โรงพยาบาล</label>
-            <input {...register("hospital_name")} placeholder="เช่น โรงพยาบาลส่งเสริมสุขภาพ..." className={inputStyle} />
-            {errors.hospital_name && <p className={errorStyle}>⚠ {errors.hospital_name.message as string}</p>}
+            <label className={labelStyle}>ประเภทหน่วยงาน</label>
+            <select {...register("org_type")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
+              <option value="">เลือกประเภทหน่วยงาน</option>
+              {ORG_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {errors.org_type && <p className={errorStyle}>⚠ {errors.org_type.message as string}</p>}
             <div className="mt-4">
-              <label className={labelStyle}>ประเภทหน่วยงาน</label>
-              <select {...register("org_type")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
-                <option value="">เลือกประเภทหน่วยงาน</option>
-                {ORG_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {errors.org_type && <p className={errorStyle}>⚠ {errors.org_type.message as string}</p>}
+              <label className={labelStyle}>ชื่อหน่วยงาน / โรงพยาบาล</label>
+              <input {...register("hospital_name")} placeholder="เช่น โรงพยาบาลส่งเสริมสุขภาพ..." className={inputStyle} />
+              {errors.hospital_name && <p className={errorStyle}>⚠ {errors.hospital_name.message as string}</p>}
             </div>
-            <div className="grid grid-cols-2 gap-3 mt-4">
-              <div>
-                <label className={labelStyle}>จังหวัด</label>
-                <select {...register("province")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
-                  <option value="">เลือกจังหวัด</option>
-                  {SOUTHERN_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                {errors.province && <p className={errorStyle}>⚠ {errors.province.message as string}</p>}
-              </div>
-              <div>
-                <label className={labelStyle}>ตำแหน่ง</label>
-                <input {...register("position")} placeholder="ตำแหน่ง" className={inputStyle} />
-                {errors.position && <p className={errorStyle}>⚠ {errors.position.message as string}</p>}
-              </div>
+            <div className="mt-4">
+              <label className={labelStyle}>จังหวัด</label>
+              <select {...register("province")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
+                <option value="">เลือกจังหวัด</option>
+                {SOUTHERN_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              {errors.province && <p className={errorStyle}>⚠ {errors.province.message as string}</p>}
             </div>
           </div>
 
@@ -130,6 +143,21 @@ export function RegisterForm() {
             <label className={labelStyle}>ชื่อ-นามสกุล ผู้ติดต่อ</label>
             <input {...register("contact_name")} placeholder="ชื่อ-นามสกุล" className={inputStyle} />
             {errors.contact_name && <p className={errorStyle}>⚠ {errors.contact_name.message as string}</p>}
+            <div className="mt-4">
+              <label className={labelStyle}>ตำแหน่ง</label>
+              <select {...register("position")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
+                <option value="">เลือกตำแหน่ง</option>
+                {POSITION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {errors.position && <p className={errorStyle}>⚠ {errors.position.message as string}</p>}
+            </div>
+            {selectedPosition === POSITION_OTHER_VALUE && (
+              <div className="mt-4">
+                <label className={labelStyle}>ระบุตำแหน่ง</label>
+                <input {...register("position_other")} placeholder="ระบุตำแหน่ง" className={inputStyle} />
+                {errors.position_other && <p className={errorStyle}>⚠ {errors.position_other.message as string}</p>}
+              </div>
+            )}
             <div className="mt-4">
               <label className={labelStyle}>อีเมล</label>
               <input {...register("email")} placeholder="example@email.com" className={inputStyle} />

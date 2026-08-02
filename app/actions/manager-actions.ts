@@ -2,6 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { getErrorMessage } from '@/lib/error-message';
 
 // เช็คสิทธิ์เฉพาะ role 'manager' เท่านั้น (เข้มกว่า getCSRSession ที่อนุญาต department 'csr' ด้วย)
 // ยังคงไว้เหมือนเดิมทุกบรรทัด — ใช้กับ action ที่ควรเป็นสิทธิ์ manager ล้วนๆ เท่านั้น
@@ -43,8 +44,8 @@ export async function getUnansweredChatbotQuestions(limit: number = 50) {
 
     if (error) return { success: false, error: error.message };
     return { success: true, data: data || [] };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -56,12 +57,12 @@ export async function getManagerStatusLogs() {
 
     const { data, error } = await supabaseAdmin
       .from('status_logs')
-      .select('request_id, status_name, log_date, staff_remark, department, actor_type')
+      .select('id, request_id, staff_id, status_name, log_date, staff_remark, department, actor_type, drug_item_id, rejection_reason_code')
       .order('log_date', { ascending: true });
 
     if (error) return { success: false, error: error.message };
     return { success: true, data: data || [] };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }

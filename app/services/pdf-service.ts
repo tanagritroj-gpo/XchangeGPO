@@ -3,8 +3,9 @@ import fontkit from '@pdf-lib/fontkit';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { drawThaiText } from '@/lib/pdf-thai-text';
+import type { RequestRow, DrugItemRow } from '@/lib/types';
 
-export async function buildReturnFormPdf(request: any) {
+export async function buildReturnFormPdf(request: RequestRow) {
   
   // 1. โหลด Template และ Font
   const templatePath = path.join(process.cwd(), 'public', 'forms', 'FM-AJJ0-008_Return_rev.02.pdf');
@@ -36,7 +37,7 @@ export async function buildReturnFormPdf(request: any) {
 
   let currentY = 497.31;
   if (request.drug_items) {
-    request.drug_items.forEach((item: any, index: number) => {
+    request.drug_items.forEach((item: DrugItemRow, index: number) => {
       drawText((index + 1).toString(), 50, currentY, 12);
       drawText(item.drug_name, 97.5, currentY, 12);
       drawText(item.qty?.toString(), 223, currentY, 12);

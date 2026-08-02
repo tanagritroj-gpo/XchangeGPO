@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
+import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 
 const sanitizeDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -32,7 +33,7 @@ export async function getNextDocNumber() {
   return `S${nextNum}/2026`;
 }
 
-export async function createReturnRequest(formData: any) {
+export async function createReturnRequest(formData: ReturnFormData) {
   // ★ 1. ต้อง login เสมอ — identity มาจาก session ที่ verify แล้วเท่านั้น
   const session = await getCustomerSession();
   if (!session) {
@@ -79,14 +80,14 @@ export async function createReturnRequest(formData: any) {
     throw new Error("บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่");
   }
 
-  const items: ReturnItemInput[] = formData.items.map((item: any): ReturnItemInput => ({
+  const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => ({
     drug_name: String(item.drugName ?? '').slice(0, 200),
     qty: Math.max(0, Number(item.qty) || 0),
     unit: item.unit || 'ไม่ระบุ',
     lot_number: item.lot || '',
     exp_date: sanitizeDate(item.exp),
     value_amount: Math.max(0, Number(item.val) || 0),
-    invoice_number: item.inv || item.invoiceNumber || '',
+    invoice_number: item.inv || '',
   }));
 
   // ★ 3. คำนวณมูลค่ารวมใหม่ฝั่ง server แทนการเชื่อ formData.totalValue
@@ -96,11 +97,11 @@ export async function createReturnRequest(formData: any) {
 
   const requestData = {
     ref_id: refId,
-    doc_number: formData.sender.doc_number,
-    request_type: formData.sender.request_type,
-    hospital_name: formData.sender.hospital_name,
-    contact_name: formData.sender.contact_name,
-    phone: formData.sender.phone,
+    doc_number: formData.sender?.doc_number,
+    request_type: formData.sender?.request_type,
+    hospital_name: formData.sender?.hospital_name,
+    contact_name: formData.sender?.contact_name,
+    phone: formData.sender?.phone,
 
     // ★ 4. ใช้ email จาก session ที่ verify แล้ว ไม่ใช่จาก formData
     customer_email: session.email,

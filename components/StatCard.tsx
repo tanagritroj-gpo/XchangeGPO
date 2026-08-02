@@ -1,10 +1,12 @@
 'use client';
 
+import type { LucideIcon } from 'lucide-react';
+
 // การ์ดสถิติที่คลิกได้จริง (ต่างจาก StatCard เวอร์ชัน highlight-only ของ Logistics/WH
 // ที่แค่ mirror สถานะแท็บที่เลือกอยู่) — ใช้ร่วมกันระหว่าง CSR Dashboard และ Sale History
 // กดแล้วกรอง/สลับมุมมองไปดูเฉพาะกลุ่มนั้นได้เลย
 export function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing, onClick }: {
-  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  icon: LucideIcon; value: number; label: string; iconBg: string; iconText: string;
   isActive?: boolean; activeBorder?: string; activeRing?: string; onClick: () => void;
 }) {
   return (

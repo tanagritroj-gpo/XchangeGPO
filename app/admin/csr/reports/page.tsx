@@ -8,6 +8,7 @@ import { getManagerStatusLogs } from '@/app/actions/manager-actions';
 import ManagerInsights from '@/app/admin/manager/staff-approvals/component/ManagerInsights';
 import { filterCsrRequests, type CsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
+import type { RequestRow, StatusLogRow } from '@/lib/types';
 
 const REQUEST_TYPES = ['รับคืนลดหนี้', 'รับคืน CCR', 'รับคืนแลกเปลี่ยน'];
 
@@ -50,8 +51,8 @@ function formatCurrency(n: number) {
 export default function CsrReportsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<any[]>([]);
-  const [statusLogs, setStatusLogs] = useState<any[]>([]);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
   const [filters, setFilters] = useState<CsrReportFilters>({ status: 'all', requestType: 'all' });
   const [page, setPage] = useState(1);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -291,7 +292,7 @@ export default function CsrReportsPage() {
                     <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3.5 items-center">
                       <div className="col-span-2 text-sm font-bold text-foreground font-mono">{r.ref_id}</div>
                       <div className="col-span-2 text-xs text-muted-foreground">
-                        {new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
+                        {new Date(r.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
                       </div>
                       <div className="col-span-2 text-sm text-foreground truncate">{r.hospital_name || '-'}</div>
                       <div className="col-span-2 text-xs text-muted-foreground truncate">{r.request_type || '-'}</div>
@@ -308,7 +309,7 @@ export default function CsrReportsPage() {
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{r.hospital_name || '-'}</p>
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-                        <span>{new Date(r.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</span>
+                        <span>{new Date(r.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</span>
                         <StatusBadge status={r.current_status} />
                       </div>
                     </div>

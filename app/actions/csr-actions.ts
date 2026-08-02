@@ -8,6 +8,8 @@ import { buildRegistrationConfirmationPdf } from '@/app/services/registration-pd
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { Resend } from 'resend';
+import { getErrorMessage } from '@/lib/error-message';
+import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -22,13 +24,13 @@ async function getCSRSession() {
 }
 
 export async function withCSRAuth<T>(
-  action: (session: any) => Promise<T>
+  action: (session: StaffSessionInfo) => Promise<T>
 ): Promise<T | { success: false; error: string }> {
   try {
     const session = await getCSRSession();
     return await action(session);
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -53,9 +55,9 @@ export async function getCSRDashboardData() {
 
     return { success: true, clients, requests };
 
-  } catch (e: any) {
-    console.error("DEBUG - Catch Error:", e.message);
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    console.error("DEBUG - Catch Error:", getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -152,15 +154,15 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
     revalidatePath('/admin/csr/customers');
     return { success: true };
 
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
 // สร้าง PDF ยืนยันการลงทะเบียน อัปโหลดเก็บไว้ใน bucket + document_attachments แล้วส่ง
 // อีเมลแจ้งลูกค้า — เรียกจาก reviewClient() เฉพาะตอนอนุมัติเท่านั้น ไม่ throw ออกไปเอง
 // (caller เป็นคนคุม try/catch ไม่ให้กระทบผลอนุมัติ)
-async function generateRegistrationDocument(client: any, customerCode: string, session: any) {
+async function generateRegistrationDocument(client: ClientRow, customerCode: string, session: StaffSessionInfo) {
   let signaturePng: Uint8Array | null = null;
   if (client.signature_url) {
     const { data: sigBlob } = await supabaseAdmin.storage.from('signatures').download(client.signature_url);
@@ -400,9 +402,9 @@ export async function getCustomerRequestHistory(customerId: number) {
     if (error) throw error;
 
     return { success: true, data: data ?? [] };
-  } catch (e: any) {
-    console.error('getCustomerRequestHistory error:', e.message);
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    console.error('getCustomerRequestHistory error:', getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -427,7 +429,7 @@ export async function getStaffRequestDetail(requestId: number, customerId: numbe
       .order('log_date', { ascending: true });
 
     const drugNameById: Record<number, string> = Object.fromEntries(
-      (request.drug_items ?? []).map((i: any) => [i.id, i.drug_name])
+      (request.drug_items ?? []).map((i: DrugItemRow) => [i.id, i.drug_name])
     );
 
     const timeline = (timelineRaw ?? []).map((t) => ({
@@ -436,8 +438,8 @@ export async function getStaffRequestDetail(requestId: number, customerId: numbe
     }));
 
     return { success: true, data: { ...request, timeline } };
-  } catch (e: any) {
-    console.error('getStaffRequestDetail error:', e.message);
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    console.error('getStaffRequestDetail error:', getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
   }
 }

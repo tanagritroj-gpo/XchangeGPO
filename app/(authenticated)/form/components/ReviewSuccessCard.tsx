@@ -5,8 +5,8 @@ import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action'; 
 
 type PdfState = 'preparing' | 'ready' | 'error';
-type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
-type EmailActionResult = { success: boolean; message?: string; error?: string };
+export type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
+export type EmailActionResult = { success: boolean; message?: string; error?: string };
 
 // ลำดับสถานะงานตาม enum จริงใน requests.current_status
 const STATUS_STEPS: { key: string; label: string }[] = [

@@ -1,19 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { ReviewSuccessCard } from './ReviewSuccessCard';
+import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult } from './ReviewSuccessCard';
+import type { ReturnFormData } from '../form-types';
+import { getErrorMessage } from '@/lib/error-message';
+
+interface SubmitResult {
+  refId?: string;
+  id?: number;
+  [key: string]: unknown;
+}
 
 interface StepProps {
   back:     () => void;
-  formData: any;
-  onSubmit: () => Promise<any>;
+  formData: ReturnFormData;
+  onSubmit: () => Promise<SubmitResult>;
   // ── เพิ่มใหม่: ทั้งหมด optional พร้อม default ตรงกับพฤติกรรมเดิมของฝั่งลูกค้าทุกประการ ──
   stepNumber?: number;   // เลขขั้นตอนที่แสดงบน badge — ฝั่งลูกค้า 5 ขั้น, ฝั่ง staff 4 ขั้น (ไม่มี step เซ็น)
   allowEmail?: boolean;  // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "ส่งเข้าอีเมล"
   showTrackingLink?: boolean; // ส่งต่อไป ReviewSuccessCard ควบคุมลิงก์ "ติดตามสถานะคำร้องนี้" แยกจาก allowEmail
   homeHref?: string;     // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "กลับหน้าหลัก"
-  generatePdfActionFn?: (requestId: number) => Promise<any>; // override เป็น generateStaffPdfAction ฝั่ง staff
-  sendEmailActionFn?: (requestId: number) => Promise<any>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
+  generatePdfActionFn?: (requestId: number) => Promise<PdfActionResult>; // override เป็น generateStaffPdfAction ฝั่ง staff
+  sendEmailActionFn?: (requestId: number) => Promise<EmailActionResult>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
 }
 
 // ── Helper สำหรับแสดงผลรายการยา ──
@@ -85,8 +93,8 @@ export default function ReviewPage({
 
   // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
   //   fallback ไปใช้ข้อมูลผู้ติดต่อของลูกค้าที่เลือกไว้ใน sender แทน กันการ์ด "ข้อมูลหน่วยงาน" ขาดชื่อไปเงียบๆ
-  const displaySignerName = signer_name || sender?.contact_name;
-  const displaySignerPosition = signer_position || sender?.position;
+  const displaySignerName = signer_name || sender?.contact_name || undefined;
+  const displaySignerPosition = signer_position || sender?.position || undefined;
 
   const deliveryDetail = delivery_type === 'ขนส่ง'
     ? `${addr_street || ''} ต.${addr_sub || ''} อ.${addr_district || ''} จ.${addr_province || ''}`
@@ -98,11 +106,11 @@ export default function ReviewPage({
     try {
       const result = await onSubmit();
       setRefId(result?.refId || 'N/A');
-      setCurrentRequestId(result?.id);
+      setCurrentRequestId(result?.id ?? null);
       setStatus('success');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error:", error);
-      alert("บันทึกไม่สำเร็จ: " + (error?.message || "กรุณาติดต่อเจ้าหน้าที่"));
+      alert("บันทึกไม่สำเร็จ: " + getErrorMessage(error));
       setStatus('error');
     } finally {
       setLoading(false);
@@ -152,7 +160,7 @@ if (status === 'success') {
           <span className="ml-auto bg-white/20 px-2.5 py-0.5 rounded-full text-[11px]">{items?.length ?? 0} รายการ</span>
         </div>
         <div className="px-6 py-4 flex flex-col gap-2.5">
-          {items?.map((d: any, i: number) => (
+          {items?.map((d, i: number) => (
             <div key={i} className="flex gap-3 p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-100 hover:border-rose-200 transition-colors duration-150">
               <span className="w-7 h-7 rounded-lg text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-sm"
                 style={{ background: 'linear-gradient(135deg,#be123c,#f43f5e)' }}>
@@ -186,7 +194,7 @@ if (status === 'success') {
       <ReviewRow 
         label="สินค้าที่ต้องการ" 
         value={exchange_product_type === 'รายการเดิม' 
-               ? renderExchangeList(exchange_product_list) 
+               ? renderExchangeList(exchange_product_list || '')
                : exchange_product_other} 
       />
     </>

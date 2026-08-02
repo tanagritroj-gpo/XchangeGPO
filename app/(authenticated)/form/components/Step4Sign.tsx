@@ -1,13 +1,16 @@
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
+import type { ReturnFormData } from '../form-types';
 
 interface StepProps {
   next:        () => void;
   back:        () => void;
-  updateData:  React.Dispatch<React.SetStateAction<any>>;
-  formData:    any;
+  updateData:  React.Dispatch<React.SetStateAction<ReturnFormData>>;
+  formData:    ReturnFormData;
 }
+
+type CanvasPointerEvent = React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>;
 
 const inputCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
 
@@ -32,7 +35,11 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 }
 
 // ── SignaturePad: stable, high-DPI aware ────────────────────────────────────
-function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: any) {
+function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: {
+  canvasRef: React.RefObject<HTMLCanvasElement>;
+  isEmpty: boolean;
+  setIsEmpty: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
   const drawing = useRef(false);
   const lastPos = useRef<{ x: number; y: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -62,14 +69,13 @@ function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: any) {
     setReady(true);
   }, []); // ← รันครั้งเดียวตอน mount เท่านั้น ป้องกัน context ถูก reset ระหว่างกรอกฟอร์ม
 
-  const getPos = (e: any) => {
+  const getPos = (e: CanvasPointerEvent) => {
     const rect = canvasRef.current!.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: clientX - rect.left, y: clientY - rect.top };
+    const point = 'touches' in e ? e.touches[0] : e;
+    return { x: point.clientX - rect.left, y: point.clientY - rect.top };
   };
 
-  const startDraw = (e: any) => {
+  const startDraw = (e: CanvasPointerEvent) => {
     if (!ready) return;
     e.preventDefault();
     drawing.current = true;
@@ -77,7 +83,7 @@ function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: any) {
     setIsEmpty(false);
   };
 
-  const draw = (e: any) => {
+  const draw = (e: CanvasPointerEvent) => {
     if (!drawing.current || !lastPos.current) return;
     e.preventDefault();
     const ctx = canvasRef.current!.getContext('2d')!;
@@ -148,7 +154,7 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
 
     const sigDataUrl = canvasRef.current!.toDataURL('image/png');
 
-    updateData((prev: any) => ({
+    updateData((prev) => ({
       ...prev,
       signature_url: sigDataUrl,
       signer_name: fullname,

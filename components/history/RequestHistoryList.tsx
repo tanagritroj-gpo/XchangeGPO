@@ -11,8 +11,17 @@ import {
   formatCurrency,
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
+import type { RequestRow, DrugItemRow, HistorySummaryRow } from '@/lib/types';
 
-export type RequestDetailResult = { success: boolean; data?: any; error?: string };
+interface TimelineEntry {
+  status_name: string;
+  log_date: string;
+  staff_remark: string | null;
+  drug_name?: string | null;
+}
+type RequestDetail = RequestRow & { timeline?: TimelineEntry[] };
+
+export type RequestDetailResult = { success: boolean; data?: RequestDetail; error?: string };
 export type ListSize = 'default' | 'lg';
 
 // ขนาดตัวอักษร/ไอคอนแยกตามโหมด — 'lg' ใช้กับหน้า sale history ที่ตัวอักษรโดยรวมดูเล็ก
@@ -37,7 +46,7 @@ const SIZE_MAP = {
 // fetchDetail แยกออกมาเป็น prop เพราะผู้เรียกแต่ละที่ตรวจสิทธิ์ต่างกัน — CSR ยืนยันด้วย
 // customerId ที่รู้ล่วงหน้า ส่วน sale ต้อง join เช็ค org_type/province ของเจ้าของใบงานแทน
 function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: number; fetchDetail: (requestId: number) => Promise<RequestDetailResult>; size: ListSize }) {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<RequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const T = SIZE_MAP[size];
@@ -49,7 +58,7 @@ function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: numbe
       setError('');
       const res = await fetchDetail(requestId);
       if (cancelled) return;
-      if (res.success) setData(res.data);
+      if (res.success) setData(res.data ?? null);
       else setError(res.error || 'โหลดรายละเอียดไม่สำเร็จ');
       setLoading(false);
     })();
@@ -114,13 +123,13 @@ function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: numbe
       </div>
 
       {/* รายการยา */}
-      {data.drug_items?.length > 0 && (
+      {(data.drug_items?.length ?? 0) > 0 && (
         <div className="bg-white rounded-2xl border border-border p-4">
           <p className={`${T.sectionLabel} font-bold text-muted-foreground mb-3 flex items-center gap-1.5`}>
             <Pill className={T.icon} /> รายการยา
           </p>
           <div className="space-y-2">
-            {data.drug_items.map((item: any, i: number) => {
+            {(data.drug_items ?? []).map((item: DrugItemRow, i: number) => {
               const itemRejected = item.current_status === REJECTED_STATUS;
               return (
                 <div key={i} className={`rounded-xl p-3 border flex items-center justify-between gap-3 ${
@@ -151,7 +160,7 @@ function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: numbe
       <div>
         <p className={`${T.sectionLabel} font-bold text-muted-foreground mb-3 px-1`}>ประวัติการดำเนินการ</p>
         <div className="relative border-l-2 border-border ml-3 space-y-6">
-          {data.timeline?.map((log: any, i: number) => {
+          {data.timeline?.map((log: TimelineEntry, i: number) => {
             const meta = getStatusMeta(log.status_name);
             const Icon = meta.icon;
             return (
@@ -202,7 +211,7 @@ export function RequestHistoryList({
   showOrgBadge = false,
   size = 'default',
 }: {
-  history: any[];
+  history: HistorySummaryRow[];
   loading?: boolean;
   error?: string;
   emptyText?: string;
@@ -262,7 +271,7 @@ export function RequestHistoryList({
                     <div className="min-w-0">
                       <p className={`${T.ref} font-bold text-foreground font-mono`}>{req.ref_id}</p>
                       <p className={`${T.meta} text-muted-foreground mt-0.5`}>
-                        {req.request_type} · {new Date(req.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {req.request_type} · {new Date(req.created_at || 0).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </p>
                       {showOrgBadge && req.hospital_name && (
                         <p className={`${T.meta} font-semibold text-indigo-600 mt-0.5 truncate`}>

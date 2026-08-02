@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReturnFormData } from '../form-types';
 
 interface StepProps {
   next:       () => void;
   back:       () => void;
-  updateData: React.Dispatch<React.SetStateAction<any>>;
-  formData:   any;
+  updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
+  formData:   ReturnFormData;
 }
 
 const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
@@ -94,7 +95,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
       if (exchangeMode === 'อื่นๆ' && !exchangeOtherText.trim()) return alert('กรุณาระบุชื่อสินค้าที่ต้องการครับ');
     }
     if (!deliveryType) return alert('กรุณาเลือกวิธีส่งคืนครับ');
-    updateData((prev: any) => ({
+    updateData((prev) => ({
       ...prev,
       return_reason:          reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
       exchange_product_type:  exchangeMode,
@@ -155,7 +156,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
               </div>
               {exchangeMode === 'รายการเดิม' && (
                 <div className="mt-1 flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {items.map((d: any, i: number) => {
+                  {items.map((d, i: number) => {
                     const checked = checkedItems.includes(d.drugName);
                     return (
                       <label

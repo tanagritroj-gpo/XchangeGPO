@@ -7,6 +7,8 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
+import type { LucideIcon } from 'lucide-react';
+import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
 const LOGISTICS_STATUS: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   approved:     { label: 'อนุมัติรับคืนสินค้า',  color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     dot: 'bg-blue-500'   },
@@ -35,7 +37,7 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── การ์ดสถิติสรุปย่อ — ใช้แทนป้าย "N ใบงาน" ตัวเดียวเดิมในแถบด้านบน ──
 function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing }: {
-  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  icon: LucideIcon; value: number; label: string; iconBg: string; iconText: string;
   isActive?: boolean; activeBorder?: string; activeRing?: string;
 }) {
   return (
@@ -58,7 +60,7 @@ function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, active
 // ── ปุ่ม tab แนวตั้ง (sidebar บน desktop / แนวนอนเลื่อนได้บนมือถือ) — แถบซ้ายสีเขียว
 // บอกว่ากำลังดูหัวข้อไหนอยู่ (จาง = แค่ hover, เข้ม = เลือกอยู่) ── ──
 function LogTabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
-  icon: any; label: string; count: number; active: boolean; onClick: () => void;
+  icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
   accentBg: string; accentColor: string;
 }) {
   return (
@@ -93,10 +95,10 @@ const LOG_PAGE_SIZE = 5;
 function LogisticsRequestList({
   items, expandedReq, setExpandedReq, onSendTruck, handleDrugItemUpdate, emptyText,
 }: {
-  items: any[];
+  items: RequestRow[];
   expandedReq: number | null;
   setExpandedReq: (id: number | null) => void;
-  onSendTruck: (req: any) => void;
+  onSendTruck: (req: RequestRow) => void;
   handleDrugItemUpdate: (requestId: number, itemId: number, newStatus: 'at_warehouse' | 'rejected') => void;
   emptyText: string;
 }) {
@@ -195,7 +197,7 @@ function LogisticsRequestList({
                         <div className="col-span-2 text-right">Action</div>
                       </div>
                       <div className="space-y-1.5">
-                        {req.drug_items.map((item: any) => (
+                        {(req.drug_items ?? []).map((item: DrugItemRow) => (
                           <LOGDrugRow
                             key={item.id}
                             item={item}
@@ -255,11 +257,11 @@ function LogisticsRequestList({
 
 export default function LogisticsDashboard() {
   const router = useRouter();
-  const [requests, setRequests]               = useState<any[]>([]);
+  const [requests, setRequests]               = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading]             = useState(true);
   const [expandedReq, setExpandedReq]         = useState<number | null>(null);
   const [activeTab, setActiveTab]             = useState<'approved' | 'in_transit' | 'photos'>('approved');
-  const [staff, setStaff]                     = useState<any>(null);
+  const [staff, setStaff]                     = useState<StaffSessionInfo | null>(null);
   const [today, setToday]                     = useState('');
   const [isLoggingOut, setIsLoggingOut]       = useState(false);
 
@@ -290,7 +292,7 @@ export default function LogisticsDashboard() {
     router.push('/');
   };
 
-  const openTransitModal = (req: any) => {
+  const openTransitModal = (req: RequestRow) => {
     setTransitCode('');
     setTransitDetail('');
     setTransitModal({ requestId: req.id, refId: req.ref_id });
@@ -307,7 +309,7 @@ export default function LogisticsDashboard() {
           req.id !== transitModal.requestId ? req : {
             ...req,
             current_status: 'in_transit',
-            drug_items: req.drug_items.map((it: any) => ({ ...it, current_status: 'in_transit' })),
+            drug_items: (req.drug_items ?? []).map((it: DrugItemRow) => ({ ...it, current_status: 'in_transit' })),
           }
         ));
         setTransitModal(null);
@@ -324,11 +326,11 @@ export default function LogisticsDashboard() {
       let shouldRemove = false;
       const updated = prev.map(req => {
         if (req.id !== requestId) return req;
-        const updatedItems = req.drug_items.map((it: any) =>
+        const updatedItems = (req.drug_items ?? []).map((it: DrugItemRow) =>
           it.id === itemId ? { ...it, current_status: newStatus } : it
         );
-        const hasAccepted    = updatedItems.some((i: any) => i.current_status === 'at_warehouse');
-        const isAllProcessed = updatedItems.every((i: any) => ['at_warehouse', 'rejected'].includes(i.current_status));
+        const hasAccepted    = updatedItems.some((i: DrugItemRow) => i.current_status === 'at_warehouse');
+        const isAllProcessed = updatedItems.every((i: DrugItemRow) => ['at_warehouse', 'rejected'].includes(i.current_status ?? ''));
         if (isAllProcessed) shouldRemove = true;
         return { ...req, drug_items: updatedItems, current_status: isAllProcessed ? (hasAccepted ? 'at_warehouse' : 'rejected') : req.current_status };
       });

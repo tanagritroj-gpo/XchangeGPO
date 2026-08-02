@@ -8,10 +8,14 @@ import {
 import { getWHData, confirmCheckedInBatch } from '@/app/actions/wh-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import WHDrugRow from './component/WHDrugrow';
+import type { LucideIcon } from 'lucide-react';
+import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
+
+type WHRequestRow = RequestRow & { _confirmStep?: string };
 
 // ── Request Card ────────────────────────────────────────────────
 function RequestCard({ req, onItemUpdate, onConfirmCheckedIn }: {
-  req: any;
+  req: WHRequestRow;
   onItemUpdate: (itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected') => void;
   onConfirmCheckedIn: (requestId: number) => Promise<void>;
 }) {
@@ -20,16 +24,16 @@ function RequestCard({ req, onItemUpdate, onConfirmCheckedIn }: {
   const confirmed = req._confirmStep === 'storage';
 
   // ── Logic ใหม่: กรองเฉพาะรายการที่ใช้งาน (ไม่นับ rejected) ──
-  const activeItems = items.filter((i: any) => i.current_status !== 'rejected');
+  const activeItems = items.filter((i: DrugItemRow) => i.current_status !== 'rejected');
 
   // unlock ปุ่ม "ยืนยันตรวจรับทั้งใบ" เมื่อทุก item ที่ใช้งาน (ไม่นับ rejected) เป็น checked_in หรือ receiving แล้ว
-  const allCheckedIn = activeItems.length > 0 && activeItems.every((i: any) => ['checked_in', 'receiving'].includes(i.current_status));
-  const someCheckedIn = activeItems.some((i: any) => i.current_status === 'checked_in');
-  const noneReceiving = activeItems.every((i: any) => i.current_status !== 'receiving');
+  const allCheckedIn = activeItems.length > 0 && activeItems.every((i: DrugItemRow) => ['checked_in', 'receiving'].includes(i.current_status ?? ''));
+  const someCheckedIn = activeItems.some((i: DrugItemRow) => i.current_status === 'checked_in');
+  const noneReceiving = activeItems.every((i: DrugItemRow) => i.current_status !== 'receiving');
   const showConfirmBtn = allCheckedIn && someCheckedIn && noneReceiving && !confirmed;
 
   // progress: แสดงเฉพาะรายการที่รับเข้าแล้ว จากรายการทั้งหมดที่ใช้งาน
-  const doneCount = activeItems.filter((i: any) => ['checked_in', 'receiving'].includes(i.current_status)).length;
+  const doneCount = activeItems.filter((i: DrugItemRow) => ['checked_in', 'receiving'].includes(i.current_status ?? '')).length;
   const totalActive = activeItems.length;
 
   const handleConfirm = async () => {
@@ -60,7 +64,7 @@ function RequestCard({ req, onItemUpdate, onConfirmCheckedIn }: {
 
       {/* Drug items */}
       <div className="space-y-2 mb-4">
-        {items.map((item: any) => (
+        {items.map((item: DrugItemRow) => (
           <WHDrugRow
             key={item.id}
             item={item}
@@ -116,7 +120,7 @@ const WH_PAGE_SIZE = 5;
 // ── ปุ่ม tab แนวตั้ง — แพทเทิร์นเดียวกับ Logistics Dashboard (แถบซ้ายสีเขียว
 // ค้างไว้ตอนเลือก, จางๆ ตอน hover) ──
 function WHTabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
-  icon: any; label: string; count: number; active: boolean; onClick: () => void;
+  icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
   accentBg: string; accentColor: string;
 }) {
   return (
@@ -147,7 +151,7 @@ function WHTabButton({ icon: Icon, label, count, active, onClick, accentBg, acce
 // ── การ์ดสถิติสรุปย่อ — ใช้แทนป้าย "N ใบงาน" ตัวเดียวเดิมในแถบด้านบน
 // (เหมือน Logistics Dashboard) ไฮไลต์กรอบสีตามแท็บที่กำลังเลือกอยู่ ──
 function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, activeBorder, activeRing }: {
-  icon: any; value: number; label: string; iconBg: string; iconText: string;
+  icon: LucideIcon; value: number; label: string; iconBg: string; iconText: string;
   isActive?: boolean; activeBorder?: string; activeRing?: string;
 }) {
   return (
@@ -170,7 +174,7 @@ function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, active
 // ── รายการใบงาน + แบ่งหน้า 5 รายการ (เหมือน Logistics/CSR Report Center) ใช้ร่วมกัน
 // ทั้งแท็บ "รอตรวจรับ" และ "รอจัดเก็บ" ──
 function WHRequestList({ items, onItemUpdate, onConfirmCheckedIn, emptyText }: {
-  items: any[];
+  items: WHRequestRow[];
   onItemUpdate: (requestId: number, itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected') => void;
   onConfirmCheckedIn: (requestId: number) => Promise<void>;
   emptyText: string;
@@ -258,9 +262,9 @@ function WHRequestList({ items, onItemUpdate, onConfirmCheckedIn, emptyText }: {
 // ── Main Component ─────────────────────────────────────────────
 export default function WHDashboard() {
   const router = useRouter();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<WHRequestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [staff, setStaff] = useState<any>(null);
+  const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [activeTab, setActiveTab] = useState<'at_warehouse' | 'checked_in'>('at_warehouse');
@@ -291,11 +295,11 @@ export default function WHDashboard() {
       let shouldRemove = false;
       const updated = prev.map(req => {
         if (req.id !== requestId) return req;
-        const updatedItems = req.drug_items.map((it: any) =>
+        const updatedItems = (req.drug_items ?? []).map((it: DrugItemRow) =>
           it.id === itemId ? { ...it, current_status: newStatus } : it
         );
         // ตัดใบงานออกเมื่อทุกชิ้น receiving ครบ
-        if (updatedItems.every((i: any) => i.current_status === 'receiving')) shouldRemove = true;
+        if (updatedItems.every((i: DrugItemRow) => i.current_status === 'receiving')) shouldRemove = true;
         return { ...req, drug_items: updatedItems };
       });
       return shouldRemove ? updated.filter(req => req.id !== requestId) : updated;

@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { getCustomerSession } from '@/app/actions/auth-actions';
 import Link from 'next/link';
+import type { CustomerSessionInfo } from '@/lib/types';
 
 export default function WelcomePage() {
-  const [customer, setCustomer] = useState<any>(null);
+  const [customer, setCustomer] = useState<CustomerSessionInfo | null>(null);
 
   useEffect(() => {
     async function loadCustomer() {

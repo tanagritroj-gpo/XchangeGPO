@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import type { ReturnFormData, DrugItemEntry } from '../form-types';
 
 interface StepProps {
   next:       () => void;
   back:       () => void;
-  updateData: React.Dispatch<React.SetStateAction<any>>;
-  formData:   any;
+  updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
+  formData:   ReturnFormData;
 }
 
 const UNITS = ['แผง', 'กล่อง', 'ขวด', 'amp', 'ลัง'] as const;
@@ -35,7 +36,7 @@ function SelectField({ value, onChange, children }: {
   );
 }
 
-function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemove: () => void }) {
+function DrugCard({ item, index, onRemove }: { item: DrugItemEntry; index: number; onRemove: () => void }) {
   return (
     <div className="group relative flex bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
       <div className="w-1.5 shrink-0" style={{ background: 'linear-gradient(180deg,#0f5132,#2dd4bf)' }} />
@@ -68,7 +69,7 @@ function DrugCard({ item, index, onRemove }: { item: any; index: number; onRemov
 }
 
 export default function Step2Items({ next, back, updateData, formData }: StepProps) {
-  const [items, setItems] = useState<any[]>(formData?.items || []);
+  const [items, setItems] = useState<DrugItemEntry[]>(formData?.items || []);
   const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', val: '', inv: '' });
   const drugNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,7 +88,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
   const handleNext = () => {
     if (items.length === 0) return alert('กรุณาเพิ่มรายการยาอย่างน้อย 1 รายการ');
     const totalValue = items.reduce((s, i) => s + parseFloat(i.val || '0'), 0);
-    updateData((prev: any) => ({ ...prev, items, totalValue }));
+    updateData((prev) => ({ ...prev, items, totalValue }));
     next();
   };
 

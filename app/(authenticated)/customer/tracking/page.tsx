@@ -26,6 +26,13 @@ import {
   formatCurrency,
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
+import type { RequestRow, DrugItemRow } from '@/lib/types';
+
+// รูปแบบข้อมูลที่ trackMyRequestByRefId() (private, ต้อง login) คืนจริง — request
+// เต็มทุกคอลัมน์ (ลูกค้าเจ้าของคำร้องเท่านั้นที่เข้าถึงได้) + timeline พร้อม staff_remark
+interface PrivateTrackingDetail extends RequestRow {
+  timeline: { status_name: string; log_date: string | null; staff_remark: string | null; drug_item_id: number | null; drug_name: string | null }[];
+}
 
 function InfoRow({
   label,
@@ -117,7 +124,7 @@ function PingButton({
 function TrackingContent() {
   const searchParams = useSearchParams();
   const [refId, setRefId] = useState(searchParams.get('ref') || '');
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<PrivateTrackingDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -356,14 +363,14 @@ function TrackingContent() {
           </div>
 
           {/* รายการยา พร้อมมูลค่าต่อรายการ (private only) */}
-          {data.drug_items?.length > 0 && (
+          {(data.drug_items?.length ?? 0) > 0 && (
             <div className="bg-white border border-border rounded-2xl p-5 shadow-sm print:shadow-none print:border-slate-300">
               <div className="flex items-center gap-2 mb-4">
                 <Pill className="w-4 h-4 text-muted-foreground" />
                 <p className="text-sm font-bold text-muted-foreground">รายการยา</p>
               </div>
               <div className="space-y-3">
-                {data.drug_items.map((item: any, index: number) => {
+                {(data.drug_items ?? []).map((item: DrugItemRow, index: number) => {
                   const itemRejected = item.current_status === REJECTED_STATUS;
                   return (
                     <div
@@ -408,7 +415,7 @@ function TrackingContent() {
           <div>
             <p className="text-sm font-bold text-muted-foreground mb-3">ประวัติการดำเนินการ</p>
             <div className="relative border-l-2 border-border ml-3 space-y-8">
-              {data.timeline?.map((log: any, index: number) => {
+              {data.timeline?.map((log, index: number) => {
                 const meta = getStatusMeta(log.status_name);
                 const Icon = meta.icon;
                 return (
@@ -419,7 +426,7 @@ function TrackingContent() {
                       <Icon className={`w-4 h-4 ${meta.fg}`} />
                     </div>
                     <p className="text-xs text-muted-foreground font-mono">
-                      {new Date(log.log_date).toLocaleString('th-TH')}
+                      {new Date(log.log_date || 0).toLocaleString('th-TH')}
                     </p>
                     <h4 className="font-bold text-teal-900">{log.status_name}</h4>
                     {getTimelineDescription(log.status_name) && (

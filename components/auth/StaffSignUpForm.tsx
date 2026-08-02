@@ -6,15 +6,25 @@ import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
 import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 
+interface StaffSignUpFormValues {
+  employee_id: string;
+  username: string;
+  password: string;
+  full_name: string;
+  department: string;
+  sale_customer_types?: string | string[];
+  sale_provinces?: string | string[];
+}
+
 export function StaffSignUpForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const { register, handleSubmit, watch, formState: { errors } } = useForm();
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<StaffSignUpFormValues>();
   const department = watch('department');
   const isSale = department === 'sale';
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: StaffSignUpFormValues) => {
     if (isSale) {
       const types = Array.isArray(data.sale_customer_types) ? data.sale_customer_types : data.sale_customer_types ? [data.sale_customer_types] : [];
       const provinces = Array.isArray(data.sale_provinces) ? data.sale_provinces : data.sale_provinces ? [data.sale_provinces] : [];

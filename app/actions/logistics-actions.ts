@@ -3,6 +3,8 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
+import { getErrorMessage } from '@/lib/error-message';
+import type { DrugItemRow } from '@/lib/types';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 
 // ดึง Session เพื่อเช็คว่าเป็น Logistics หรือ Manager
@@ -34,15 +36,15 @@ export async function getLogisticsDashboardData() {
     if (data) {
       const filteredRequests = data.map(req => ({
         ...req,
-        drug_items: req.drug_items.filter((item: any) => item.current_status !== 'rejected')
+        drug_items: req.drug_items.filter((item: DrugItemRow) => item.current_status !== 'rejected')
       })).filter(req => req.drug_items.length > 0);
 
       return { success: true, requests: filteredRequests };
     }
 
     return { success: true, requests: [] };
-  } catch (e: any) {
-    return { success: false, requests: [], error: e.message };
+  } catch (e: unknown) {
+    return { success: false, requests: [], error: getErrorMessage(e) };
   }
 }
 
@@ -93,8 +95,8 @@ export async function updateLogisticsStatus(
 
     revalidatePath('/admin/logistics/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -144,8 +146,8 @@ export async function updateItemStatus(
 
     revalidatePath('/admin/logistics/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -204,8 +206,8 @@ export async function rejectItemStatus(
 
     revalidatePath('/admin/logistics/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }
 
@@ -256,7 +258,7 @@ export async function confirmLogisticsBatch(
 
     revalidatePath('/admin/logistics/dashboard');
     return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
   }
 }

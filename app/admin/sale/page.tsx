@@ -6,10 +6,11 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import Link from 'next/link';
 import { TrendingUp, User, MapPin, Users, History, ArrowRight, LogOut, Loader2, BarChart3 } from 'lucide-react';
 import { SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import type { StaffSessionInfo } from '@/lib/types';
 
 export default function SaleHubPage() {
   const router = useRouter();
-  const [staff, setStaff] = useState<any>(null);
+  const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 

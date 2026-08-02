@@ -3,6 +3,8 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { expandToOrgTypes } from '@/lib/sale-coverage';
+import { getErrorMessage } from '@/lib/error-message';
+import type { DrugItemRow } from '@/lib/types';
 
 // ตรวจ session + ขยายขอบเขตดูแลของ sale เป็น org_type ดิบ — ใช้ร่วมกันทั้งดึงรายการ
 // และดึงรายละเอียดใบงานเดี่ยว คืน null ถ้าไม่ใช่ sale หรือยังไม่ได้กำหนดขอบเขต
@@ -66,7 +68,7 @@ export async function getSaleRequestDetail(requestId: number) {
       .order('log_date', { ascending: true });
 
     const drugNameById: Record<number, string> = Object.fromEntries(
-      (request.drug_items ?? []).map((i: any) => [i.id, i.drug_name])
+      (request.drug_items ?? []).map((i: DrugItemRow) => [i.id, i.drug_name])
     );
 
     const timeline = (timelineRaw ?? []).map((t) => ({
@@ -76,8 +78,8 @@ export async function getSaleRequestDetail(requestId: number) {
 
     const { b2b_customers: _omit, ...requestData } = request;
     return { success: true, data: { ...requestData, timeline } };
-  } catch (e: any) {
-    console.error('getSaleRequestDetail error:', e.message);
-    return { success: false, error: e.message };
+  } catch (e: unknown) {
+    console.error('getSaleRequestDetail error:', getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
   }
 }

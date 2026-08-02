@@ -74,11 +74,12 @@ export async function registerCustomer(payload: unknown) {
 
     return { success: true, data: inserted };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Registration Error:", error);
+    const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: string }).code : undefined;
     return {
       success: false,
-      error: error.code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
+      error: code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"
     };
   }
 }

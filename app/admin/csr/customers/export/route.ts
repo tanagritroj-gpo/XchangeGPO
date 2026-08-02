@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getManagerOrCsrSession } from '@/app/actions/manager-actions';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { getErrorMessage } from '@/lib/error-message';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,8 @@ const orgTypeLabel = (value: string | null) =>
 export async function GET() {
   try {
     await getManagerOrCsrSession();
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? 'ไม่มีสิทธิ์เข้าถึงข้อมูลนี้' }, { status: 403 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
 
   const { data: customers, error } = await supabaseAdmin

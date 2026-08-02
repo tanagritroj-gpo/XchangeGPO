@@ -1,5 +1,10 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getRejectionReasonLabel } from '@/lib/rejection-reasons';
+import type { RequestRow, StatusLogRow } from '@/lib/types';
+
+type RejectionLogRow = Pick<StatusLogRow, 'rejection_reason_code' | 'log_date'>;
+type PeriodStatsRow = Pick<RequestRow, 'current_status' | 'total_value' | 'created_at'>;
+type CustomerStatsRow = Pick<RequestRow, 'id' | 'hospital_name' | 'current_status' | 'total_value' | 'created_at'>;
 
 /**
  * ── "Tools" ที่ให้ Gemini เรียกได้จาก /api/staff-chat ─────────────────────
@@ -39,7 +44,7 @@ export async function getRejectionBreakdown(year?: number, month?: number) {
 
   const rows = data ?? [];
   const counts: Record<string, number> = {};
-  rows.forEach((row: any) => {
+  rows.forEach((row: RejectionLogRow) => {
     const code = row.rejection_reason_code ?? 'unspecified';
     counts[code] = (counts[code] ?? 0) + 1;
   });
@@ -69,9 +74,9 @@ export async function getPeriodStats(year: number, month: number) {
 
   if (error) return { error: error.message };
 
-  const rows = data ?? [];
-  const totalValue = rows.reduce((s: number, r: any) => s + (Number(r.total_value) || 0), 0);
-  const rejectedCount = rows.filter((r: any) => r.current_status === 'rejected').length;
+  const rows: PeriodStatsRow[] = data ?? [];
+  const totalValue = rows.reduce((s: number, r) => s + (Number(r.total_value) || 0), 0);
+  const rejectedCount = rows.filter((r) => r.current_status === 'rejected').length;
   const rejectionRatePercent = rows.length ? Math.round((rejectedCount / rows.length) * 100) : 0;
 
   return {
@@ -99,16 +104,16 @@ export async function getCustomerStats(hospitalNameQuery: string) {
 
   if (error) return { error: error.message };
 
-  const rows = data ?? [];
+  const rows: CustomerStatsRow[] = data ?? [];
   if (rows.length === 0) {
     return { found: false, message: `ไม่พบคำร้องที่ตรงกับชื่อ "${trimmed}"` };
   }
 
-  const totalValue = rows.reduce((s: number, r: any) => s + (Number(r.total_value) || 0), 0);
-  const rejectedCount = rows.filter((r: any) => r.current_status === 'rejected').length;
-  const completedCount = rows.filter((r: any) => r.current_status === 'completed').length;
+  const totalValue = rows.reduce((s: number, r) => s + (Number(r.total_value) || 0), 0);
+  const rejectedCount = rows.filter((r) => r.current_status === 'rejected').length;
+  const completedCount = rows.filter((r) => r.current_status === 'completed').length;
 
-  const matchedHospitalNames = [...new Set(rows.map((r: any) => r.hospital_name))].slice(0, 5);
+  const matchedHospitalNames = [...new Set(rows.map((r) => r.hospital_name))].slice(0, 5);
 
   return {
     found: true,
@@ -120,14 +125,14 @@ export async function getCustomerStats(hospitalNameQuery: string) {
   };
 }
 
-export async function executeStaffChatTool(name: string, args: Record<string, any>) {
+export async function executeStaffChatTool(name: string, args: Record<string, unknown>) {
   switch (name) {
     case 'get_rejection_breakdown':
-      return getRejectionBreakdown(args.year, args.month);
+      return getRejectionBreakdown(args.year as number | undefined, args.month as number | undefined);
     case 'get_period_stats':
-      return getPeriodStats(args.year, args.month);
+      return getPeriodStats(args.year as number, args.month as number);
     case 'get_customer_stats':
-      return getCustomerStats(args.hospital_name);
+      return getCustomerStats(args.hospital_name as string);
     default:
       return { error: `ไม่รู้จักฟังก์ชัน: ${name}` };
   }

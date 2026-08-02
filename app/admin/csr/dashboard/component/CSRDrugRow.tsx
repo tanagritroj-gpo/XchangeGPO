@@ -4,16 +4,20 @@ import { CheckCircle2, AlertTriangle, Loader2, Check, X, Receipt, ArrowLeftRight
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
+import type { LucideIcon } from 'lucide-react';
+import type { DrugItemRow } from '@/lib/types';
 
 // ── Badge สำหรับแสดงประเภทคำร้อง — สีตรงกับ TYPES ใน Step1Info.tsx ──
-const REQUEST_TYPE_STYLE: Record<string, { icon: any; color: string; bg: string }> = {
+const REQUEST_TYPE_STYLE: Record<string, { icon: LucideIcon; color: string; bg: string }> = {
   'รับคืนลดหนี้':     { icon: Receipt,        color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-100' },
   'รับคืน CCR':       { icon: AlertTriangle,  color: 'text-red-700',     bg: 'bg-red-50 border-red-100'         },
   'รับคืนแลกเปลี่ยน': { icon: ArrowLeftRight, color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-100'       },
 };
 const DEFAULT_TYPE_STYLE = { icon: MoreHorizontal, color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200' };
 
-export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: any; onUpdate: () => void; readOnly?: boolean }) {
+type CSRDrugItem = DrugItemRow & { request_type?: string };
+
+export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrugItem; onUpdate: () => void; readOnly?: boolean }) {
   const isExchangeRequest = item.request_type === 'รับคืนแลกเปลี่ยน';
   const [productType, setProductType] = useState(item.product_type || '');
   const [status, setStatus] = useState({ pass: item.is_compliant, msg: item.compliance_remark || '' });
@@ -36,7 +40,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: any; on
 
     setProductType(pType);
     const today = new Date();
-    const expDate = new Date(item.exp_date);
+    const expDate = new Date(item.exp_date || 0);
     const diffInMonths = (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth());
     let result = { pass: true, msg: 'ผ่านเกณฑ์' };
     if (pType === 'GPO' && expDate < today && Math.abs(diffInMonths) > 6) {
@@ -52,7 +56,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: any; on
       if (!res.success) {
         setProductType(prevType);
         setStatus(prevStatus);
-        alert('บันทึกประเภทสินค้าไม่สำเร็จ: ' + ((res as any).error || 'ไม่ทราบสาเหตุ'));
+        alert('บันทึกประเภทสินค้าไม่สำเร็จ: ' + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       setProductType(prevType);
@@ -85,7 +89,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: any; on
         setRemark('');
         onUpdate(); // ★ แจ้ง parent ให้ refetch ข้อมูล — จำเป็นสำหรับ isAllItemsReviewed ที่ระดับ card
       } else {
-        alert('เกิดข้อผิดพลาด: ' + (res as any).error);
+        alert('เกิดข้อผิดพลาด: ' + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
       }
     } catch (err) {
       console.error(err);
