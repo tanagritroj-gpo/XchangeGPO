@@ -138,7 +138,7 @@ export async function getPendingStaff() {
 
   const { data, error } = await supabaseAdmin
     .from('staff_users')
-    .select('*')
+    .select('id, employee_id, full_name, department')
     .eq('is_approved', false);
 
   return error ? { success: false, error: error.message } : { success: true, data };
