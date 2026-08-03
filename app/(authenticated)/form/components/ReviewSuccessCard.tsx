@@ -148,15 +148,15 @@ export function ReviewSuccessCard({
 
           <div>
             <h2 className="text-xl font-black text-slate-900 mb-1.5">ส่งแบบฟอร์มสำเร็จ!</h2>
-            <p className="text-sm text-muted-foreground">บันทึกคำร้องของท่านเรียบร้อยแล้ว</p>
+            <p className="text-base text-muted-foreground">บันทึกคำร้องของท่านเรียบร้อยแล้ว</p>
           </div>
 
           <div className="bg-teal-50 border-2 border-teal-200 rounded-2xl px-10 py-5 w-full">
-            <p className="text-[11px] font-black text-teal-600 uppercase tracking-widest mb-1.5">
+            <p className="text-[13px] font-black text-teal-600 uppercase tracking-widest mb-1.5">
               เลขที่อ้างอิง
             </p>
             <p className="text-2xl font-black text-teal-700 font-mono">{refId}</p>
-            {docNumber && <p className="text-xs text-muted-foreground mt-1 font-mono">เอกสารเลขที่ {docNumber}</p>}
+            {docNumber && <p className="text-sm text-muted-foreground mt-1 font-mono">เอกสารเลขที่ {docNumber}</p>}
           </div>
 
           {/* ── Mini timeline ของสถานะงาน ── */}
@@ -171,7 +171,7 @@ export function ReviewSuccessCard({
                   />
                   {i < STATUS_STEPS.length - 1 && <span className="flex-1 h-0.5 bg-slate-100" />}
                 </div>
-                <span className={`text-[9px] font-bold ${i === 0 ? 'text-teal-600' : 'text-slate-300'}`}>
+                <span className={`text-[11px] font-bold ${i === 0 ? 'text-teal-600' : 'text-slate-300'}`}>
                   {step.label}
                 </span>
               </div>
@@ -180,17 +180,17 @@ export function ReviewSuccessCard({
 
           {/* ── ส่วนแสดงสถานะ PDF ── */}
           {pdfState === 'preparing' && (
-            <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground">
+            <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-base font-bold text-muted-foreground">
               <span className="animate-spin">⏳</span> กำลังจัดเตรียมเอกสาร…
             </div>
           )}
 
           {pdfState === 'error' && (
-            <div className="w-full py-4 px-4 rounded-2xl bg-rose-50 border border-rose-200 text-sm font-bold text-rose-600 flex flex-col items-center gap-2">
+            <div className="w-full py-4 px-4 rounded-2xl bg-rose-50 border border-rose-200 text-base font-bold text-rose-600 flex flex-col items-center gap-2">
               <span>{errorMsg}</span>
               <button
                 onClick={retryGenerate}
-                className="text-xs font-black text-rose-700 underline underline-offset-2"
+                className="text-sm font-black text-rose-700 underline underline-offset-2"
               >
                 ลองสร้างเอกสารอีกครั้ง
               </button>
@@ -202,7 +202,7 @@ export function ReviewSuccessCard({
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="py-4 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
+                className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
               >
                 {downloading ? <span className="animate-spin">⏳</span> : '📥'} ดาวน์โหลดใบรับคืน (PDF)
               </button>
@@ -210,7 +210,7 @@ export function ReviewSuccessCard({
               <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
-                  className="py-3 rounded-2xl font-bold text-xs text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all"
+                  className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all"
                 >
                   📋 {copyLabel}
                 </button>
@@ -219,7 +219,7 @@ export function ReviewSuccessCard({
                   <button
                     onClick={handleEmailCopy}
                     disabled={emailState === 'sending' || !customerEmail}
-                    className="py-3 rounded-2xl font-bold text-xs text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
+                    className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
                   >
                     {emailState === 'sending' && '⏳ กำลังส่ง…'}
                     {emailState === 'sent' && '✓ ส่งแล้ว'}
@@ -234,7 +234,7 @@ export function ReviewSuccessCard({
               {showTrackingLink && (
                 <a
                   href={`/customer/tracking?ref=${refId}`}
-                  className="text-center text-xs font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
+                  className="text-center text-sm font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
                 >
                   ติดตามสถานะคำร้องนี้ →
                 </a>
@@ -244,14 +244,14 @@ export function ReviewSuccessCard({
 
           <button
             onClick={() => (window.location.href = homeHref)}
-            className="text-xs font-bold text-muted-foreground hover:text-muted-foreground mt-1"
+            className="text-sm font-bold text-muted-foreground hover:text-muted-foreground mt-1"
           >
             กลับหน้าหลัก
           </button>
         </div>
       </div>
 
-      <p className="text-center text-[11px] text-muted-foreground mt-3">
+      <p className="text-center text-xs text-muted-foreground mt-3">
         ลิงก์ดาวน์โหลดมีอายุ 5 นาทีต่อการกดหนึ่งครั้ง เพื่อความปลอดภัยของข้อมูล — กดดาวน์โหลดใหม่ได้ทุกเมื่อ
       </p>
 
@@ -267,13 +267,13 @@ export function ReviewSuccessCard({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">
-              <h3 className="text-sm font-bold text-foreground">ใบรับคืนสินค้า</h3>
+              <h3 className="text-base font-bold text-foreground">ใบรับคืนสินค้า</h3>
               <div className="flex items-center gap-2">
                 <a
                   href={docModalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
                 >
                   📥 เปิดในแท็บใหม่ / ดาวน์โหลด
                 </a>

@@ -12,6 +12,7 @@ export interface DrugItemRow {
   unit: string;
   lot_number: string | null;
   exp_date: string | null;
+  unit_price: number | null;
   value_amount: number | null;
   invoice_number: string | null;
   product_type: string | null;

@@ -10,24 +10,24 @@ interface StepProps {
   formData:   ReturnFormData;
 }
 
-const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
-const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
-const selectCls   = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%230d9488\' stroke-width=\'1.5\' stroke-linecap=\'round\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_14px_center] bg-[length:18px] pr-10';
+const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
+const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
+const selectCls   = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%230d9488\' stroke-width=\'1.5\' stroke-linecap=\'round\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_14px_center] bg-[length:18px] pr-10';
 
 function SectionTitle({ icon, children }: { icon?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 mb-5 sm:mb-6">
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
+      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
         {icon ?? '📋'}
       </div>
-      <span className="text-sm font-black text-slate-800">{children}</span>
+      <span className="text-base font-black text-slate-800">{children}</span>
     </div>
   );
 }
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+    <label className="text-[13px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
       <span className="w-1 h-1 rounded-full bg-slate-300" />
       {children}
     </label>
@@ -40,7 +40,7 @@ function BadgeBtn({ label, active, onClick }: { label: string; active: boolean; 
       type="button"
       onClick={onClick}
       className={[
-        'relative px-4 sm:px-5 py-2.5 rounded-full text-sm font-bold border-2 transition-all duration-200 active:scale-95',
+        'relative px-4 sm:px-5 py-2.5 rounded-full text-base font-bold border-2 transition-all duration-200 active:scale-95',
         active
           ? 'border-transparent text-white shadow-lg -translate-y-0.5'
           : 'border-slate-200 bg-white text-muted-foreground hover:border-teal-300 hover:text-teal-600 hover:-translate-y-0.5'
@@ -116,8 +116,8 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">3</span>
-        <p className="text-xs font-bold text-muted-foreground">เหตุผลการส่งคืนและวิธีจัดส่ง</p>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-black">3</span>
+        <p className="text-sm font-bold text-muted-foreground">เหตุผลการส่งคืนและวิธีจัดส่ง</p>
       </div>
 
       {/* ══ เหตุผลการส่งคืน ══ */}
@@ -168,11 +168,11 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                             : 'border-slate-100 bg-slate-50 hover:bg-slate-100 hover:border-slate-200'
                         ].join(' ')}
                       >
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-black transition-all shrink-0 ${checked ? 'bg-teal-600' : 'bg-white border-2 border-slate-300'}`}>
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-black transition-all shrink-0 ${checked ? 'bg-teal-600' : 'bg-white border-2 border-slate-300'}`}>
                           {checked && '✓'}
                         </div>
                         <input type="checkbox" checked={checked} onChange={() => toggleItem(d.drugName)} className="hidden" />
-                        <span className={`text-sm font-semibold ${checked ? 'text-teal-800' : 'text-slate-600'}`}>{d.drugName}</span>
+                        <span className={`text-base font-semibold ${checked ? 'text-teal-800' : 'text-slate-600'}`}>{d.drugName}</span>
                       </label>
                     );
                   })}
@@ -216,7 +216,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
 
           {deliveryType === 'ขนส่ง' && (
             <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-xs font-black text-muted-foreground flex items-center gap-1.5">📍 ที่อยู่สำหรับไปรับสินค้า</p>
+              <p className="text-sm font-black text-muted-foreground flex items-center gap-1.5">📍 ที่อยู่สำหรับไปรับสินค้า</p>
               <div className="flex flex-col gap-1.5">
                 <FieldLabel>เลขที่ / ถนน</FieldLabel>
                 <input value={addrStreet} onChange={e => setAddrStreet(e.target.value)} placeholder="เลขที่ / หมู่ / ถนน" className={inputCls} />
@@ -258,7 +258,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
         <button
           type="button"
           onClick={back}
-          className="group py-4 rounded-2xl font-black text-sm text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-base text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>
@@ -266,7 +266,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
           type="button"
           onClick={handleNext}
           disabled={!canProceed}
-          className="group py-4 rounded-2xl font-black text-white text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-white text-base transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
           style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
           ดำเนินการต่อ <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>

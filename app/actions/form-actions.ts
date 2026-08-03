@@ -17,6 +17,7 @@ interface ReturnItemInput {
   unit: string;
   lot_number: string;
   exp_date: string | null;
+  unit_price: number;
   value_amount: number;
   invoice_number: string;
 }
@@ -80,15 +81,22 @@ export async function createReturnRequest(formData: ReturnFormData) {
     throw new Error("บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่");
   }
 
-  const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => ({
-    drug_name: String(item.drugName ?? '').slice(0, 200),
-    qty: Math.max(0, Number(item.qty) || 0),
-    unit: item.unit || 'ไม่ระบุ',
-    lot_number: item.lot || '',
-    exp_date: sanitizeDate(item.exp),
-    value_amount: Math.max(0, Number(item.val) || 0),
-    invoice_number: item.inv || '',
-  }));
+  // ★ 8. มูลค่ารวมคำนวณจาก จำนวน × ราคาต่อหน่วย ฝั่ง server เสมอ (เชื่อ item.val จาก client ตรงๆ ไม่ได้
+  //    เหมือนกับ computedTotal ด้านล่างที่ไม่เชื่อ formData.totalValue)
+  const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => {
+    const qty = Math.max(0, Number(item.qty) || 0);
+    const unitPrice = Math.max(0, Number(item.unitPrice) || 0);
+    return {
+      drug_name: String(item.drugName ?? '').slice(0, 200),
+      qty,
+      unit: item.unit || 'ไม่ระบุ',
+      lot_number: item.lot || '',
+      exp_date: sanitizeDate(item.exp),
+      unit_price: unitPrice,
+      value_amount: qty * unitPrice,
+      invoice_number: item.inv || '',
+    };
+  });
 
   // ★ 3. คำนวณมูลค่ารวมใหม่ฝั่ง server แทนการเชื่อ formData.totalValue
   const computedTotal = items.reduce((sum: number, i: { value_amount?: number }) => {

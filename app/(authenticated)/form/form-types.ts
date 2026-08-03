@@ -13,6 +13,7 @@ export interface DrugItemEntry {
   unit: string;
   lot: string;
   exp: string;
+  unitPrice: string;
   val: string;
   inv: string;
 }

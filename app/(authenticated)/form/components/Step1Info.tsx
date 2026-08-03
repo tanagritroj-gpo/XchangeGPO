@@ -20,14 +20,14 @@ const TYPES = [
 ] as const;
 
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-  <label className="text-[11px] font-black text-muted-foreground uppercase tracking-widest block mb-2 flex items-center gap-1.5">
+  <label className="text-[13px] font-black text-muted-foreground uppercase tracking-widest block mb-2 flex items-center gap-1.5">
     <span className="w-1 h-1 rounded-full bg-slate-300" />
     {children}
   </label>
 );
 
 const InfoBox = ({ children }: { children: React.ReactNode }) => (
-  <div className="px-4 py-3 rounded-xl bg-slate-50 text-slate-700 font-bold text-sm border border-slate-100">
+  <div className="px-4 py-3 rounded-xl bg-slate-50 text-slate-700 font-bold text-base border border-slate-100">
     {children}
   </div>
 );
@@ -90,16 +90,16 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">1</span>
-        <p className="text-xs font-bold text-muted-foreground">ข้อมูลรายการและผู้ประสานงาน</p>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-black">1</span>
+        <p className="text-sm font-bold text-muted-foreground">ข้อมูลรายการและผู้ประสานงาน</p>
       </div>
 
       {/* ══ ประเภทการส่งคืน ══ */}
       <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
-        <h2 className="text-sm font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>📦</div>
+        <h2 className="text-base font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>📦</div>
           ประเภทการส่งคืน
         </h2>
 
@@ -117,10 +117,10 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
                     : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:-translate-y-0.5'}`}
               >
                 {active && (
-                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[9px] flex items-center justify-center font-black">✓</span>
+                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[11px] flex items-center justify-center font-black">✓</span>
                 )}
                 <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{t.icon}</span>
-                <span className={`text-[12px] font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-muted-foreground'}`}>{t.label}</span>
+                <span className={`text-sm font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-muted-foreground'}`}>{t.label}</span>
               </button>
             );
           })}
@@ -134,7 +134,7 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
               value={otherDetail}
               onChange={(e) => setOtherDetail(e.target.value)}
               placeholder="โปรดระบุสาเหตุการส่งคืน..."
-              className="w-full px-5 py-3.5 rounded-xl bg-slate-50 text-slate-700 font-bold text-sm border-2 border-slate-100 focus:bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200"
+              className="w-full px-5 py-3.5 rounded-xl bg-slate-50 text-slate-700 font-bold text-base border-2 border-slate-100 focus:bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200"
             />
           </div>
         )}
@@ -155,10 +155,10 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
       <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#1a5c96,#1a7a45,#0f5132)' }} />
 
-        <h2 className="text-sm font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
+        <h2 className="text-base font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
           ข้อมูลผู้ประสานงาน
-          {!clientData && <span className="ml-auto text-[10px] font-bold text-slate-300 animate-pulse">กำลังโหลด...</span>}
+          {!clientData && <span className="ml-auto text-xs font-bold text-slate-300 animate-pulse">กำลังโหลด...</span>}
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 sm:gap-y-5">
@@ -189,7 +189,7 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
       <button
         onClick={handleNext}
         disabled={!selectedType}
-        className={`group w-full py-4 rounded-2xl font-black text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-2xl ${
+        className={`group w-full py-4 rounded-2xl font-black text-white text-base shadow-xl transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 hover:shadow-2xl ${
           !selectedType ? 'opacity-50 cursor-not-allowed grayscale' : 'opacity-100'
         }`}
         style={{
