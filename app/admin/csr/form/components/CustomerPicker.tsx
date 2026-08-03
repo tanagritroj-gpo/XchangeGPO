@@ -115,12 +115,12 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
   // ── ช่องค้นหา ──
   return (
     <div ref={wrapperRef} className="relative">
-      <FieldLabel>ค้นหาลูกค้า (ชื่อหน่วยงาน / ผู้ติดต่อ / รหัสลูกค้า / อีเมล)</FieldLabel>
+      <FieldLabel>ค้นหาลูกค้า (ชื่อหน่วยงาน)</FieldLabel>
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => results.length > 0 && setShowResults(true)}
-        placeholder="พิมพ์อย่างน้อย 2 ตัวอักษรเพื่อค้นหา..."
+        placeholder="พิมพ์ชื่อหน่วยงานอย่างน้อย 2 ตัวอักษรเพื่อค้นหา..."
         className="w-full px-4 py-3 rounded-xl bg-slate-50 text-slate-700 font-bold text-base border-2 border-slate-100 focus:bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200"
       />
 
