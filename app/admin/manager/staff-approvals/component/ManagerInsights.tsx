@@ -56,7 +56,7 @@ const DEFAULT_TYPE_COLOR = '#94a3b8';
 const PALETTE = ['#14b8a6', '#3b82f6', '#f59e0b', '#8b5cf6', '#f43f5e', '#10b981', '#94a3b8', '#0ea5e9'];
 
 // ลำดับสถานะของ workflow (ใช้เรียงกราฟ "เวลาเฉลี่ยแต่ละขั้นตอน" ให้ตรงลำดับจริง)
-const STAGE_ORDER = ['pending_review', 'approved', 'in_transit', 'at_warehouse', 'checked_in', 'receiving', 'exchanging', 'completed'];
+const STAGE_ORDER = ['pending_review', 'approved', 'in_transit', 'at_warehouse', 'checked_in', 'receiving', 'exchanging', 'credit_note', 'completed'];
 const STAGE_LABEL: Record<string, string> = {
   pending_review: 'รอตรวจสอบ',
   approved: 'อนุมัติ',
@@ -65,6 +65,7 @@ const STAGE_LABEL: Record<string, string> = {
   checked_in: 'ตรวจรับ',
   receiving: 'จัดเก็บ',
   exchanging: 'แลกเปลี่ยน',
+  credit_note: 'ลดหนี้',
   completed: 'เสร็จสิ้น',
 };
 

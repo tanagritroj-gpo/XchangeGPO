@@ -1,6 +1,6 @@
 import {
   Truck, FileCheck, XCircle, Clock, Check, Warehouse, PackageSearch,
-  ClipboardCheck, Boxes, RefreshCw, FileText, Mail, PackageCheck,
+  ClipboardCheck, Boxes, RefreshCw, FileText, Mail, PackageCheck, Receipt,
 } from 'lucide-react';
 
 export const REJECTED_STATUS = 'rejected';
@@ -14,6 +14,7 @@ export const STATUS_LABELS: Record<string, string> = {
   checked_in: 'ตรวจสอบสภาพสินค้ารับคืน',
   receiving: 'ตรวจรับสินค้าสำเร็จ',
   exchanging: 'กำลังดำเนินการแลกเปลี่ยน',
+  credit_note: 'กำลังลดหนี้',
   completed: 'เสร็จสิ้น',
   out_for_delivery: 'อยู่ระหว่างจัดส่งคืน',
 };
@@ -46,6 +47,7 @@ const STATUS_TO_STAGE_INDEX: Record<string, number> = {
   checked_in: 2,
   receiving: 2,
   exchanging: 2,
+  credit_note: 2,
   out_for_delivery: 2,
   completed: 3,
 };
@@ -84,6 +86,7 @@ const STATUS_META: Record<string, StatusMeta> = {
   checked_in_confirmed: amber(ClipboardCheck), // ยืนยันตรวจรับทั้งใบงาน
   receiving: amber(Boxes),                // จัดเก็บเข้าคลัง
   exchanging: amber(RefreshCw),           // กำลังดำเนินการแลกเปลี่ยน
+  credit_note: amber(Receipt),            // กำลังลดหนี้
   document_generated: sky(FileText),
   email_sent: sky(Mail),
   // ไม่ใช่ status_logs.status_name จริง แต่เป็น key ของ STAGES (4-step stepper) —

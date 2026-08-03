@@ -55,7 +55,7 @@ export function pctChange(curr: number, prev: number) {
 
 const STAGE_ORDER = [
   'pending_review', 'approved', 'in_transit', 'at_warehouse',
-  'checked_in', 'receiving', 'exchanging', 'completed',
+  'checked_in', 'receiving', 'exchanging', 'credit_note', 'completed',
 ];
 const STAGE_LABEL: Record<string, string> = {
   pending_review: 'รอตรวจสอบ',
@@ -65,6 +65,7 @@ const STAGE_LABEL: Record<string, string> = {
   checked_in: 'ตรวจรับ',
   receiving: 'จัดเก็บ',
   exchanging: 'แลกเปลี่ยน',
+  credit_note: 'ลดหนี้',
   completed: 'เสร็จสิ้น',
 };
 

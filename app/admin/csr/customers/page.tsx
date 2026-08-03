@@ -1,9 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet, LogOut } from 'lucide-react';
 import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType } from '@/app/actions/csr-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
+import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
@@ -120,6 +120,7 @@ export default function CSRCustomersPage() {
   const router = useRouter();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [tab, setTab] = useState<'pending' | 'search' | 'export'>('pending');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // รหัสลูกค้าที่ CSR พิมพ์เอง ก่อนกดอนุมัติ — เก็บแยกตาม client.id เพราะมีหลายแถวพร้อมกัน
@@ -154,6 +155,12 @@ export default function CSRCustomersPage() {
     };
     init();
   }, []);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
 
   // โหลดประวัติใบงานทุกครั้งที่เลือกลูกค้าใหม่ในแท็บค้นหา
   useEffect(() => {
@@ -245,7 +252,17 @@ export default function CSRCustomersPage() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
-          {tab === 'pending' && <StatPill value={clients.length} label="ราย" />}
+          <div className="flex items-center gap-2 shrink-0">
+            {tab === 'pending' && <StatPill value={clients.length} label="ราย" />}
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-red-600 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
       </div>
 
