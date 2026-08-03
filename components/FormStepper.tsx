@@ -34,7 +34,7 @@ export default function FormStepper({ steps, currentStep }: { steps: FormStepper
                   {isCompleted ? <Check className="w-4 h-4 md:w-[18px] md:h-[18px]" strokeWidth={3} /> : s.id}
                 </div>
                 <span
-                  className={`text-[9px] md:text-[10px] font-black uppercase mt-1.5 whitespace-nowrap ${
+                  className={`text-[11px] md:text-xs font-black uppercase mt-1.5 whitespace-nowrap ${
                     isCompleted || isCurrent ? 'text-teal-700' : 'text-muted-foreground'
                   }`}
                 >

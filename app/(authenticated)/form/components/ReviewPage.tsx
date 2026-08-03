@@ -37,10 +37,10 @@ const renderExchangeList = (listStr: string) => {
 function SectionTitle({ icon, children }: { icon?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 mb-5">
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
+      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
         {icon ?? '📋'}
       </div>
-      <span className="text-sm font-black text-slate-800">{children}</span>
+      <span className="text-base font-black text-slate-800">{children}</span>
     </div>
   );
 }
@@ -49,10 +49,10 @@ function ReviewRow({ label, value }: { label: string; value?: string | number })
   if (!value) return null;
   return (
     <div className="flex items-start gap-3 py-3 border-b border-dashed border-slate-100 last:border-0">
-      <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest w-32 shrink-0 pt-0.5 flex items-center gap-1.5">
+      <span className="text-[13px] font-black text-muted-foreground uppercase tracking-widest w-32 shrink-0 pt-0.5 flex items-center gap-1.5">
         <span className="w-1 h-1 rounded-full bg-slate-300" />{label}
       </span>
-      <span className="text-sm text-slate-800 font-bold flex-1">{value}</span>
+      <span className="text-base text-slate-800 font-bold flex-1">{value}</span>
     </div>
   );
 }
@@ -60,7 +60,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | number })
 function ReviewCard({ title, gradient, children }: { title: string; gradient: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
-      <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: gradient }}>
+      <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: gradient }}>
         {title}
       </div>
       <div className="px-6 py-3">{children}</div>
@@ -141,8 +141,8 @@ if (status === 'success') {
 
       {/* Progress hint */}
       <div className="flex items-center gap-2 px-1">
-        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-[11px] font-black">{stepNumber}</span>
-        <p className="text-xs font-bold text-muted-foreground">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
+        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-teal-600 text-white text-xs font-black">{stepNumber}</span>
+        <p className="text-sm font-bold text-muted-foreground">ตรวจสอบข้อมูลก่อนส่งแบบฟอร์ม</p>
       </div>
 
       {/* ══ ข้อมูลหน่วยงาน ══ */}
@@ -155,20 +155,20 @@ if (status === 'success') {
 
       {/* ══ รายการยา ══ */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
-        <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#be123c,#f43f5e)' }}>
+        <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#be123c,#f43f5e)' }}>
           💊 รายการยาและเวชภัณฑ์
-          <span className="ml-auto bg-white/20 px-2.5 py-0.5 rounded-full text-[11px]">{items?.length ?? 0} รายการ</span>
+          <span className="ml-auto bg-white/20 px-2.5 py-0.5 rounded-full text-xs">{items?.length ?? 0} รายการ</span>
         </div>
         <div className="px-6 py-4 flex flex-col gap-2.5">
           {items?.map((d, i: number) => (
             <div key={i} className="flex gap-3 p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-100 hover:border-rose-200 transition-colors duration-150">
-              <span className="w-7 h-7 rounded-lg text-white text-[11px] font-black flex items-center justify-center shrink-0 shadow-sm"
+              <span className="w-7 h-7 rounded-lg text-white text-xs font-black flex items-center justify-center shrink-0 shadow-sm"
                 style={{ background: 'linear-gradient(135deg,#be123c,#f43f5e)' }}>
                 {i + 1}
               </span>
               <div className="flex-1">
-                <p className="font-black text-sm text-slate-900">{d.drugName}</p>
-                <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                <p className="font-black text-base text-slate-900">{d.drugName}</p>
+                <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
                   <span>📦 {d.qty} {d.unit}</span>
                   <span>🏷️ Lot: {d.lot}</span>
                   <span>📅 Exp: {d.exp}</span>
@@ -177,7 +177,7 @@ if (status === 'success') {
             </div>
           ))}
           <div className="flex justify-between items-center pt-3.5 mt-1 border-t-2 border-dashed border-slate-100">
-            <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">รวมมูลค่า</span>
+            <span className="text-sm font-black text-muted-foreground uppercase tracking-widest">รวมมูลค่า</span>
             <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
           </div>
         </div>
@@ -207,7 +207,7 @@ if (status === 'success') {
       {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}
       {signature_url && (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
-          <div className="px-6 py-3.5 font-black text-sm text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
+          <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
             ✍️ ลายมือชื่อผู้ส่งคืน
           </div>
           <div className="px-6 py-6 flex flex-col items-center gap-2">
@@ -215,8 +215,8 @@ if (status === 'success') {
               <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
             </div>
             <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">
-              <p className="text-sm font-black text-slate-800">({signer_name})</p>
-              <p className="text-xs text-muted-foreground font-medium">{signer_position}</p>
+              <p className="text-base font-black text-slate-800">({signer_name})</p>
+              <p className="text-sm text-muted-foreground font-medium">{signer_position}</p>
             </div>
           </div>
         </div>
@@ -228,7 +228,7 @@ if (status === 'success') {
           type="button"
           onClick={back}
           disabled={loading}
-          className="group py-4 rounded-2xl font-black text-sm text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+          className="group py-4 rounded-2xl font-black text-base text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
         >
           <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
         </button>
@@ -236,7 +236,7 @@ if (status === 'success') {
           type="button"
           onClick={() => setShowConfirm(true)}
           disabled={loading}
-          className="py-4 rounded-2xl font-black text-white text-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed hover:-translate-y-0.5 flex items-center justify-center gap-2"
+          className="py-4 rounded-2xl font-black text-white text-base transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed hover:-translate-y-0.5 flex items-center justify-center gap-2"
           style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: loading ? 'none' : '0 10px 25px -8px rgba(26,122,69,0.45)' }}
         >
           {loading
@@ -260,7 +260,7 @@ if (status === 'success') {
               >⚠️</div>
 
               <h3 className="text-lg font-black text-slate-800 mb-2">ยืนยันการส่งแบบฟอร์ม</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+              <p className="text-base text-muted-foreground leading-relaxed mb-6">
                 โปรดตรวจสอบข้อมูลก่อนกดยืนยัน<br />
                 <span className="font-bold text-rose-600">หากส่งข้อมูลแล้วจะไม่สามารถแก้ไขข้อมูลเองได้</span>
               </p>
@@ -269,14 +269,14 @@ if (status === 'success') {
                 <button
                   type="button"
                   onClick={() => setShowConfirm(false)}
-                  className="py-3.5 rounded-2xl font-black text-sm text-muted-foreground bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
+                  className="py-3.5 rounded-2xl font-black text-base text-muted-foreground bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
                 >
                   ← ย้อนกลับ
                 </button>
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="py-3.5 rounded-2xl font-black text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5"
+                  className="py-3.5 rounded-2xl font-black text-base text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5"
                   style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 8px 20px -6px rgba(26,122,69,0.45)' }}
                 >
                   ✓ ยืนยัน

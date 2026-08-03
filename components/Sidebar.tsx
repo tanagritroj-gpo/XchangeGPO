@@ -58,7 +58,7 @@ export default function Sidebar({ customer }: { customer: CustomerSessionInfo | 
           href="/customer/history"
           className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50 hover:text-teal-700 transition-all"
         >
-          <History className="w-4 h-4" /> ประวัติการแลกเปลี่ยน
+          <History className="w-4 h-4" /> ประวัติการยื่นคำร้อง
         </Link>
         <Link
           href="/customer/org-history"

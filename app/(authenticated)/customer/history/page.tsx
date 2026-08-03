@@ -7,8 +7,8 @@ export default function HistoryPage() {
   return (
     <ExchangeHistoryView
       fetcher={getCustomerExchangeHistory}
-      title="ประวัติการแลกเปลี่ยนสินค้า"
-      subtitle="ติดตามคำร้องคืน/แลกเปลี่ยนที่คุณเคยยื่นทั้งหมด"
+      title="ประวัติการยื่นคำร้อง"
+      subtitle="ติดตามงานรับคืนสินค้า/รับคืนแลกเปลี่ยนที่คุณเคยยื่นทั้งหมด"
     />
   );
 }

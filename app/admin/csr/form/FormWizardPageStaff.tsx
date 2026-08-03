@@ -36,13 +36,14 @@ export default function FormWizardPageStaff() {
       const cleanData = {
         ...formData,
         items: formData.items.map((item) => ({
-          drugName: item.drugName,
-          qty:      item.qty,
-          unit:     item.unit,
-          lot:      item.lot,
-          exp:      item.exp,
-          val:      item.val,
-          inv:      item.inv,
+          drugName:  item.drugName,
+          qty:       item.qty,
+          unit:      item.unit,
+          lot:       item.lot,
+          exp:       item.exp,
+          unitPrice: item.unitPrice,
+          val:       item.val,
+          inv:       item.inv,
         })),
       };
       const result = await createStaffReturnRequest(cleanData);
