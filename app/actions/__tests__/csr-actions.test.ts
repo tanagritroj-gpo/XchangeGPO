@@ -36,9 +36,10 @@ function seedRequest(
   requestId: number,
   items: { id: number; current_status: string }[],
   requestStatus = 'pending_review',
+  requestType?: string,
 ) {
   fakeAdmin.seed({
-    requests: [{ id: requestId, current_status: requestStatus }],
+    requests: [{ id: requestId, current_status: requestStatus, request_type: requestType ?? null }],
     drug_items: items.map((i) => ({ ...i, request_id: requestId })),
     status_logs: [],
     clients: [],
@@ -121,11 +122,11 @@ describe('rejectRequest — cascades to every item regardless of current status'
 });
 
 describe('startExchangeProcess / completeRequest — spare already-rejected items', () => {
-  it('moves only non-rejected items into exchanging', async () => {
+  it('moves only non-rejected items into exchanging for "รับคืนแลกเปลี่ยน" requests', async () => {
     seedRequest(1, [
       { id: 1, current_status: 'approved' },
       { id: 2, current_status: 'rejected' },
-    ], 'approved');
+    ], 'approved', 'รับคืนแลกเปลี่ยน');
 
     const res = await startExchangeProcess(1);
 
@@ -133,6 +134,21 @@ describe('startExchangeProcess / completeRequest — spare already-rejected item
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('exchanging');
     expect(fakeAdmin.rows('drug_items').find((i) => i.id === 1)?.current_status).toBe('exchanging');
     expect(fakeAdmin.rows('drug_items').find((i) => i.id === 2)?.current_status).toBe('rejected');
+  });
+
+  it('moves non-rejected items into credit_note for non-exchange request types', async () => {
+    seedRequest(1, [
+      { id: 1, current_status: 'approved' },
+      { id: 2, current_status: 'rejected' },
+    ], 'approved', 'รับคืนลดหนี้');
+
+    const res = await startExchangeProcess(1);
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('credit_note');
+    expect(fakeAdmin.rows('drug_items').find((i) => i.id === 1)?.current_status).toBe('credit_note');
+    expect(fakeAdmin.rows('drug_items').find((i) => i.id === 2)?.current_status).toBe('rejected');
+    expect(fakeAdmin.rows('status_logs').find((l) => l.drug_item_id === 1)?.staff_remark).toBe('เริ่มลดหนี้');
   });
 
   it('completes only non-rejected items', async () => {

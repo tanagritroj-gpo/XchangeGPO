@@ -23,6 +23,8 @@ import {
   ChevronRight,
   Truck,
   Warehouse,
+  Receipt,
+  LogOut,
 } from 'lucide-react';
 import { getStatusMeta } from '@/lib/tracking-status';
 import {
@@ -32,7 +34,7 @@ import {
   startExchangeProcess,
   completeRequest,
 } from '@/app/actions/csr-actions';
-import { getStaffSession } from '@/app/actions/auth-staff';
+import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
@@ -50,12 +52,20 @@ const START_EXCHANGE_NOTES = [
   { code: 'other', label: 'อื่นๆ' },
 ] as const;
 
+// หมายเหตุตอนกด "เสร็จสิ้น" ปิดใบงาน — ใช้ ReasonSelectFields แบบเดียวกับตอนเริ่มแลกเปลี่ยน
+const COMPLETE_EXCHANGE_NOTES = [
+  { code: 'debt_reduction', label: 'ลดหนี้สำเร็จ' },
+  { code: 'exchange', label: 'แลกเปลี่ยนสำเร็จ' },
+  { code: 'other', label: 'อื่นๆ (ระบุ)' },
+] as const;
+
 // ── Status config: คงค่าเดิมทั้งหมด แค่ปรับให้ใช้ token สีสม่ำเสมอขึ้น ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   pending_review:   { label: 'รอตรวจสอบ',       color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     dot: 'bg-amber-400'   },
   approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
   receiving:        { label: 'กำลังรับสินค้า',   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       dot: 'bg-blue-500'    },
   exchanging:       { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200',   dot: 'bg-purple-500'  },
+  credit_note:      { label: 'กำลังลดหนี้',      color: 'text-pink-700',    bg: 'bg-pink-50 border-pink-200',       dot: 'bg-pink-500'    },
   completed:        { label: 'เสร็จสิ้น',        color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200',   dot: 'bg-orange-500'  },
   out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
   at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
@@ -173,29 +183,36 @@ const isAllItemsReviewed = (req: RequestRow) =>
   (req.drug_items?.length ?? 0) > 0 &&
   (req.drug_items ?? []).every((item) => item.current_status !== 'pending_review');
 
+// ถ้ารายการยาทุกตัวถูกปฏิเสธไปแล้วทีละตัว ปุ่ม "ปฏิเสธใบงาน" ระดับ card จะซ้ำซ้อน (แค่ไปมาร์กซ้ำสิ่งที่ปฏิเสธไปแล้ว)
+// เหลือแค่ปุ่ม "อนุมัติ" ซึ่งจริงๆ คือปุ่ม "ยืนยัน/ปิดขั้นตอนตรวจสอบ" ย้ายสถานะออกจาก pending_review เท่านั้น
+// ไม่ได้แปลว่าอนุมัติสินค้า — approveRequest() เช็คแค่ว่าไม่มี item ค้าง pending_review เท่านั้น
+const isAllItemsRejected = (req: RequestRow) =>
+  (req.drug_items?.length ?? 0) > 0 &&
+  (req.drug_items ?? []).every((item) => item.current_status === 'rejected');
+
 // วันที่เริ่มสร้างใบงาน — ใช้ในคอลัมน์ "วันที่" ของ "ประวัติใบงาน" เท่านั้น
 const formatRequestDate = (createdAt: string | null) =>
   new Date(createdAt || 0).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
 
 // สถานะที่ CSR เป็นคนกดอัปเดตเอง (มีปุ่ม action ให้กดใน RequestListSection)
 // สถานะอื่นนอกจากนี้ (approved, in_transit, at_warehouse, checked_in, out_for_delivery) เป็นของฝ่าย log/wh — CSR แค่มอนิเตอร์
-const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging'];
+const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'credit_note'];
 
 // ── ส่วนแสดงรายการใบงาน — logic เหมือนกันทุกอย่าง แค่รับ items แยกกันเพื่อแยกหัวข้อ ──
 // pageSize เป็น optional — ใส่ค่าถึงจะแบ่งหน้า (เผื่ออนาคตรายการเยอะขึ้น) ไม่ใส่ = แสดง
 // ทั้งหมดแบบเดิม (คงพฤติกรรมเดิมของแท็บ CSR Workflow ที่ยังไม่ต้องแบ่งหน้า)
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
-  expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, handleUpdateStatus, fetchData,
-  emptyIcon: EmptyIcon, emptyText, completingId, pageSize, readOnly,
+  expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, openCompleteModal, fetchData,
+  emptyIcon: EmptyIcon, emptyText, pageSize, readOnly,
 }: {
   title: string; icon: LucideIcon; iconBg: string; iconColor: string; subtitle: string; items: RequestRow[];
   expandedReq: number | null; setExpandedReq: (id: number | null) => void;
   openConfirmModal: (requestId: number, action: 'approved' | 'rejected') => void;
   openExchangeModal: (requestId: number) => void;
-  handleUpdateStatus: (id: number, newStatus: string) => void;
+  openCompleteModal: (requestId: number) => void;
   fetchData: (opts?: { silent?: boolean }) => void;
-  emptyIcon: LucideIcon; emptyText: string; completingId: number | null; pageSize?: number; readOnly?: boolean;
+  emptyIcon: LucideIcon; emptyText: string; pageSize?: number; readOnly?: boolean;
 }) {
   const [page, setPage] = useState(1);
 
@@ -271,10 +288,14 @@ function RequestListSection({
                     <div className="col-span-2 flex flex-col items-end gap-2">
                       {!readOnly && req.current_status === 'pending_review' && (
                         isAllItemsReviewed(req) ? (
-                          <>
+                          isAllItemsRejected(req) ? (
                             <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
-                            <WorkflowDecisionButton icon={X} label="ปฏิเสธใบงาน" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
-                          </>
+                          ) : (
+                            <>
+                              <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
+                              <WorkflowDecisionButton icon={X} label="ปฏิเสธใบงาน" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
+                            </>
+                          )
                         ) : (
                           <p className="text-[10px] text-muted-foreground text-right leading-snug flex items-center gap-1 justify-end">
                             <ClipboardCheck size={12} strokeWidth={2.5} />
@@ -283,10 +304,14 @@ function RequestListSection({
                         )
                       )}
                       {!readOnly && req.current_status === 'receiving' && (
-                        <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                        req.request_type === 'รับคืนแลกเปลี่ยน' ? (
+                          <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                        ) : (
+                          <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                        )
                       )}
-                      {!readOnly && req.current_status === 'exchanging' && (
-                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                      {!readOnly && (req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
+                        <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
                       )}
                       {readOnly && (
                         <p className="text-xs font-semibold text-muted-foreground">{formatRequestDate(req.created_at)}</p>
@@ -318,10 +343,14 @@ function RequestListSection({
                       <div className="flex gap-2">
                         {req.current_status === 'pending_review' && (
                           isAllItemsReviewed(req) ? (
-                            <>
+                            isAllItemsRejected(req) ? (
                               <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
-                              <WorkflowDecisionButton icon={X} label="ปฏิเสธ" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
-                            </>
+                            ) : (
+                              <>
+                                <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
+                                <WorkflowDecisionButton icon={X} label="ปฏิเสธ" tone="reject" onClick={() => openConfirmModal(req.id, 'rejected')} />
+                              </>
+                            )
                           ) : (
                             <p className="text-[11px] text-muted-foreground flex items-center gap-1.5 py-2">
                               <ClipboardCheck size={13} strokeWidth={2.5} />
@@ -330,10 +359,14 @@ function RequestListSection({
                           )
                         )}
                         {req.current_status === 'receiving' && (
-                          <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                          req.request_type === 'รับคืนแลกเปลี่ยน' ? (
+                            <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                          ) : (
+                            <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                          )
                         )}
-                        {req.current_status === 'exchanging' && (
-                          <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" loading={completingId === req.id} onClick={() => handleUpdateStatus(req.id, 'completed')} />
+                        {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
+                          <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
                         )}
                       </div>
                     )}
@@ -546,6 +579,7 @@ export default function CSRDashboard() {
   const router = useRouter();
   const [requests, setRequests]       = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [expandedReq, setExpandedReq] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [workflowSubTab, setWorkflowSubTab] = useState<'csr' | 'monitor'>('csr');
@@ -558,13 +592,16 @@ export default function CSRDashboard() {
   const [remark, setRemark] = useState('');
   const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // request id ที่กำลังกด "เสร็จสิ้น" อยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
-  const [completingId, setCompletingId] = useState<number | null>(null);
 
   // Modal ยืนยันเริ่มกระบวนการแลกเปลี่ยน (แทน prompt() เดิม)
   const [exchangeModal, setExchangeModal] = useState<{ requestId: number } | null>(null);
   const [exchangeReasonCode, setExchangeReasonCode] = useState('');
   const [exchangeDetail, setExchangeDetail] = useState('');
+
+  // Modal ยืนยันเสร็จสิ้นใบงาน (แทน prompt() เดิม)
+  const [completeModal, setCompleteModal] = useState<{ requestId: number } | null>(null);
+  const [completeReasonCode, setCompleteReasonCode] = useState('');
+  const [completeDetail, setCompleteDetail] = useState('');
 
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
@@ -583,19 +620,37 @@ export default function CSRDashboard() {
     init();
   }, []);
 
-  // ใช้กับปุ่มที่ยังเป็น prompt แบบเดิม (เสร็จสิ้น) — ไม่เกี่ยวกับ approve/reject ระดับ card อีกต่อไป
-  // "เริ่มแลกเปลี่ยน" แยกไปใช้ exchangeModal ด้านล่างแล้ว (มี dropdown แทน prompt)
-  const handleUpdateStatus = async (id: number, newStatus: string) => {
-    const remarkInput = prompt('ระบุหมายเหตุ:');
-    if (remarkInput === null) return;
-    setCompletingId(id);
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
+
+  // เปิด modal ยืนยันเสร็จสิ้นใบงาน แทนการเรียก prompt() เดิม
+  const openCompleteModal = (requestId: number) => {
+    setCompleteReasonCode('');
+    setCompleteDetail('');
+    setCompleteModal({ requestId });
+  };
+
+  const submitCompleteModal = async () => {
+    if (!completeModal) return;
+    setIsSubmitting(true);
     try {
-      if (newStatus !== 'completed') { alert('สถานะไม่รู้จัก'); return; }
-      const res = await completeRequest(id, remarkInput || '');
-      if (res.success) { alert('อัปเดตสถานะเรียบร้อย'); fetchData(); }
-      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
-    } catch (err) { alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'); console.error(err); }
-    finally { setCompletingId(null); }
+      const remarkText = resolveQuickNote(COMPLETE_EXCHANGE_NOTES, completeReasonCode, completeDetail);
+      const res = await completeRequest(completeModal.requestId, remarkText);
+      if (res.success) {
+        setCompleteModal(null);
+        fetchData();
+      } else {
+        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      }
+    } catch (err) {
+      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // เปิด modal เริ่มแลกเปลี่ยน แทนการเรียก prompt() เดิม
@@ -665,6 +720,10 @@ export default function CSRDashboard() {
     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   );
 
+  // ใบงานที่ modal "เริ่มกระบวนการ" กำลังเปิดอยู่ — ใช้ตัดสินใจว่าเป็นแลกเปลี่ยนหรือลดหนี้ (คำในปุ่ม/หัวข้อ modal ต้องตรงกัน)
+  const exchangeModalRequest = exchangeModal ? requests.find(r => r.id === exchangeModal.requestId) : undefined;
+  const isExchangeModalType = exchangeModalRequest?.request_type === 'รับคืนแลกเปลี่ยน';
+
   // แยกใบงาน active อีกชั้น: ที่ CSR ต้องอัปเดตเอง vs ที่ log/wh อัปเดต (CSR แค่มอนิเตอร์)
   const csrWorkflowRequests     = activeRequests.filter(r => CSR_ACTIONABLE_STATUSES.includes(r.current_status));
   const monitorWorkflowRequests = activeRequests.filter(r => !CSR_ACTIONABLE_STATUSES.includes(r.current_status));
@@ -728,6 +787,14 @@ export default function CSRDashboard() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-red-600 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+          >
+            {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
+            <span className="hidden sm:inline">ออกจากระบบ</span>
+          </button>
         </div>
       </div>
 
@@ -795,8 +862,7 @@ export default function CSRDashboard() {
                 setExpandedReq={setExpandedReq}
                 openConfirmModal={openConfirmModal}
                 openExchangeModal={openExchangeModal}
-                handleUpdateStatus={handleUpdateStatus}
-                completingId={completingId}
+                openCompleteModal={openCompleteModal}
                 fetchData={fetchData}
                 emptyIcon={Inbox}
                 emptyText="ไม่มีใบงานในกลุ่มนี้"
@@ -831,8 +897,7 @@ export default function CSRDashboard() {
                   setExpandedReq={setExpandedReq}
                   openConfirmModal={openConfirmModal}
                   openExchangeModal={openExchangeModal}
-                  handleUpdateStatus={handleUpdateStatus}
-                  completingId={completingId}
+                  openCompleteModal={openCompleteModal}
                   fetchData={fetchData}
                   emptyIcon={Inbox}
                   emptyText="ไม่มีใบงานที่ต้องดำเนินการตอนนี้"
@@ -863,8 +928,7 @@ export default function CSRDashboard() {
               setExpandedReq={setExpandedReq}
               openConfirmModal={openConfirmModal}
               openExchangeModal={openExchangeModal}
-              handleUpdateStatus={handleUpdateStatus}
-              completingId={completingId}
+              openCompleteModal={openCompleteModal}
               fetchData={fetchData}
               emptyIcon={Inbox}
               emptyText="ยังไม่มีใบงานในระบบ"
@@ -976,12 +1040,16 @@ export default function CSRDashboard() {
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#ffedd5' }}>
-                  <RefreshCw size={22} className="text-orange-600" strokeWidth={2.5} />
+                  {isExchangeModalType
+                    ? <RefreshCw size={22} className="text-orange-600" strokeWidth={2.5} />
+                    : <Receipt size={22} className="text-orange-600" strokeWidth={2.5} />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-foreground">ยืนยันเริ่มกระบวนการแลกเปลี่ยน</h3>
+                  <h3 className="text-base font-bold text-foreground">
+                    {isExchangeModalType ? 'ยืนยันเริ่มกระบวนการแลกเปลี่ยน' : 'ยืนยันเริ่มกระบวนการลดหนี้'}
+                  </h3>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Ref: {requests.find(r => r.id === exchangeModal.requestId)?.ref_id}
+                    Ref: {exchangeModalRequest?.ref_id}
                   </p>
                 </div>
               </div>
@@ -1010,6 +1078,60 @@ export default function CSRDashboard() {
                   disabled={isSubmitting || !exchangeReasonCode || (exchangeReasonCode === 'other' && !exchangeDetail.trim())}
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{ background: 'linear-gradient(135deg,#ea580c,#fb923c)' }}
+                >
+                  {isSubmitting
+                    ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
+                    : <><Check size={15} strokeWidth={3} /> ยืนยัน</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ Confirm Modal: เสร็จสิ้นใบงาน พร้อมหมายเหตุ ══ */}
+      {completeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#059669,#10b981)' }} />
+
+            <div className="p-7">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#d1fae5' }}>
+                  <CheckCircle2 size={22} className="text-emerald-600" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">ยืนยันเสร็จสิ้นใบงาน</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Ref: {requests.find(r => r.id === completeModal.requestId)?.ref_id}
+                  </p>
+                </div>
+              </div>
+
+              <ReasonSelectFields
+                label="ผลการดำเนินการ"
+                options={COMPLETE_EXCHANGE_NOTES}
+                code={completeReasonCode}
+                detail={completeDetail}
+                onCodeChange={setCompleteReasonCode}
+                onDetailChange={setCompleteDetail}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setCompleteModal(null); setCompleteReasonCode(''); setCompleteDetail(''); }}
+                  disabled={isSubmitting}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={submitCompleteModal}
+                  disabled={isSubmitting || !completeReasonCode || (completeReasonCode === 'other' && !completeDetail.trim())}
+                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>

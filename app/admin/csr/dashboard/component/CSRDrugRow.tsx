@@ -20,6 +20,8 @@ type CSRDrugItem = DrugItemRow & { request_type?: string };
 export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrugItem; onUpdate: () => void; readOnly?: boolean }) {
   const isExchangeRequest = item.request_type === 'รับคืนแลกเปลี่ยน';
   const [productType, setProductType] = useState(item.product_type || '');
+  // ใบงาน "รับคืนแลกเปลี่ยน" ต้องเลือกประเภทสินค้าก่อน ถึงจะอนุมัติได้ — ปฏิเสธยังกดได้ตามปกติ
+  const missingProductType = isExchangeRequest && !productType;
   const [status, setStatus] = useState({ pass: item.is_compliant, msg: item.compliance_remark || '' });
   const [localStatus, setLocalStatus] = useState(item.current_status);
   // บันทึกประเภทสินค้า/เกณฑ์ — เดิมอัปเดต UI ก่อนแล้วยิง server action แบบไม่เช็คผลเลย
@@ -39,14 +41,21 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
     const prevStatus = status;
 
     setProductType(pType);
-    const today = new Date();
-    const expDate = new Date(item.exp_date || 0);
-    const diffInMonths = (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth());
-    let result = { pass: true, msg: 'ผ่านเกณฑ์' };
-    if (pType === 'GPO' && expDate < today && Math.abs(diffInMonths) > 6) {
-      result = { pass: false, msg: 'GPO หมดอายุเกิน 6 เดือน' };
-    } else if (pType === 'OTHER' && diffInMonths < 7) {
-      result = { pass: false, msg: 'อายุคงเหลือไม่ถึง 7 เดือน' };
+
+    let result: { pass: boolean | null; msg: string };
+    if (!pType) {
+      // ยกเลิกการเลือก — กลับไปสถานะ "รอตรวจ" เหมือนยังไม่เคยเลือก
+      result = { pass: null, msg: '' };
+    } else {
+      const today = new Date();
+      const expDate = new Date(item.exp_date || 0);
+      const diffInMonths = (expDate.getFullYear() - today.getFullYear()) * 12 + (expDate.getMonth() - today.getMonth());
+      result = { pass: true, msg: 'ผ่านเกณฑ์' };
+      if (pType === 'GPO' && expDate < today && Math.abs(diffInMonths) > 6) {
+        result = { pass: false, msg: 'GPO หมดอายุเกิน 6 เดือน' };
+      } else if (pType === 'OTHER' && diffInMonths < 7) {
+        result = { pass: false, msg: 'อายุคงเหลือไม่ถึง 7 เดือน' };
+      }
     }
     setStatus(result);
 
@@ -148,34 +157,50 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                   {productType === 'GPO' ? 'GPO' : productType === 'OTHER' ? 'สมุนไพร/ผู้ผลิตอื่น' : 'ยังไม่ระบุ'}
                 </span>
               ) : (
-                <div className={`relative flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
-                  ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange('GPO')}
-                    className={`flex-1 py-2 px-2 text-center transition-all border-r border-slate-200
-                      ${productType === 'GPO'
-                        ? 'bg-teal-600 text-white border-r-teal-600'
-                        : 'bg-white text-slate-400 hover:bg-teal-50 hover:text-teal-700'}`}
-                  >
-                    GPO
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange('OTHER')}
-                    className={`flex-1 py-2 px-2 text-center transition-all
-                      ${productType === 'OTHER'
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-white text-slate-400 hover:bg-orange-50 hover:text-orange-600'}`}
-                  >
-                    สมุนไพร/ผู้ผลิตอื่น
-                  </button>
-                  {isTypeSaving && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                      <Loader2 size={13} className="animate-spin text-slate-500" strokeWidth={2.5} />
-                    </div>
+                <div className="flex items-center gap-1.5">
+                  <div className={`relative flex-1 flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
+                    ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('GPO')}
+                      className={`flex-1 py-2 px-2 text-center transition-all border-r border-slate-200
+                        ${productType === 'GPO'
+                          ? 'bg-teal-600 text-white border-r-teal-600'
+                          : 'bg-white text-slate-400 hover:bg-teal-50 hover:text-teal-700'}`}
+                    >
+                      GPO
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('OTHER')}
+                      className={`flex-1 py-2 px-2 text-center transition-all
+                        ${productType === 'OTHER'
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white text-slate-400 hover:bg-orange-50 hover:text-orange-600'}`}
+                    >
+                      สมุนไพร/ผู้ผลิตอื่น
+                    </button>
+                    {isTypeSaving && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                        <Loader2 size={13} className="animate-spin text-slate-500" strokeWidth={2.5} />
+                      </div>
+                    )}
+                  </div>
+                  {productType && localStatus === 'pending_review' && (
+                    <button
+                      type="button"
+                      onClick={() => handleTypeChange('')}
+                      disabled={isTypeSaving}
+                      title="ยกเลิกการเลือกประเภท"
+                      className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <X size={13} strokeWidth={2.5} />
+                    </button>
                   )}
                 </div>
+              )}
+              {!readOnly && missingProductType && localStatus === 'pending_review' && (
+                <p className="text-[10px] font-bold text-red-500 mt-1">* กรุณาเลือกประเภทก่อนอนุมัติ</p>
               )}
             </div>
 
@@ -195,7 +220,9 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
           {!readOnly && localStatus === 'pending_review' ? (
             <>
               <button onClick={() => openActionModal('approve')}
-                className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all">
+                disabled={missingProductType}
+                title={missingProductType ? 'กรุณาเลือกประเภทสินค้าก่อนอนุมัติ' : undefined}
+                className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600">
                 อนุมัติ
               </button>
               <button onClick={() => openActionModal('reject')}
@@ -281,7 +308,11 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                 <button
                   type="button"
                   onClick={submitAction}
-                  disabled={isSubmitting || (actionModal === 'reject' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
+                  disabled={
+                    isSubmitting ||
+                    (actionModal === 'reject' && (!reasonCode || (reasonCode === 'other' && !remark.trim()))) ||
+                    (actionModal === 'approve' && missingProductType)
+                  }
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
                     background: actionModal === 'approve'

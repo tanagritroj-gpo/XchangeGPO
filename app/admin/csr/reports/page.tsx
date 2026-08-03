@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight, ChevronDown, LogOut } from 'lucide-react';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs } from '@/app/actions/manager-actions';
+import { logoutStaffAction } from '@/app/actions/auth-staff';
 import ManagerInsights from '@/app/admin/manager/staff-approvals/component/ManagerInsights';
 import { filterCsrRequests, type CsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
@@ -14,7 +15,7 @@ const REQUEST_TYPES = ['รับคืนลดหนี้', 'รับคื�
 
 const STATUS_OPTIONS = [
   'pending_review', 'approved', 'rejected', 'in_transit', 'at_warehouse',
-  'checked_in', 'receiving', 'exchanging', 'completed', 'out_for_delivery',
+  'checked_in', 'receiving', 'exchanging', 'credit_note', 'completed', 'out_for_delivery',
 ];
 
 const PAGE_SIZE = 5;
@@ -26,6 +27,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
   receiving:        { label: 'กำลังรับสินค้า',   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       dot: 'bg-blue-500'    },
   exchanging:       { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200',   dot: 'bg-purple-500'  },
+  credit_note:      { label: 'กำลังลดหนี้',      color: 'text-pink-700',    bg: 'bg-pink-50 border-pink-200',       dot: 'bg-pink-500'    },
   completed:        { label: 'เสร็จสิ้น',        color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200',   dot: 'bg-orange-500'  },
   out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
   at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
@@ -56,6 +58,13 @@ export default function CsrReportsPage() {
   const [filters, setFilters] = useState<CsrReportFilters>({ status: 'all', requestType: 'all' });
   const [page, setPage] = useState(1);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
 
   useEffect(() => {
     async function load() {
@@ -155,13 +164,23 @@ export default function CsrReportsPage() {
               </div>
             </div>
           </div>
-          <a
-            href={exportHref}
-            className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition-colors shrink-0"
-          >
-            <Download size={15} strokeWidth={2.5} />
-            <span className="hidden sm:inline">ดาวน์โหลด Excel</span>
-          </a>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={exportHref}
+              className="flex items-center gap-1.5 text-xs md:text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition-colors shrink-0"
+            >
+              <Download size={15} strokeWidth={2.5} />
+              <span className="hidden sm:inline">ดาวน์โหลด Excel</span>
+            </a>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-red-600 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
       </div>
 

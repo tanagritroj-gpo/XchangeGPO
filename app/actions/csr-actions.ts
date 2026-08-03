@@ -295,6 +295,14 @@ export async function updateCustomerOrgType(b2bCustomerId: number, orgType: stri
 
 export async function approveDrugItem(drugItemId: number, requestId: number, remark?: string) {
   return withCSRAuth(async (session) => {
+    const [{ data: request }, { data: drugItem }] = await Promise.all([
+      supabaseAdmin.from('requests').select('request_type').eq('id', requestId).single(),
+      supabaseAdmin.from('drug_items').select('product_type').eq('id', drugItemId).single(),
+    ]);
+    if (request?.request_type === 'รับคืนแลกเปลี่ยน' && !drugItem?.product_type) {
+      return { success: false, error: 'กรุณาเลือกประเภทสินค้าก่อนอนุมัติ' };
+    }
+
     const { error: logError } = await supabaseAdmin.from('status_logs').insert({
       request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'approved',
       staff_remark: remark || `อนุมัติรายการยา ID: ${drugItemId}`, drug_item_id: drugItemId
@@ -347,11 +355,19 @@ export async function rejectRequest(requestId: number, reasonCode: string, detai
 
 export async function startExchangeProcess(requestId: number, remark?: string) {
   return withCSRAuth(async (session) => {
-    const { data: items } = await supabaseAdmin.from('drug_items').select('id, current_status').eq('request_id', requestId);
+    // ใบงานประเภท "รับคืนแลกเปลี่ยน" เท่านั้นที่เข้าสถานะ exchanging — ประเภทอื่น (รับคืนลดหนี้/รับคืน CCR)
+    // ไม่มีการแลกเปลี่ยนสินค้าจริง จึงใช้สถานะ credit_note (กำลังลดหนี้) แทน
+    const [{ data: request }, { data: items }] = await Promise.all([
+      supabaseAdmin.from('requests').select('request_type').eq('id', requestId).single(),
+      supabaseAdmin.from('drug_items').select('id, current_status').eq('request_id', requestId),
+    ]);
+    const newStatus = request?.request_type === 'รับคืนแลกเปลี่ยน' ? 'exchanging' : 'credit_note';
+    const defaultRemark = newStatus === 'exchanging' ? 'เริ่มแลกเปลี่ยน' : 'เริ่มลดหนี้';
+
     const activeItems = items?.filter(i => i.current_status !== 'rejected') ?? [];
-    if (activeItems.length > 0) await supabaseAdmin.from('status_logs').insert(activeItems.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: 'exchanging', staff_remark: remark || 'เริ่มแลกเปลี่ยน' })));
-    await supabaseAdmin.from('requests').update({ current_status: 'exchanging', updated_at: new Date().toISOString() }).eq('id', requestId);
-    await supabaseAdmin.from('drug_items').update({ current_status: 'exchanging' }).eq('request_id', requestId).neq('current_status', 'rejected');
+    if (activeItems.length > 0) await supabaseAdmin.from('status_logs').insert(activeItems.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: newStatus, staff_remark: remark || defaultRemark })));
+    await supabaseAdmin.from('requests').update({ current_status: newStatus, updated_at: new Date().toISOString() }).eq('id', requestId);
+    await supabaseAdmin.from('drug_items').update({ current_status: newStatus }).eq('request_id', requestId).neq('current_status', 'rejected');
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
   });
@@ -367,12 +383,12 @@ export async function completeRequest(requestId: number, remark?: string) {
   });
 }
 
-export async function updateDrugCompliance(itemId: number, pType: string, compliance: { pass: boolean, msg: string }) {
+export async function updateDrugCompliance(itemId: number, pType: string, compliance: { pass: boolean | null, msg: string }) {
   return withCSRAuth(async () => {
     await supabaseAdmin
       .from('drug_items')
       .update({
-        product_type: pType,
+        product_type: pType || null,
         is_compliant: compliance.pass,
         compliance_remark: compliance.msg
       })
