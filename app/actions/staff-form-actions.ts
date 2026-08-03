@@ -46,16 +46,15 @@ export async function searchB2BCustomers(query: string) {
   const allowed = await checkRateLimit(`search-customer:${session.id}`, 30, 60);
   if (!allowed.allowed) return { success: false, error: 'ค้นหาถี่เกินไป กรุณารอสักครู่' };
 
-  // ค้นจากหลายฟิลด์พร้อมกัน — ilike แบบ escape เบื้องต้นกัน wildcard injection จากผู้ใช้
+  // ค้นเฉพาะชื่อหน่วยงาน (hospital_name) เท่านั้น — ไม่ลงไปถึงระดับผู้ติดต่อ/รหัสลูกค้า/อีเมลอีกต่อไป
+  // ilike แบบ escape เบื้องต้นกัน wildcard injection จากผู้ใช้
   const escaped = cleaned.replace(/[%_]/g, (m) => `\\${m}`);
   const pattern = `%${escaped}%`;
 
   const { data, error } = await supabaseAdmin
     .from('b2b_customers')
     .select('id, hospital_name, contact_name, position, phone, email, customer_code, org_type')
-    .or(
-      `hospital_name.ilike.${pattern},contact_name.ilike.${pattern},customer_code.ilike.${pattern},email.ilike.${pattern}`
-    )
+    .ilike('hospital_name', pattern)
     .limit(10);
 
   if (error) {

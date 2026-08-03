@@ -1,19 +1,76 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Building2 } from 'lucide-react';
 import { getOrgExchangeHistory } from '@/app/actions/history-actions';
 import { ExchangeHistoryView } from '@/components/history/ExchangeHistoryView';
+import type { RequestRow } from '@/lib/types';
+
+type HistoryRow = RequestRow & { submitted_by?: string };
+
+// tab ย่อยกรองตามประเภทใบงาน (request_type) — "ทั้งหมด" คือมุมมองเดิม อีก 2 อันเพิ่มใหม่
+// ตาม request — งานประเภทอื่น (เช่น "รับคืน CCR") ยังเห็นได้ผ่านแท็บ "ทั้งหมด" ตามปกติ
+const REQUEST_TYPE_TABS = [
+  { key: 'all', label: 'ทั้งหมด', requestType: null as string | null },
+  { key: 'debt', label: 'งานรับคืนลดหนี้', requestType: 'รับคืนลดหนี้' },
+  { key: 'exchange', label: 'งานรับคืนแลกเปลี่ยน', requestType: 'รับคืนแลกเปลี่ยน' },
+] as const;
 
 export default function OrgHistoryPage() {
+  // ดึงข้อมูลครั้งเดียวตอนโหลดหน้า แล้วกรองด้วย request_type ฝั่ง client ตอนสลับ tab
+  // (ไม่ยิง request ใหม่ทุกครั้งที่สลับ เพราะเป็นข้อมูลชุดเดียวกัน แค่กรองต่าง)
+  const [rawHistory, setRawHistory] = useState<HistoryRow[]>([]);
+  const [activeTab, setActiveTab] = useState<(typeof REQUEST_TYPE_TABS)[number]['key']>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    getOrgExchangeHistory().then((data) => {
+      if (!cancelled) setRawHistory(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const activeDef = REQUEST_TYPE_TABS.find((t) => t.key === activeTab)!;
+  const filtered = activeDef.requestType
+    ? rawHistory.filter((r) => r.request_type === activeDef.requestType)
+    : rawHistory;
+
   return (
-    <ExchangeHistoryView
-      fetcher={getOrgExchangeHistory}
-      title="ประวัติงานรวมทั้งหน่วยงาน"
-      subtitle="รวมคำร้องคืน/แลกเปลี่ยนของทุกคนในหน่วยงานเดียวกัน"
-      icon={Building2}
-      showSubmitter
-      emptyText="ยังไม่มีคำร้องจากหน่วยงานนี้"
-      emptySubtext="คำร้องที่เพื่อนร่วมหน่วยงานยื่นจะแสดงที่นี่"
-    />
+    <div>
+      <div
+        role="tablist"
+        aria-label="กรองตามประเภทงาน"
+        className="mx-auto flex max-w-5xl gap-2 px-6 pt-6"
+      >
+        {REQUEST_TYPE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            role="tab"
+            aria-selected={activeTab === tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
+              activeTab === tab.key
+                ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
+                : 'border border-border bg-white text-muted-foreground hover:bg-slate-50'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      <ExchangeHistoryView
+        key={activeTab}
+        fetcher={async () => filtered}
+        title="ประวัติงานรวมทั้งหน่วยงาน"
+        subtitle="รวมคำร้องคืน/แลกเปลี่ยนของทุกคนในหน่วยงานเดียวกัน"
+        icon={Building2}
+        showSubmitter
+        emptyText="ยังไม่มีคำร้องจากหน่วยงานนี้"
+        emptySubtext="คำร้องที่เพื่อนร่วมหน่วยงานยื่นจะแสดงที่นี่"
+      />
+    </div>
   );
 }
