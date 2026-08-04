@@ -68,7 +68,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
   credit_note:      { label: 'กำลังลดหนี้',      color: 'text-pink-700',    bg: 'bg-pink-50 border-pink-200',       dot: 'bg-pink-500'    },
   completed:        { label: 'เสร็จสิ้น',        color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200',   dot: 'bg-orange-500'  },
   out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
-  at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
+  at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-fuchsia-700', bg: 'bg-fuchsia-50 border-fuchsia-200', dot: 'bg-fuchsia-500' },
   checked_in:       { label: 'ตรวจรับแล้ว',      color: 'text-teal-700',    bg: 'bg-teal-50 border-teal-200',       dot: 'bg-teal-500'    },
   rejected:         { label: 'ถูกปฏิเสธ',        color: 'text-red-700',     bg: 'bg-red-50 border-red-200',         dot: 'bg-red-500'     },
   in_transit:       { label: 'อยู่ระหว่างขนส่ง', color: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200',       dot: 'bg-cyan-500'    },
@@ -94,14 +94,14 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
       onClick={onClick}
       className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
         ${active
-          ? 'bg-white shadow-sm border-border text-foreground'
-          : 'bg-transparent border-transparent text-muted-foreground hover:bg-white/70 hover:text-slate-700'}`}
+          ? 'bg-white shadow-sm border-white/60 text-[#241F5E]'
+          : 'bg-transparent border-transparent text-[#6B6698] hover:bg-white/50 hover:text-[#241F5E]'}`}
     >
-      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-slate-100'}`}>
-        <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
+      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-[#F1EDE0]'}`}>
+        <Icon size={15} className={active ? accentColor : 'text-[#6B6698]'} strokeWidth={2.5} />
       </span>
       <span className="whitespace-nowrap md:whitespace-normal md:flex-1">{label}</span>
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-slate-100 text-muted-foreground'}`}>
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-[#F1EDE0] text-[#6B6698]'}`}>
         {count}
       </span>
     </button>
@@ -115,12 +115,12 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
-        ${active ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 shrink-0 whitespace-nowrap
+        ${active ? 'bg-white shadow-sm text-[#241F5E]' : 'text-[#6B6698] hover:text-[#241F5E]'}`}
     >
-      <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
+      <Icon size={15} className={active ? accentColor : 'text-[#6B6698]'} strokeWidth={2.5} />
       {label}
-      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-slate-100 text-slate-600' : 'bg-slate-200/70 text-muted-foreground'}`}>
+      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-[#ECEAF6] text-[#2E2B7A]' : 'bg-[#EADFAF]/60 text-[#6B6698]'}`}>
         {count}
       </span>
     </button>
@@ -134,8 +134,8 @@ function ActionButton({ icon: Icon, label, onClick, tone, loading }: {
 }) {
   const tones = {
     blue:    'bg-blue-600 hover:bg-blue-700 shadow-blue-200',
-    red:     'bg-rose-500 hover:bg-rose-600 shadow-rose-200',
-    orange:  'bg-orange-500 hover:bg-orange-600 shadow-orange-200',
+    red:     'bg-red-500 hover:bg-red-600 shadow-red-200',
+    orange:  'bg-[#E1592A] hover:bg-[#C9481E] shadow-[#E1592A]/30',
     emerald: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200',
   };
   return (
@@ -160,8 +160,8 @@ function WorkflowDecisionButton({ icon: Icon, label, onClick, tone }: {
       icon: 'bg-emerald-100 text-emerald-600 group-hover:bg-white/25 group-hover:text-white',
     },
     reject: {
-      wrap: 'border-rose-200 bg-rose-50/70 text-rose-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 hover:shadow-rose-200',
-      icon: 'bg-rose-100 text-rose-600 group-hover:bg-white/25 group-hover:text-white',
+      wrap: 'border-red-200 bg-red-50/70 text-red-700 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-red-200',
+      icon: 'bg-red-100 text-red-600 group-hover:bg-white/25 group-hover:text-white',
     },
   };
   const s = styles[tone];
@@ -229,14 +229,14 @@ function RequestListSection({
           <Icon size={16} className={iconColor} strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-foreground">{title}</h2>
-          <p className="text-[11px] text-muted-foreground">{subtitle}</p>
+          <h2 className="text-sm font-bold text-[#241F5E]">{title}</h2>
+          <p className="text-[11px] text-[#6B6698]">{subtitle}</p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-border overflow-hidden">
+      <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm overflow-hidden">
         {items.length > 0 && (
-          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-slate-50 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-[#F1EDE0]/60 border-b border-[#EADFAF] text-[10px] font-bold text-[#6B6698] uppercase tracking-wider">
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
@@ -246,39 +246,39 @@ function RequestListSection({
 
         {items.length === 0 ? (
           <div className="py-12 text-center">
-            <EmptyIcon className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
-            <p className="text-sm text-muted-foreground font-medium">{emptyText}</p>
+            <EmptyIcon className="w-9 h-9 text-[#D8D5E8] mx-auto mb-2.5" strokeWidth={1.75} />
+            <p className="text-sm text-[#6B6698] font-medium">{emptyText}</p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-[#EADFAF]/60">
             {pagedItems.map((req: RequestRow) => {
               const isExpanded = expandedReq === req.id;
               const drugCount  = req.drug_items?.length ?? 0;
               return (
                 <div
                   key={req.id}
-                  className={`group relative transition-colors ${isExpanded ? 'bg-teal-50/70' : 'hover:bg-teal-50/50'}`}
+                  className={`group relative transition-colors ${isExpanded ? 'bg-[#ECEAF6]/70' : 'hover:bg-[#ECEAF6]/40'}`}
                 >
                   <span
                     aria-hidden="true"
                     className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
-                      isExpanded ? 'bg-teal-600 opacity-100' : 'bg-teal-400 opacity-0 group-hover:opacity-100'
+                      isExpanded ? 'bg-[#2E2B7A] opacity-100' : 'bg-[#4A46B0] opacity-0 group-hover:opacity-100'
                     }`}
                   />
 
                   {/* Desktop row */}
                   <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
                     <div className="col-span-3">
-                      <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
-                      {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
+                      <p className="text-sm font-bold text-[#241F5E] font-mono">{req.ref_id}</p>
+                      {req.hospital_name && <p className="text-xs text-[#6B6698] mt-0.5 truncate">{req.hospital_name}</p>}
                     </div>
                     <div className="col-span-2"><StatusBadge status={req.current_status} /></div>
                     <div className="col-span-5">
                       <button
                         onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-teal-700 font-medium transition-colors group"
+                        className="flex items-center gap-2 text-xs text-[#6B6698] hover:text-[#2E2B7A] font-medium transition-colors group"
                       >
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px] group-hover:bg-teal-100">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[10px] group-hover:bg-[#E2DEF6]">
                           {drugCount}
                         </span>
                         รายการสินค้า
@@ -323,18 +323,18 @@ function RequestListSection({
                   <div className="md:hidden px-4 py-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
-                        {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
-                        {readOnly && <p className="text-[11px] text-muted-foreground mt-0.5">{formatRequestDate(req.created_at)}</p>}
+                        <p className="text-sm font-bold text-[#241F5E] font-mono">{req.ref_id}</p>
+                        {req.hospital_name && <p className="text-xs text-[#6B6698] mt-0.5 truncate">{req.hospital_name}</p>}
+                        {readOnly && <p className="text-[11px] text-[#6B6698] mt-0.5">{formatRequestDate(req.created_at)}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
 
                     <button
                       onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                      className="flex items-center gap-2 text-xs text-muted-foreground font-medium w-full py-2 px-3 bg-slate-50 rounded-xl hover:bg-teal-50 hover:text-teal-700 transition-colors"
+                      className="flex items-center gap-2 text-xs text-[#6B6698] font-medium w-full py-2 px-3 bg-[#F1EDE0]/60 rounded-xl hover:bg-[#ECEAF6] hover:text-[#2E2B7A] transition-colors"
                     >
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px]">{drugCount}</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[10px]">{drugCount}</span>
                       รายการสินค้า
                       <ChevronDown size={14} strokeWidth={2.5} className={`ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                     </button>
@@ -375,7 +375,7 @@ function RequestListSection({
                   {/* Drug items expanded */}
                   {isExpanded && drugCount > 0 && (
                     <div className="px-4 md:px-6 pb-4">
-                      <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wide px-3 mb-1.5">
+                      <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-[#6B6698] uppercase tracking-wide px-3 mb-1.5">
                         <div className="col-span-3">ชื่อยา</div>
                         <div className="col-span-1">จำนวน</div>
                         <div className="col-span-1 text-center">Lot</div>
@@ -396,10 +396,10 @@ function RequestListSection({
                       </div>
                       {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
                         <div className="mt-3 flex justify-end">
-                          <div className="flex items-center gap-2 bg-teal-50 border border-teal-100 rounded-xl px-4 py-2 text-xs">
-                            <Pill size={13} className="text-teal-500" strokeWidth={2.5} />
-                            <span className="text-muted-foreground">มูลค่ารวม:</span>
-                            <span className="font-bold text-teal-700">
+                          <div className="flex items-center gap-2 bg-[#ECEAF6] border border-[#D8D5E8] rounded-xl px-4 py-2 text-xs">
+                            <Pill size={13} className="text-[#6B6698]" strokeWidth={2.5} />
+                            <span className="text-[#6B6698]">มูลค่ารวม:</span>
+                            <span className="font-bold text-[#2E2B7A]">
                               ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                             </span>
                           </div>
@@ -416,14 +416,14 @@ function RequestListSection({
 
       {pageSize && totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-3 px-1">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-[#6B6698]">
             แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, items.length)} จาก {items.length} รายการ
           </p>
           <div className="flex items-center gap-1 overflow-x-auto">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-[#6B6698] hover:bg-[#ECEAF6] disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
               aria-label="หน้าก่อนหน้า"
             >
               <ChevronLeft size={16} strokeWidth={2.5} />
@@ -433,7 +433,7 @@ function RequestListSection({
                 key={p}
                 onClick={() => setPage(p)}
                 className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
-                  p === currentPage ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-200'
+                  p === currentPage ? 'bg-[#2E2B7A] text-white' : 'text-[#6B6698] hover:bg-[#ECEAF6]'
                 }`}
               >
                 {p}
@@ -442,7 +442,7 @@ function RequestListSection({
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-[#6B6698] hover:bg-[#ECEAF6] disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
               aria-label="หน้าถัดไป"
             >
               <ChevronRight size={16} strokeWidth={2.5} />
@@ -476,9 +476,9 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
   const role = MONITOR_STAGE_ROLE[req.current_status];
   const RoleIcon = role?.icon;
   return (
-    <div className="bg-white rounded-xl border border-border p-3">
+    <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/60 p-3">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-black text-foreground font-mono truncate">{req.ref_id}</p>
+        <p className="text-xs font-black text-[#241F5E] font-mono truncate">{req.ref_id}</p>
         {role && (
           <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${role.bg} ${role.color}`}>
             <RoleIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
@@ -486,29 +486,29 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
           </span>
         )}
       </div>
-      {req.hospital_name && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{req.hospital_name}</p>}
+      {req.hospital_name && <p className="text-[11px] text-[#6B6698] truncate mt-0.5">{req.hospital_name}</p>}
 
       <button
         onClick={onToggle}
-        className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-teal-700 font-semibold transition-colors"
+        className="mt-2 flex items-center gap-1.5 text-[11px] text-[#6B6698] hover:text-[#2E2B7A] font-semibold transition-colors"
       >
-        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-teal-50 text-teal-600 font-bold text-[9px]">{drugCount}</span>
+        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[9px]">{drugCount}</span>
         รายการสินค้า
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
-        <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
+        <div className="mt-2 space-y-1.5 border-t border-[#EADFAF] pt-2">
           {(req.drug_items ?? []).map((item: DrugItemRow) => (
-            <div key={item.id} className="text-[10.5px] bg-slate-50 rounded-lg px-2 py-1.5">
-              <p className="font-bold text-slate-700 truncate">{item.drug_name}</p>
-              <p className="text-muted-foreground mt-0.5">
+            <div key={item.id} className="text-[10.5px] bg-[#F1EDE0]/60 rounded-lg px-2 py-1.5">
+              <p className="font-bold text-[#241F5E] truncate">{item.drug_name}</p>
+              <p className="text-[#6B6698] mt-0.5">
                 {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
               </p>
             </div>
           ))}
           {totalValue > 0 && (
-            <p className="text-right text-[10.5px] font-bold text-teal-700 pt-0.5">
+            <p className="text-right text-[10.5px] font-bold text-[#2E2B7A] pt-0.5">
               ฿{totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
             </p>
           )}
@@ -531,8 +531,8 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
           <Eye size={16} className="text-indigo-600" strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-foreground">Active Workflow</h2>
-          <p className="text-[11px] text-muted-foreground">{items.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า — จัดกลุ่มตามสถานะจริง</p>
+          <h2 className="text-sm font-bold text-[#241F5E]">Active Workflow</h2>
+          <p className="text-[11px] text-[#6B6698]">{items.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า — จัดกลุ่มตามสถานะจริง</p>
         </div>
       </div>
 
@@ -543,18 +543,18 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
           const meta = getStatusMeta(statusKey);
           const StageIcon = meta.icon;
           return (
-            <div key={statusKey} className="bg-slate-50 rounded-2xl border border-border p-3">
+            <div key={statusKey} className="bg-[#F1EDE0]/50 rounded-2xl border border-[#EADFAF] p-3">
               <div className="flex items-center gap-2 mb-3 px-0.5">
                 <span className={`flex items-center justify-center w-6 h-6 rounded-lg shrink-0 ${meta.bg}`}>
                   <StageIcon className={`w-3.5 h-3.5 ${meta.fg}`} strokeWidth={2.5} />
                 </span>
                 <span className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
-                <span className="ml-auto text-[10px] font-bold text-muted-foreground bg-white px-1.5 py-0.5 rounded-full border border-border">
+                <span className="ml-auto text-[10px] font-bold text-[#6B6698] bg-white/70 px-1.5 py-0.5 rounded-full border border-[#EADFAF]">
                   {colItems.length}
                 </span>
               </div>
               {colItems.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
+                <p className="text-[11px] text-[#6B6698] text-center py-6">ไม่มีใบงาน</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {colItems.map((req) => (
@@ -750,7 +750,7 @@ export default function CSRDashboard() {
     },
     rejected: {
       title: 'ถูกปฏิเสธ', subtitle: `${rejectedCount} ใบงานถูกปฏิเสธ`, items: requests.filter(r => r.current_status === 'rejected'),
-      icon: XCircle, iconBg: 'bg-rose-100', iconColor: 'text-rose-600',
+      icon: XCircle, iconBg: 'bg-red-100', iconColor: 'text-red-600',
     },
   };
 
@@ -759,38 +759,47 @@ export default function CSRDashboard() {
   const selectWorkflowSubTab = (tab: 'csr' | 'monitor') => { setStatusFilter(null); setWorkflowSubTab(tab); };
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
       <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-teal-600 animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
+        <Loader2 className="w-9 h-9 text-[#E1592A] animate-spin mx-auto" strokeWidth={2.5} />
+        <p className="text-sm text-[#6B6698] font-medium">กำลังโหลดข้อมูล...</p>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
 
-      {/* ══ Top Bar ══ */}
-      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-border">
+      {/* ── พื้นหลังลูกเล่น — แสงกระจายแบบสุ่ม + บลอบใหญ่ ให้เข้าชุดกับหน้าอื่นในธีมนี้ ── */}
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
+        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
+        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
+        <div className="absolute top-[12%] left-[10%] w-12 h-12 rounded-full bg-[#EAD94C] opacity-[0.12] blur-lg hidden sm:block" />
+        <div className="absolute bottom-[16%] left-[8%] w-14 h-14 rounded-full bg-[#E1592A] opacity-[0.09] blur-xl" />
+      </div>
+
+      {/* ══ Top Bar — กระจกโปร่งแสง ══ */}
+      <div className="relative z-30 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-white/50">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={() => router.replace('/admin/csr')}
-              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#241F5E] bg-white/60 hover:bg-white/90 px-3 py-2 rounded-xl transition-all group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
-            <div className="w-px h-5 bg-slate-200 shrink-0" />
+            <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">CSR Dashboard</h1>
-              <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-[#241F5E] leading-tight truncate">CSR Dashboard</h1>
+              <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-red-600 bg-slate-100 hover:bg-red-50 px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+            className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#E1592A] bg-white/60 hover:bg-[#FBEFE6] px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
           >
             {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
             <span className="hidden sm:inline">ออกจากระบบ</span>
@@ -798,13 +807,13 @@ export default function CSRDashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 md:space-y-7">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 md:space-y-7">
 
         {/* ── แถบสถิติสรุป — คลิกได้จริง กดแล้วกระโดดไปดูเฉพาะกลุ่มสถานะนั้นทันที ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
           <StatCard
-            icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-slate-100" iconText="text-slate-600"
-            isActive={statusFilter === null && activeTab === 'history'} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+            icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-[#ECEAF6]" iconText="text-[#2E2B7A]"
+            isActive={statusFilter === null && activeTab === 'history'} activeBorder="border-[#2E2B7A]/40" activeRing="ring-2 ring-[#2E2B7A]/10"
             onClick={() => selectTab('history')}
           />
           <StatCard
@@ -823,8 +832,8 @@ export default function CSRDashboard() {
             onClick={() => setStatusFilter('completed')}
           />
           <StatCard
-            icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-rose-50" iconText="text-rose-600"
-            isActive={statusFilter === 'rejected'} activeBorder="border-rose-300" activeRing="ring-2 ring-rose-100"
+            icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-red-50" iconText="text-red-600"
+            isActive={statusFilter === 'rejected'} activeBorder="border-red-300" activeRing="ring-2 ring-red-100"
             onClick={() => setStatusFilter('rejected')}
           />
         </div>
@@ -842,7 +851,7 @@ export default function CSRDashboard() {
               <TabButton
                 icon={History} label="ประวัติใบงาน" count={requests.length}
                 active={statusFilter === null && activeTab === 'history'} onClick={() => selectTab('history')}
-                accentBg="bg-slate-200" accentColor="text-slate-600"
+                accentBg="bg-[#ECEAF6]" accentColor="text-[#2E2B7A]"
               />
             </nav>
           </aside>
@@ -872,7 +881,7 @@ export default function CSRDashboard() {
             {activeTab === 'active' && (
             <div>
               {/* ── Sub-tab แนวนอน (segmented control) ── */}
-              <div className="inline-flex items-center gap-1 p-1 mb-4 rounded-xl bg-slate-100">
+              <div className="flex items-center gap-1 p-1 mb-4 rounded-xl bg-white/50 backdrop-blur-md border border-white/40 overflow-x-auto max-w-full">
                 <SubTabButton
                   icon={ClipboardEdit} label="CSR Workflow" count={csrWorkflowRequests.length}
                   active={workflowSubTab === 'csr'} onClick={() => selectWorkflowSubTab('csr')}
@@ -918,8 +927,8 @@ export default function CSRDashboard() {
             <RequestListSection
               title="ประวัติใบงาน"
               icon={History}
-              iconBg="bg-slate-100"
-              iconColor="text-muted-foreground"
+              iconBg="bg-[#ECEAF6]"
+              iconColor="text-[#2E2B7A]"
               subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
               items={historyRequestsSorted}
               pageSize={10}

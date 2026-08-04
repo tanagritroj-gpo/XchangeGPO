@@ -165,7 +165,7 @@ function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive, active
       </div>
       <div className="min-w-0">
         <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
-        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-wide leading-snug text-muted-foreground">{label}</p>
       </div>
     </div>
   );

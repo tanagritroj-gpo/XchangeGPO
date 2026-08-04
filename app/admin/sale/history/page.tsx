@@ -46,35 +46,49 @@ export default function SaleHistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto w-full px-4 md:px-6 pt-8 flex items-center justify-between gap-3">
-        <Link href="/admin/sale" className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-rose-600 transition-colors">
-          <ArrowLeft className="w-5 h-5" /> ย้อนกลับ
-        </Link>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-1.5 text-sm font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-rose-100 hover:border-red-200 px-4 py-2.5 rounded-xl transition-colors"
-        >
-          <LogOut className="w-5 h-5" /> ออกจากระบบ
-        </button>
+    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
+
+      {/* ── พื้นหลังลูกเล่น — แสงกระจายแบบสุ่ม + บลอบใหญ่ ตรงกับหน้า Sale Hub ──
+          ใช้ fixed แทน absolute ตำแหน่ง % จะอ้างอิงความสูงจอเสมอ ไม่ขึ้นกับความยาวเนื้อหา */}
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
+        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
+        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
+        <div className="absolute top-[12%] left-[10%] w-12 h-12 rounded-full bg-[#EAD94C] opacity-[0.12] blur-lg hidden sm:block" />
+        <div className="absolute top-[24%] right-[8%] w-10 h-10 rounded-full bg-white opacity-20 blur-lg hidden sm:block" />
+        <div className="absolute bottom-[16%] left-[8%] w-14 h-14 rounded-full bg-[#E1592A] opacity-[0.09] blur-xl" />
       </div>
 
-      <div className="max-w-4xl mx-auto w-full px-4 md:px-6 py-6 md:py-10">
+      <div className="relative z-10 max-w-4xl mx-auto w-full px-4 md:px-6 pt-6">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white/45 backdrop-blur-md border border-white/50 shadow-sm">
+          <Link href="/admin/sale" className="flex items-center gap-2 text-sm font-bold text-[#6B6698] hover:text-[#E1592A] transition-colors">
+            <ArrowLeft className="w-5 h-5" /> ย้อนกลับ
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 text-sm font-bold text-[#6B6698] hover:text-[#E1592A] bg-white/70 hover:bg-[#FBEFE6] border border-white/60 hover:border-[#F0C6AA] px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <LogOut className="w-5 h-5" /> ออกจากระบบ
+          </button>
+        </div>
+      </div>
+
+      <div className="relative z-10 max-w-4xl mx-auto w-full px-4 md:px-6 py-6 md:py-10">
         <div className="flex items-center gap-3 mb-5 px-1">
-          <div className="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
-            <History size={19} className="text-rose-600" strokeWidth={2.5} />
+          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#FBF0C8] to-[#F4DFA0] flex items-center justify-center shrink-0">
+            <History size={19} className="text-[#E1592A]" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-base font-bold text-foreground">ประวัติการแลกเปลี่ยน</h1>
-            <p className="text-xs text-muted-foreground">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
+            <h1 className="text-base font-bold text-[#241F5E]">ประวัติการแลกเปลี่ยน</h1>
+            <p className="text-xs text-[#6B6698]">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
           </div>
         </div>
 
         {!loading && history.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-5">
             <StatCard
-              icon={ClipboardList} value={history.length} label="ทั้งหมด" iconBg="bg-slate-100" iconText="text-slate-600"
-              isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+              icon={ClipboardList} value={history.length} label="ทั้งหมด" iconBg="bg-[#ECEAF6]" iconText="text-[#2E2B7A]"
+              isActive={statusFilter === null} activeBorder="border-[#2E2B7A]/40" activeRing="ring-2 ring-[#2E2B7A]/10"
               onClick={() => setStatusFilter(null)}
             />
             <StatCard
@@ -93,8 +107,8 @@ export default function SaleHistoryPage() {
               onClick={() => setStatusFilter('completed')}
             />
             <StatCard
-              icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-rose-50" iconText="text-rose-600"
-              isActive={statusFilter === 'rejected'} activeBorder="border-rose-300" activeRing="ring-2 ring-rose-100"
+              icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-red-50" iconText="text-red-600"
+              isActive={statusFilter === 'rejected'} activeBorder="border-red-300" activeRing="ring-2 ring-red-100"
               onClick={() => setStatusFilter('rejected')}
             />
           </div>

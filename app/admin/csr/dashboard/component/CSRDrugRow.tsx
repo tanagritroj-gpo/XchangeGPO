@@ -111,12 +111,12 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
   return (
     <>
       {/* Mobile: stack แนวตั้ง / Desktop: grid แนวนอน */}
-      <div className="flex flex-col md:grid md:grid-cols-12 md:gap-3 gap-3 px-4 py-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:border-teal-200 hover:shadow-md transition-all">
+      <div className="flex flex-col md:grid md:grid-cols-12 md:gap-3 gap-3 px-4 py-4 bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm hover:border-[#2E2B7A]/30 hover:shadow-md transition-all">
 
         {/* ชื่อยา */}
         <div className="md:col-span-3">
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5 md:hidden">ชื่อยา</p>
-          <p className="text-sm font-bold text-slate-800">{item.drug_name}</p>
+          <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-0.5 md:hidden">ชื่อยา</p>
+          <p className="text-sm font-bold text-[#241F5E]">{item.drug_name}</p>
           {item.request_type && (() => {
             const typeStyle = REQUEST_TYPE_STYLE[item.request_type] ?? DEFAULT_TYPE_STYLE;
             const TypeIcon = typeStyle.icon;
@@ -132,16 +132,16 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         {/* จำนวน + Lot + Exp — mobile: row / desktop: แยก col */}
         <div className="flex gap-4 md:contents">
           <div className="md:col-span-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5 md:hidden">จำนวน</p>
-            <p className="text-sm font-medium text-slate-600">{item.qty} {item.unit}</p>
+            <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-0.5 md:hidden">จำนวน</p>
+            <p className="text-sm font-medium text-[#241F5E]/80">{item.qty} {item.unit}</p>
           </div>
           <div className="md:col-span-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5 md:hidden">Lot</p>
-            <p className="text-sm font-mono text-slate-500">{item.lot_number ?? '-'}</p>
+            <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-0.5 md:hidden">Lot</p>
+            <p className="text-sm font-mono text-[#6B6698]">{item.lot_number ?? '-'}</p>
           </div>
           <div className="md:col-span-1">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5 md:hidden">Exp</p>
-            <p className="text-sm text-slate-500">
+            <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-0.5 md:hidden">Exp</p>
+            <p className="text-sm text-[#6B6698]">
               {item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '-'}
             </p>
           </div>
@@ -151,22 +151,22 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         {isExchangeRequest ? (
           <>
             <div className="md:col-span-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1 md:hidden">ประเภท</p>
+              <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-1 md:hidden">ประเภท</p>
               {readOnly ? (
-                <span className="inline-flex px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold">
+                <span className="inline-flex px-2.5 py-1 rounded-lg bg-[#F1EDE0] text-[#6B6698] text-[11px] font-bold">
                   {productType === 'GPO' ? 'GPO' : productType === 'OTHER' ? 'สมุนไพร/ผู้ผลิตอื่น' : 'ยังไม่ระบุ'}
                 </span>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <div className={`relative flex-1 flex rounded-xl border border-slate-200 overflow-hidden text-[11px] font-bold transition-all
+                  <div className={`relative flex-1 flex rounded-xl border border-[#EADFAF] overflow-hidden text-[11px] font-bold transition-all
                     ${localStatus !== 'pending_review' || isTypeSaving ? 'opacity-50 pointer-events-none' : ''}`}>
                     <button
                       type="button"
                       onClick={() => handleTypeChange('GPO')}
-                      className={`flex-1 py-2 px-2 text-center transition-all border-r border-slate-200
+                      className={`flex-1 py-2 px-2 text-center transition-all border-r border-[#EADFAF]
                         ${productType === 'GPO'
-                          ? 'bg-teal-600 text-white border-r-teal-600'
-                          : 'bg-white text-slate-400 hover:bg-teal-50 hover:text-teal-700'}`}
+                          ? 'bg-[#2E2B7A] text-white border-r-[#2E2B7A]'
+                          : 'bg-white text-[#A7A2C4] hover:bg-[#ECEAF6] hover:text-[#2E2B7A]'}`}
                     >
                       GPO
                     </button>
@@ -175,8 +175,8 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                       onClick={() => handleTypeChange('OTHER')}
                       className={`flex-1 py-2 px-2 text-center transition-all
                         ${productType === 'OTHER'
-                          ? 'bg-orange-500 text-white'
-                          : 'bg-white text-slate-400 hover:bg-orange-50 hover:text-orange-600'}`}
+                          ? 'bg-[#E1592A] text-white'
+                          : 'bg-white text-[#A7A2C4] hover:bg-[#FBEFE6] hover:text-[#E1592A]'}`}
                     >
                       สมุนไพร/ผู้ผลิตอื่น
                     </button>
@@ -205,10 +205,10 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
             </div>
 
             <div className="md:col-span-1 flex md:justify-center items-start md:items-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5 md:hidden mr-2 mt-1">เกณฑ์</p>
+              <p className="text-[10px] font-bold text-[#6B6698] uppercase tracking-wide mb-0.5 md:hidden mr-2 mt-1">เกณฑ์</p>
               {status.pass === true  ? <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black border border-emerald-100">ผ่าน</span> :
                status.pass === false ? <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-700 text-[10px] font-black border border-red-100">ไม่ผ่าน</span> :
-               <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">รอตรวจ</span>}
+               <span className="px-2.5 py-1 rounded-full bg-[#F1EDE0] text-[#6B6698] text-[10px] font-bold">รอตรวจ</span>}
             </div>
           </>
         ) : (
@@ -216,7 +216,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         )}
 
         {/* Actions — ซ่อนทั้งหมดเมื่อ readOnly (ใช้กับ "ประวัติใบงาน" ที่เป็นแค่ดูข้อมูล) */}
-        <div className="md:col-span-3 flex justify-end gap-2 pt-1 md:pt-0 border-t border-slate-100 md:border-0">
+        <div className="md:col-span-3 flex justify-end gap-2 pt-1 md:pt-0 border-t border-[#EADFAF] md:border-0">
           {!readOnly && localStatus === 'pending_review' ? (
             <>
               <button onClick={() => openActionModal('approve')}

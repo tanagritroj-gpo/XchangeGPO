@@ -39,7 +39,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-96 border border-border">
+      <form onSubmit={handleLogin} className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-sm mx-4 border border-border">
         <h1 className="text-2xl font-black text-foreground mb-6">LOGIN</h1>
         {error && <p className="text-red-500 text-xs mb-4 font-bold">{error}</p>}
         <input type="text" placeholder="Username" className="w-full p-4 mb-4 rounded-xl border border-border" value={username} onChange={(e) => setUsername(e.target.value)} required />
