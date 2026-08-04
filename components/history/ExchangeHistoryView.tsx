@@ -240,6 +240,7 @@ export function ExchangeHistoryView({
   showSubmitter = false,
   emptyText = 'ยังไม่มีคำร้องคืนสินค้า',
   emptySubtext = 'คำร้องที่คุณยื่นจะแสดงที่นี่',
+  headerExtra,
 }: {
   fetcher: () => Promise<HistoryRequestRow[]>;
   title: string;
@@ -248,6 +249,8 @@ export function ExchangeHistoryView({
   showSubmitter?: boolean;
   emptyText?: string;
   emptySubtext?: string;
+  /** เนื้อหาเสริมใต้หัวข้อ/คำอธิบาย (เช่น tab กรองประเภทงาน) — วางไว้ก่อนแถบสถิติ */
+  headerExtra?: React.ReactNode;
 }) {
   const [history, setHistory] = useState<HistoryRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,6 +315,8 @@ export function ExchangeHistoryView({
           <p className="text-xs font-medium text-muted-foreground sm:text-sm">{subtitle}</p>
         </div>
       </div>
+
+      {headerExtra}
 
       {!loading && history.length > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">

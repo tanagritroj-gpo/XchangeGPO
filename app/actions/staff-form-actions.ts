@@ -51,10 +51,12 @@ export async function searchB2BCustomers(query: string) {
   const escaped = cleaned.replace(/[%_]/g, (m) => `\\${m}`);
   const pattern = `%${escaped}%`;
 
+  // ★ hospital_name/customer_code/org_type ตอนนี้ join ผ่าน organizations เสมอ (เจ้าของ
+  // ข้อมูลระดับหน่วยงานตัวจริง) ไม่ได้อ่านคอลัมน์ที่ mirror ไว้บน b2b_customers ตรงๆ อีกต่อไป
   const { data, error } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, hospital_name, contact_name, position, phone, email, customer_code, org_type')
-    .ilike('hospital_name', pattern)
+    .select('id, contact_name, position, phone, email, organizations!inner(hospital_name, customer_code, org_type)')
+    .ilike('organizations.hospital_name', pattern)
     .limit(10);
 
   if (error) {
@@ -62,7 +64,20 @@ export async function searchB2BCustomers(query: string) {
     return { success: false, error: 'ค้นหาไม่สำเร็จ' };
   }
 
-  return { success: true, data: data ?? [] };
+  // แบน organizations ที่ join มาให้เป็น field เดิม (hospital_name/customer_code/org_type)
+  // เพื่อไม่ต้องแก้ shape ที่ CustomerPicker.tsx ฝั่ง UI คาดหวังไว้
+  const flattened = (data ?? []).map((row) => {
+    const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+    const { organizations: _omit, ...rest } = row;
+    return {
+      ...rest,
+      hospital_name: org?.hospital_name ?? null,
+      customer_code: org?.customer_code ?? null,
+      org_type: org?.org_type ?? null,
+    };
+  });
+
+  return { success: true, data: flattened };
 }
 
 // ── 2. เลขที่เอกสารถัดไป ฝั่ง staff ──
@@ -100,15 +115,19 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
   }
 
   // ★ ยืนยันว่าลูกค้าที่เลือกมามีอยู่จริง ไม่เชื่อ id จาก client เฉยๆ
-  const { data: customer, error: custErr } = await supabaseAdmin
+  // hospital_name/province join ผ่าน organizations เสมอ (เจ้าของข้อมูลระดับหน่วยงานตัวจริง)
+  const { data: customerRow, error: custErr } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, hospital_name, contact_name, phone, email, position, province')
+    .select('id, contact_name, phone, email, position, organizations!inner(hospital_name, province)')
     .eq('id', b2bCustomerId)
     .maybeSingle();
 
-  if (custErr || !customer) {
+  if (custErr || !customerRow) {
     throw new Error('ไม่พบข้อมูลลูกค้าที่เลือก กรุณาเลือกใหม่');
   }
+
+  const customerOrg = Array.isArray(customerRow.organizations) ? customerRow.organizations[0] : customerRow.organizations;
+  const customer = { ...customerRow, hospital_name: customerOrg?.hospital_name ?? null, province: customerOrg?.province ?? null };
 
   // มูลค่ารวมคำนวณจาก จำนวน × ราคาต่อหน่วย ฝั่ง server เสมอ ไม่เชื่อ item.val จาก client ตรงๆ
   const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => {
@@ -135,12 +154,17 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     doc_number: formData.sender?.doc_number,
     request_type: formData.sender?.request_type,
 
-    // ★ ข้อมูลหน่วยงาน/ผู้ติดต่อ ยึดจากลูกค้าที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
+    // ★ ข้อมูลหน่วยงาน ยึดจากลูกค้าที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
+    // customer_email ยังต้องเก็บไว้ — sendStaffPdfEmailAction ใช้ค่านี้ส่งลิงก์ PDF ให้ลูกค้า
     hospital_name: customer.hospital_name,
-    contact_name: customer.contact_name,
     phone: customer.phone,
     customer_email: customer.email,
     province: customer.province,
+
+    // ★ ไม่บันทึกชื่อผู้ติดต่อฝั่งลูกค้าอีกต่อไป (ข้อมูลนั้นอยู่ที่ b2b_customers อยู่แล้ว
+    //   ผูกผ่าน b2b_customer_id) — ใช้ contact_name เก็บชื่อพนักงาน CSR ที่กรอกแทนแทน
+    //   เพื่อให้ตามหาผู้รับผิดชอบคำร้องนี้ได้จริง แทนป้ายข้อความทั่วไป
+    contact_name: session.full_name || session.username,
 
     return_reason: formData.return_reason,
     delivery_type: formData.delivery_type,

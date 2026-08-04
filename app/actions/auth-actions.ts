@@ -165,9 +165,11 @@ export async function getCustomerSession() {
   const token = (await cookies()).get('customer_session')?.value;
   if (!token || !UUID_RE.test(token)) return null;
 
+  // hospital_name/customer_code/province join ผ่าน organizations เสมอ (เจ้าของข้อมูล
+  // ระดับหน่วยงานตัวจริง) ไม่ได้อ่านคอลัมน์ที่ mirror ไว้บน b2b_customers ตรงๆ อีกต่อไป
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, b2b_customers!inner(id, email, hospital_name, contact_name, customer_code, phone, position, province)')
+    .select('expires_at, b2b_customers!inner(id, email, contact_name, phone, position, organizations!inner(hospital_name, customer_code, province))')
     .eq('token', token)
     .eq('actor_type', 'customer')
     .maybeSingle();
@@ -187,13 +189,25 @@ export async function getCustomerSession() {
     return null;
   }
 
-  const customer = Array.isArray(data.b2b_customers)
+  const customerRow = Array.isArray(data.b2b_customers)
     ? data.b2b_customers[0]
     : data.b2b_customers;
 
-  if (!customer) return null;
+  if (!customerRow) return null;
 
-  return customer;
+  // แบน organizations ที่ join มาให้เป็น field เดิม (hospital_name/customer_code/province)
+  // เพื่อไม่ต้องแก้ shape ที่ทุกหน้าฝั่งลูกค้าคาดหวังไว้จาก session นี้
+  const organization = Array.isArray(customerRow.organizations)
+    ? customerRow.organizations[0]
+    : customerRow.organizations;
+  const { organizations: _omit, ...customerRest } = customerRow;
+
+  return {
+    ...customerRest,
+    hospital_name: organization?.hospital_name ?? null,
+    customer_code: organization?.customer_code ?? null,
+    province: organization?.province ?? null,
+  };
 }
 
 // 4. Logout — ลบ session ออกจาก DB จริง ไม่ใช่แค่ลบ cookie ฝั่งเดียว

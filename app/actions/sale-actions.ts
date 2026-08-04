@@ -48,16 +48,21 @@ export async function getSaleRequestDetail(requestId: number) {
     const coverage = await getSaleCoverage();
     if (!coverage) throw new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
 
+    // org_type/province join ผ่าน organizations เสมอ (เจ้าของข้อมูลระดับหน่วยงานตัวจริง) —
+    // b2b_customers!inner(...) ยังต้องอยู่เป็นสะพานเชื่อม requests -> b2b_customers -> organizations
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('*, drug_items(*), b2b_customers!inner(org_type, province)')
+      .select('*, drug_items(*), b2b_customers!inner(organizations!inner(org_type, province))')
       .eq('id', requestId)
       .maybeSingle();
 
     if (reqErr || !request) throw new Error('ไม่พบข้อมูลใบงานนี้');
 
-    const customer = Array.isArray(request.b2b_customers) ? request.b2b_customers[0] : request.b2b_customers;
-    if (!customer || !coverage.orgTypes.includes(customer.org_type) || !coverage.provinces.includes(customer.province)) {
+    const requestCustomer = Array.isArray(request.b2b_customers) ? request.b2b_customers[0] : request.b2b_customers;
+    const organization = requestCustomer
+      ? (Array.isArray(requestCustomer.organizations) ? requestCustomer.organizations[0] : requestCustomer.organizations)
+      : null;
+    if (!organization || !coverage.orgTypes.includes(organization.org_type) || !coverage.provinces.includes(organization.province)) {
       throw new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลใบงานนี้');
     }
 

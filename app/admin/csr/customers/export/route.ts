@@ -19,10 +19,12 @@ export async function GET() {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
 
+  // customer_code/hospital_name/org_type/province join ผ่าน organizations เสมอ (เจ้าของ
+  // ข้อมูลระดับหน่วยงานตัวจริง) ไม่ได้อ่านคอลัมน์ที่ mirror ไว้บน b2b_customers ตรงๆ อีกต่อไป
   const { data: customers, error } = await supabaseAdmin
     .from('b2b_customers')
-    .select('customer_code, hospital_name, org_type, province, contact_name, position, phone, email, created_at')
-    .order('hospital_name', { ascending: true });
+    .select('contact_name, position, phone, email, created_at, organizations!inner(customer_code, hospital_name, org_type, province)')
+    .order('hospital_name', { foreignTable: 'organizations', ascending: true });
 
   if (error) {
     return NextResponse.json({ error: 'ดึงข้อมูลลูกค้าไม่สำเร็จ' }, { status: 500 });
@@ -48,11 +50,12 @@ export async function GET() {
   sheet.getRow(1).eachCell((cell) => { cell.fill = HEADER_FILL; });
 
   (customers ?? []).forEach((c) => {
+    const org = Array.isArray(c.organizations) ? c.organizations[0] : c.organizations;
     sheet.addRow({
-      customer_code: c.customer_code ?? '-',
-      hospital_name: c.hospital_name ?? '-',
-      org_type: orgTypeLabel(c.org_type),
-      province: c.province ?? '-',
+      customer_code: org?.customer_code ?? '-',
+      hospital_name: org?.hospital_name ?? '-',
+      org_type: orgTypeLabel(org?.org_type ?? null),
+      province: org?.province ?? '-',
       contact_name: c.contact_name ?? '-',
       position: c.position ?? '-',
       phone: c.phone ?? '-',

@@ -45,7 +45,7 @@ const SIZE_MAP = {
 // (ref_id + badge สถานะ + stepper + รายการยา + timeline พร้อมหมายเหตุ staff)
 // fetchDetail แยกออกมาเป็น prop เพราะผู้เรียกแต่ละที่ตรวจสิทธิ์ต่างกัน — CSR ยืนยันด้วย
 // customerId ที่รู้ล่วงหน้า ส่วน sale ต้อง join เช็ค org_type/province ของเจ้าของใบงานแทน
-function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: number; fetchDetail: (requestId: number) => Promise<RequestDetailResult>; size: ListSize }) {
+export function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: number; fetchDetail: (requestId: number) => Promise<RequestDetailResult>; size: ListSize }) {
   const [data, setData] = useState<RequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -108,6 +108,10 @@ function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId: numbe
 
       {/* รายละเอียดคำร้อง */}
       <div className={`bg-white rounded-2xl border border-border p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 ${T.detailGrid}`}>
+        <div>
+          <p className={`${T.label} text-muted-foreground mb-0.5`}>ประเภทใบงาน</p>
+          <p className="font-medium text-slate-700">{data.request_type || '-'}</p>
+        </div>
         <div>
           <p className={`${T.label} text-muted-foreground mb-0.5`}>เหตุผลการคืน</p>
           <p className="font-medium text-slate-700">{data.return_reason || '-'}</p>
