@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { getErrorMessage } from '@/lib/error-message';
+import type { DrugItemRow } from '@/lib/types';
 
 // เช็คสิทธิ์เฉพาะ role 'manager' เท่านั้น (เข้มกว่า getCSRSession ที่อนุญาต department 'csr' ด้วย)
 // ยังคงไว้เหมือนเดิมทุกบรรทัด — ใช้กับ action ที่ควรเป็นสิทธิ์ manager ล้วนๆ เท่านั้น
@@ -45,6 +46,43 @@ export async function getUnansweredChatbotQuestions(limit: number = 50) {
     if (error) return { success: false, error: error.message };
     return { success: true, data: data || [] };
   } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
+// รายละเอียดใบงานแบบเต็ม (ใช้เป็น fetchDetail ของ RequestHistoryList ในแท็บ "ใบงานทั้งหมด")
+// ต่างจาก getStaffRequestDetail/getSaleRequestDetail ตรงที่ manager ไม่ต้องเช็ค customerId
+// หรือ org_type/province ของเจ้าของใบงานเลย — เห็นได้ทุกใบงานในระบบไม่จำกัดขอบเขต
+export async function getManagerRequestDetail(requestId: number) {
+  try {
+    await getManagerSession();
+
+    const { data: request, error: reqErr } = await supabaseAdmin
+      .from('requests')
+      .select('*, drug_items(*)')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !request) throw new Error('ไม่พบข้อมูลใบงานนี้');
+
+    const { data: timelineRaw } = await supabaseAdmin
+      .from('timeline_summary')
+      .select('status_name, log_date, staff_remark, drug_item_id')
+      .eq('request_id', request.id)
+      .order('log_date', { ascending: true });
+
+    const drugNameById: Record<number, string> = Object.fromEntries(
+      (request.drug_items ?? []).map((i: DrugItemRow) => [i.id, i.drug_name])
+    );
+
+    const timeline = (timelineRaw ?? []).map((t) => ({
+      ...t,
+      drug_name: t.drug_item_id != null ? drugNameById[t.drug_item_id] ?? null : null,
+    }));
+
+    return { success: true, data: { ...request, timeline } };
+  } catch (e: unknown) {
+    console.error('getManagerRequestDetail error:', getErrorMessage(e));
     return { success: false, error: getErrorMessage(e) };
   }
 }
