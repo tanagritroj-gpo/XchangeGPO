@@ -4,51 +4,25 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Users,
-  History,
   ClipboardList,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
+  Clock,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
   Check,
   Loader2,
-  Pill,
-  Inbox,
-  MapPin,
   ShieldCheck,
   BarChart3,
   HelpCircle,
 } from 'lucide-react';
 import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
-import { getManagerStatusLogs, getUnansweredChatbotQuestions } from '@/app/actions/manager-actions';
+import { getManagerStatusLogs, getUnansweredChatbotQuestions, getManagerRequestDetail } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
+import { StatCard } from '@/components/StatCard';
+import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import type { LucideIcon } from 'lucide-react';
-import type { RequestRow, DrugItemRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow } from '@/lib/types';
-
-// ── Status config: ใช้ชุดสีเดียวกับ CSR Dashboard ให้ทั้งระบบสอดคล้องกัน ──
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
-  pending_review:   { label: 'รอตรวจสอบ',       color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     dot: 'bg-amber-400'   },
-  approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
-  receiving:        { label: 'กำลังรับสินค้า',   color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200',       dot: 'bg-blue-500'    },
-  exchanging:       { label: 'กำลังแลกเปลี่ยน', color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200',   dot: 'bg-purple-500'  },
-  credit_note:      { label: 'กำลังลดหนี้',      color: 'text-pink-700',    bg: 'bg-pink-50 border-pink-200',       dot: 'bg-pink-500'    },
-  completed:        { label: 'เสร็จสิ้น',        color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200',   dot: 'bg-orange-500'  },
-  out_for_delivery: { label: 'กำลังส่งคืน',      color: 'text-indigo-700',  bg: 'bg-indigo-50 border-indigo-200',   dot: 'bg-indigo-500'  },
-  at_warehouse:     { label: 'ถึงคลังสินค้า',    color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',       dot: 'bg-rose-500'    },
-  checked_in:       { label: 'ตรวจรับแล้ว',      color: 'text-teal-700',    bg: 'bg-teal-50 border-teal-200',       dot: 'bg-teal-500'    },
-  rejected:         { label: 'ถูกปฏิเสธ',        color: 'text-red-700',     bg: 'bg-red-50 border-red-200',         dot: 'bg-red-500'     },
-  in_transit:       { label: 'อยู่ระหว่างขนส่ง', color: 'text-cyan-700',    bg: 'bg-cyan-50 border-cyan-200',       dot: 'bg-cyan-500'    },
-};
-
-function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200', dot: 'bg-slate-400' };
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${cfg.bg} ${cfg.color}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cfg.dot}`} />
-      {cfg.label}
-    </span>
-  );
-}
+import type { RequestRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
 // ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard ──
 function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
@@ -74,189 +48,6 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
   );
 }
 
-const OVERVIEW_PAGE_SIZE = 5;
-
-// ── รายการใบงาน แบบดูอย่างเดียว (ไม่มีปุ่ม action — manager มอนิเตอร์ ไม่ได้แก้ไขจากหน้านี้) ──
-// แบ่งหน้าละ 5 รายการ (เหมือน CSR Report Center) กันรายการยาวเกะกะหน้าจอ
-function RequestOverviewList({ items, emptyText }: { items: RequestRow[]; emptyText: string }) {
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [page, setPage] = useState(1);
-
-  const totalPages = Math.max(1, Math.ceil(items.length / OVERVIEW_PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pagedItems = items.slice((currentPage - 1) * OVERVIEW_PAGE_SIZE, currentPage * OVERVIEW_PAGE_SIZE);
-
-  return (
-    <div className="bg-white rounded-2xl border border-border overflow-hidden">
-      {items.length > 0 && (
-        <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-slate-50 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-          <div className="col-span-3">Ref ID</div>
-          <div className="col-span-3">หน่วยงาน</div>
-          <div className="col-span-2">สถานะ</div>
-          <div className="col-span-4">รายการสินค้า</div>
-        </div>
-      )}
-
-      {items.length === 0 ? (
-        <div className="py-12 text-center">
-          <Inbox className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
-          <p className="text-sm text-muted-foreground font-medium">{emptyText}</p>
-        </div>
-      ) : (
-        <div className="divide-y divide-slate-100">
-          {pagedItems.map((req: RequestRow) => {
-            const isExpanded = expandedId === req.id;
-            const drugCount = req.drug_items?.length ?? 0;
-            return (
-              <div
-                key={req.id}
-                className={`group relative transition-colors ${isExpanded ? 'bg-teal-50/70' : 'hover:bg-teal-50/50'}`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
-                    isExpanded ? 'bg-teal-600 opacity-100' : 'bg-teal-400 opacity-0 group-hover:opacity-100'
-                  }`}
-                />
-
-                {/* Desktop row */}
-                <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
-                  <div className="col-span-3">
-                    <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
-                    {req.created_at && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {new Date(req.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
-                      </p>
-                    )}
-                  </div>
-                  <div className="col-span-3">
-                    <p className="text-sm text-slate-600 truncate">{req.hospital_name || '-'}</p>
-                    {req.province && (
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                        <MapPin size={11} strokeWidth={2.5} className="text-amber-500 shrink-0" />
-                        {req.province}
-                      </p>
-                    )}
-                  </div>
-                  <div className="col-span-2"><StatusBadge status={req.current_status} /></div>
-                  <div className="col-span-4">
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : req.id)}
-                      className="flex items-center gap-2 text-xs text-muted-foreground hover:text-teal-700 font-medium transition-colors group"
-                    >
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px] group-hover:bg-teal-100">
-                        {drugCount}
-                      </span>
-                      รายการสินค้า
-                      <ChevronDown size={14} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Mobile card */}
-                <div className="md:hidden px-4 py-4 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name || '-'}</p>
-                    </div>
-                    <StatusBadge status={req.current_status} />
-                  </div>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : req.id)}
-                    className="flex items-center gap-2 text-xs text-muted-foreground font-medium w-full py-2 px-3 bg-slate-50 rounded-xl hover:bg-teal-50 hover:text-teal-700 transition-colors"
-                  >
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-50 text-teal-600 font-bold text-[10px]">{drugCount}</span>
-                    รายการสินค้า
-                    <ChevronDown size={14} strokeWidth={2.5} className={`ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-
-                {/* Drug items expanded — read-only */}
-                {isExpanded && drugCount > 0 && (
-                  <div className="px-4 md:px-6 pb-4">
-                    <div className="space-y-1.5">
-                      {(req.drug_items ?? []).map((item: DrugItemRow) => (
-                        <div key={item.id} className="grid grid-cols-2 md:grid-cols-12 gap-1.5 md:gap-2 text-xs bg-slate-50 px-3.5 py-2.5 rounded-xl items-start md:items-center border border-border">
-                          <div className="col-span-2 md:col-span-4 font-semibold text-slate-700 truncate">{item.drug_name}</div>
-                          <div className="col-span-1 md:col-span-2 text-muted-foreground">
-                            <span className="md:hidden text-[10px] text-muted-foreground">จำนวน: </span>
-                            {item.qty} {item.unit}
-                          </div>
-                          <div className="col-span-1 md:col-span-2 text-muted-foreground font-mono text-[10px]">
-                            <span className="md:hidden font-sans text-muted-foreground">LOT: </span>
-                            {item.lot_number ?? '-'}
-                          </div>
-                          <div className="col-span-1 md:col-span-2">
-                            <StatusBadge status={item.current_status ?? ''} />
-                          </div>
-                          <div className="col-span-1 md:col-span-2 text-left md:text-right font-bold text-teal-600">
-                            ฿{Number(item.value_amount || 0).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
-                      <div className="mt-2.5 flex justify-end">
-                        <div className="flex items-center gap-2 bg-teal-50 border border-teal-100 rounded-xl px-4 py-2 text-xs">
-                          <Pill size={13} className="text-teal-500" strokeWidth={2.5} />
-                          <span className="text-muted-foreground">มูลค่ารวม:</span>
-                          <span className="font-bold text-teal-700">
-                            ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {items.length > 0 && totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-3.5 border-t border-border bg-slate-50">
-          <p className="text-xs text-muted-foreground">
-            แสดง {(currentPage - 1) * OVERVIEW_PAGE_SIZE + 1}–{Math.min(currentPage * OVERVIEW_PAGE_SIZE, items.length)} จาก {items.length} รายการ
-          </p>
-          <div className="flex items-center gap-1 overflow-x-auto">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
-              aria-label="หน้าก่อนหน้า"
-            >
-              <ChevronLeft size={16} strokeWidth={2.5} />
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
-                  p === currentPage
-                    ? 'bg-teal-600 text-white'
-                    : 'text-muted-foreground hover:bg-slate-200'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
-              aria-label="หน้าถัดไป"
-            >
-              <ChevronRight size={16} strokeWidth={2.5} />
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function StaffApprovalPage() {
   const router = useRouter();
   const [pendingStaff, setPendingStaff] = useState<PendingStaffRow[]>([]);
@@ -266,7 +57,12 @@ export default function StaffApprovalPage() {
   const [isLoading, setIsLoading] = useState(true);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'staff' | 'history' | 'all' | 'insights' | 'chatbot'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'all' | 'insights' | 'chatbot'>('staff');
+  // ตัวกรองด่วนในแท็บ "ใบงานทั้งหมด" — แพทเทิร์นเดียวกับ "ประวัติการแลกเปลี่ยน" ของ Sale
+  const [statusFilter, setStatusFilter] = useState<'pending_review' | 'in_progress' | 'completed' | 'rejected' | null>(null);
+  // ตัวกรองประเภทงาน (request_type) — แยกอิสระจาก statusFilter ใช้ร่วมกันได้ (AND)
+  // กดซ้ำที่ตัวที่เลือกอยู่แล้วจะล้างกลับเป็น "ทั้งหมด"
+  const [requestTypeFilter, setRequestTypeFilter] = useState<'รับคืนลดหนี้' | 'รับคืนแลกเปลี่ยน' | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -331,10 +127,35 @@ export default function StaffApprovalPage() {
     router.replace('/');
   };
 
-  // ประวัติใบงาน = เสร็จสิ้นหรือถูกปฏิเสธ (logic เดียวกับ CSR Dashboard)
-  const historyRequests = requests.filter(r => r.current_status === 'completed' || r.current_status === 'rejected');
-  // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย
+  // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย ทุกลูกค้า ไม่จำกัดขอบเขต (ต่างจาก sale ที่ scope ตามลูกค้าที่ดูแล)
   const allRequests = requests;
+
+  // แปลงเป็น HistorySummaryRow[] เพื่อป้อนให้ RequestHistoryList แบบเดียวกับหน้า sale/history —
+  // ข้อมูลตัวเต็ม (drug_items ฯลฯ) โหลดแยกต่างหากตอนขยายแถวผ่าน getManagerRequestDetail
+  const allRequestsHistory: HistorySummaryRow[] = allRequests.map((r) => ({
+    id: r.id,
+    ref_id: r.ref_id,
+    request_type: r.request_type,
+    current_status: r.current_status,
+    total_value: r.total_value,
+    created_at: r.created_at,
+    hospital_name: r.hospital_name,
+    province: r.province,
+  }));
+
+  // ── นับจำนวนต่อกลุ่มสำหรับแถบสถิติ "ใบงานทั้งหมด" ──
+  const pendingReviewCount = allRequestsHistory.filter((r) => r.current_status === 'pending_review').length;
+  const completedCount = allRequestsHistory.filter((r) => r.current_status === 'completed').length;
+  const rejectedCount = allRequestsHistory.filter((r) => r.current_status === 'rejected').length;
+  const inProgressCount = allRequestsHistory.length - pendingReviewCount - completedCount - rejectedCount;
+
+  const statusFilteredHistory = !statusFilter ? allRequestsHistory
+    : statusFilter === 'in_progress'
+      ? allRequestsHistory.filter((r) => !['pending_review', 'completed', 'rejected'].includes(r.current_status))
+      : allRequestsHistory.filter((r) => r.current_status === statusFilter);
+
+  const filteredAllRequestsHistory = !requestTypeFilter ? statusFilteredHistory
+    : statusFilteredHistory.filter((r) => r.request_type === requestTypeFilter);
 
   if (isLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -382,11 +203,6 @@ export default function StaffApprovalPage() {
                 icon={Users} label="จัดการสิทธิ์พนักงาน" count={pendingStaff.length}
                 active={activeTab === 'staff'} onClick={() => setActiveTab('staff')}
                 accentBg="bg-orange-100" accentColor="text-orange-600"
-              />
-              <TabButton
-                icon={History} label="ประวัติใบงาน" count={historyRequests.length}
-                active={activeTab === 'history'} onClick={() => setActiveTab('history')}
-                accentBg="bg-slate-200" accentColor="text-slate-600"
               />
               <TabButton
                 icon={ClipboardList} label="ใบงานทั้งหมด" count={allRequests.length}
@@ -460,35 +276,80 @@ export default function StaffApprovalPage() {
               </section>
             )}
 
-            {/* ── Tab 2: ประวัติใบงาน (completed/rejected — logic เดียวกับ CSR) ── */}
-            {activeTab === 'history' && (
-              <section>
-                <div className="flex items-center gap-2.5 mb-3 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center shrink-0">
-                    <History size={16} className="text-slate-600" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-foreground">ประวัติใบงาน</h2>
-                    <p className="text-[11px] text-muted-foreground">{historyRequests.length} ใบงานที่เสร็จสิ้นหรือถูกปฏิเสธ</p>
-                  </div>
-                </div>
-                <RequestOverviewList items={historyRequests} emptyText="ยังไม่มีประวัติใบงาน" />
-              </section>
-            )}
-
-            {/* ── Tab 3: ใบงานทั้งหมด (ทุกสถานะ ไม่กรอง) ── */}
+            {/* ── Tab 2: ใบงานทั้งหมด — ดีไซน์เดียวกับ "ประวัติการแลกเปลี่ยน" ของหน้า sale/history
+                แต่ manager เห็นได้ทุกใบงานในระบบ ทุกลูกค้า ไม่ต้อง scope ตามขอบเขตที่ดูแลเหมือน sale ── */}
             {activeTab === 'all' && (
               <section>
                 <div className="flex items-center gap-2.5 mb-3 px-1">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                     <ClipboardList size={16} className="text-blue-600" strokeWidth={2.5} />
                   </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-foreground">ใบงานทั้งหมด</h2>
-                    <p className="text-[11px] text-muted-foreground">{allRequests.length} ใบงานในระบบ ทุกสถานะ</p>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">ใบงานทั้งหมด</h2>
+                      <p className="text-[11px] text-muted-foreground">{allRequests.length} ใบงานในระบบ ทุกสถานะ ทุกลูกค้า</p>
+                    </div>
+
+                    {/* ── badge กรองประเภทงาน — กดซ้ำเพื่อล้างตัวกรอง ── */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setRequestTypeFilter(requestTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          requestTypeFilter === 'รับคืนลดหนี้'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนลดหนี้
+                      </button>
+                      <button
+                        onClick={() => setRequestTypeFilter(requestTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          requestTypeFilter === 'รับคืนแลกเปลี่ยน'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนแลกเปลี่ยน
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <RequestOverviewList items={allRequests} emptyText="ไม่มีใบงานในระบบ" />
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-5">
+                  <StatCard
+                    icon={ClipboardList} value={allRequestsHistory.length} label="ทั้งหมด" iconBg="bg-slate-100" iconText="text-slate-600"
+                    isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+                    onClick={() => setStatusFilter(null)}
+                  />
+                  <StatCard
+                    icon={Clock} value={pendingReviewCount} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600"
+                    isActive={statusFilter === 'pending_review'} activeBorder="border-amber-300" activeRing="ring-2 ring-amber-100"
+                    onClick={() => setStatusFilter('pending_review')}
+                  />
+                  <StatCard
+                    icon={RefreshCw} value={inProgressCount} label="กำลังดำเนินการ" iconBg="bg-blue-50" iconText="text-blue-600"
+                    isActive={statusFilter === 'in_progress'} activeBorder="border-blue-300" activeRing="ring-2 ring-blue-100"
+                    onClick={() => setStatusFilter('in_progress')}
+                  />
+                  <StatCard
+                    icon={CheckCircle2} value={completedCount} label="เสร็จสิ้น" iconBg="bg-emerald-50" iconText="text-emerald-600"
+                    isActive={statusFilter === 'completed'} activeBorder="border-emerald-300" activeRing="ring-2 ring-emerald-100"
+                    onClick={() => setStatusFilter('completed')}
+                  />
+                  <StatCard
+                    icon={XCircle} value={rejectedCount} label="ถูกปฏิเสธ" iconBg="bg-red-50" iconText="text-red-600"
+                    isActive={statusFilter === 'rejected'} activeBorder="border-red-300" activeRing="ring-2 ring-red-100"
+                    onClick={() => setStatusFilter('rejected')}
+                  />
+                </div>
+
+                <RequestHistoryList
+                  history={filteredAllRequestsHistory}
+                  emptyText="ไม่มีใบงานในระบบ"
+                  fetchDetail={getManagerRequestDetail}
+                  showOrgBadge
+                />
               </section>
             )}
 
