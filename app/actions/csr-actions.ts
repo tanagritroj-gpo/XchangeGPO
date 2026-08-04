@@ -61,6 +61,35 @@ export async function getCSRDashboardData() {
   }
 }
 
+// ค้นหา organizations ด้วยชื่อหน่วยงาน (fuzzy ilike) — ใช้เป็น autocomplete ช่วย CSR ตอน
+// อนุมัติลูกค้าใหม่ ให้เจอรหัสลูกค้าเดิมถ้าหน่วยงานนี้เคยลงทะเบียนมาก่อนแล้ว กันเคสพิมพ์
+// customer_code ไม่ตรงกับที่มีอยู่ (reviewClient ยังเช็คด้วย exact match อีกชั้นเป็น
+// safety net สุดท้ายอยู่ดี ตัวนี้แค่ช่วยแนะนำ ไม่ใช่แหล่งความจริงเดียว)
+export async function searchOrganizations(query: string) {
+  try {
+    await getCSRSession();
+
+    const cleaned = query?.trim();
+    if (!cleaned || cleaned.length < 2) return { success: true, data: [] };
+
+    const escaped = cleaned.replace(/[%_]/g, (m) => `\\${m}`);
+    const pattern = `%${escaped}%`;
+
+    const { data, error } = await supabaseAdmin
+      .from('organizations')
+      .select('id, hospital_name, customer_code, province, org_type')
+      .ilike('hospital_name', pattern)
+      .order('hospital_name', { ascending: true })
+      .limit(5);
+
+    if (error) throw error;
+    return { success: true, data: data ?? [] };
+  } catch (e: unknown) {
+    console.error('searchOrganizations error:', getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
 // ฟังก์ชันรวม: อนุมัติ หรือ ปฏิเสธ ลูกค้า
 // customerCode: รหัสลูกค้าที่ CSR พิมพ์เอง (ไม่ได้มาจากลูกค้าตอนลงทะเบียน) — จำเป็น
 // เฉพาะตอน approved เท่านั้น เพราะเป็นค่าเดียวที่จะถูกเก็บลง b2b_customers.customer_code
@@ -101,53 +130,106 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
     }
 
     if (action === 'approved') {
-      const { data: newCustomer, error: insertErr } = await supabaseAdmin
-        .from('b2b_customers')
-        .insert({
-          email: client.email,
-          hospital_name: client.hospital_name,
-          phone: client.phone,
-          contact_name: client.contact_name,
-          position: client.position,
-          customer_code: customerCode!.trim(),
-          province: client.province,
-          org_type: client.org_type,
-        })
-        .select('id')
-        .single();
+      const trimmedCode = customerCode!.trim();
 
-      if (insertErr) {
-        // ★ ย้อน clients.status กลับ 'pending' — ไม่งั้น client จะค้างที่ 'approved'
-        // ทั้งที่ไม่มี b2b_customer จริงผูกอยู่เลย (update ข้างบนกับ insert นี้เป็นคนละ
-        // statement ไม่ใช่ transaction เดียวกัน ถ้า insert พังแล้วปล่อย status ค้างไว้
-        // จะกลายเป็นข้อมูลขัดแย้งแบบเดียวกับที่เจอใน client เก่าที่หลุดมาก่อนหน้านี้)
-        // เกิดได้ทั้งจาก race ที่ guard ข้างบนไม่ได้ครอบคลุม (เช่น อีเมลนี้ชนกับ
-        // b2b_customers แถวอื่นที่มีอยู่ก่อนแล้วจริงๆ ไม่ใช่แค่ client แถวเดียวกันขอซ้ำ)
-        await supabaseAdmin.from('clients').update({ status: 'pending' }).eq('id', clientId);
-
-        if (insertErr.code === '23505') {
-          throw new Error('อีเมลนี้มีข้อมูลลูกค้าอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนอนุมัติซ้ำ');
-        }
-        throw insertErr;
-      }
-
-      // ผูกกลับเข้า clients เผื่อต้อง trace ย้อนหลัง
-      await supabaseAdmin
-        .from('clients')
-        .update({ b2b_customer_id: newCustomer.id })
-        .eq('id', clientId);
-
-      // เอกสารยืนยันการลงทะเบียน + อีเมลแจ้งลูกค้า — เป็น side-effect เสริม ไม่ใช่ตัว
-      // การอนุมัติเอง จึงต้อง "ไม่บล็อกผลลัพธ์" การอนุมัติแม้จะล้มเหลว (เช่น Resend
-      // ล่มชั่วคราว) เพราะ customer_code ผูกกับ b2b_customers สำเร็จไปแล้วข้างบนนี้ —
-      // แต่ต้อง await ให้จบก่อน ไม่ทำแบบ fire-and-forget เพราะ server action รันบน
-      // Vercel serverless function ที่อาจถูก freeze ทันทีหลัง response ส่งกลับ ทำให้
-      // promise ที่ไม่ได้ await ค้างไม่จบ (CSR ยังกดสร้าง/ส่งเอกสารซ้ำได้ทีหลังผ่าน
-      // getRegistrationDocumentUrl() ถ้ารอบนี้พลาด)
       try {
-        await generateRegistrationDocument(client, customerCode!.trim(), session);
-      } catch (docErr) {
-        console.error('generateRegistrationDocument failed (non-blocking):', docErr);
+        // ★ หา organization ของหน่วยงานนี้ก่อนเสมอ (1 hospital_name = 1 customer_code) —
+        // ถ้าเจอหน่วยงานที่เคยลงทะเบียนแล้ว ต้องใช้ customer_code/ข้อมูลของ organization
+        // เดิมเป็นหลัก ไม่ใช่ค่าที่ CSR เพิ่งพิมพ์ ป้องกันไม่ให้หน่วยงานเดียวกันมีรหัส
+        // ไม่ตรงกันข้ามรอบอนุมัติ (ปัญหาเดิมตอนพึ่ง free-text ล้วนๆ)
+        const { data: existingOrg, error: orgLookupErr } = await supabaseAdmin
+          .from('organizations')
+          .select('id, customer_code, hospital_name, province, org_type')
+          .eq('hospital_name', client.hospital_name)
+          .maybeSingle();
+
+        if (orgLookupErr) throw orgLookupErr;
+
+        let organization = existingOrg;
+
+        if (organization && organization.customer_code !== trimmedCode) {
+          throw new Error(
+            `หน่วยงาน "${client.hospital_name}" มีรหัสลูกค้าอยู่แล้วในระบบคือ ${organization.customer_code} กรุณาใช้รหัสเดิม ไม่ต้องตั้งรหัสใหม่`
+          );
+        }
+
+        // ยังไม่เคยมีหน่วยงานนี้ในระบบ — สร้างใหม่ด้วยรหัสที่ CSR เพิ่งพิมพ์ (ครั้งแรก/ครั้งเดียว
+        // ต่อหน่วยงาน — คนถัดไปจากหน่วยงานเดียวกันจะเจอ organization นี้แล้วผูกเข้าเลย
+        // ไม่ต้องพิมพ์รหัสซ้ำอีก)
+        if (!organization) {
+          const { data: newOrg, error: orgInsertErr } = await supabaseAdmin
+            .from('organizations')
+            .insert({
+              customer_code: trimmedCode,
+              hospital_name: client.hospital_name,
+              province: client.province,
+              org_type: client.org_type,
+            })
+            .select('id, customer_code, hospital_name, province, org_type')
+            .single();
+
+          if (orgInsertErr) {
+            if (orgInsertErr.code === '23505') {
+              throw new Error('รหัสลูกค้านี้ถูกใช้กับหน่วยงานอื่นในระบบแล้ว กรุณาตรวจสอบก่อนอนุมัติซ้ำ');
+            }
+            throw orgInsertErr;
+          }
+          organization = newOrg;
+        }
+
+        // ★ ข้อมูลหน่วยงาน (hospital_name/customer_code/province/org_type) ยึดจาก organization
+        // ที่ resolve ได้ข้างบนเสมอ (join จริง ไม่ใช่ก็อปปี้จาก client ตรงๆ) — b2b_customers
+        // ยังคงคอลัมน์เหล่านี้ไว้คู่กับ organization_id ชั่วคราวเพื่อไม่ให้จุดอื่นที่ยังอ่าน
+        // ตรงจาก b2b_customers พังก่อนย้ายไป join ผ่าน organizations ทั้งระบบใน phase ถัดไป
+        const { data: newCustomer, error: insertErr } = await supabaseAdmin
+          .from('b2b_customers')
+          .insert({
+            email: client.email,
+            hospital_name: organization.hospital_name,
+            phone: client.phone,
+            contact_name: client.contact_name,
+            position: client.position,
+            customer_code: organization.customer_code,
+            province: organization.province,
+            org_type: organization.org_type,
+            organization_id: organization.id,
+          })
+          .select('id')
+          .single();
+
+        if (insertErr) {
+          if (insertErr.code === '23505') {
+            throw new Error('อีเมลนี้มีข้อมูลลูกค้าอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนอนุมัติซ้ำ');
+          }
+          throw insertErr;
+        }
+
+        // ผูกกลับเข้า clients เผื่อต้อง trace ย้อนหลัง
+        await supabaseAdmin
+          .from('clients')
+          .update({ b2b_customer_id: newCustomer.id })
+          .eq('id', clientId);
+
+        // เอกสารยืนยันการลงทะเบียน + อีเมลแจ้งลูกค้า — เป็น side-effect เสริม ไม่ใช่ตัว
+        // การอนุมัติเอง จึงต้อง "ไม่บล็อกผลลัพธ์" การอนุมัติแม้จะล้มเหลว (เช่น Resend
+        // ล่มชั่วคราว) เพราะ customer_code ผูกกับ b2b_customers สำเร็จไปแล้วข้างบนนี้ —
+        // แต่ต้อง await ให้จบก่อน ไม่ทำแบบ fire-and-forget เพราะ server action รันบน
+        // Vercel serverless function ที่อาจถูก freeze ทันทีหลัง response ส่งกลับ ทำให้
+        // promise ที่ไม่ได้ await ค้างไม่จบ (CSR ยังกดสร้าง/ส่งเอกสารซ้ำได้ทีหลังผ่าน
+        // getRegistrationDocumentUrl() ถ้ารอบนี้พลาด)
+        try {
+          await generateRegistrationDocument(client, organization.customer_code, session);
+        } catch (docErr) {
+          console.error('generateRegistrationDocument failed (non-blocking):', docErr);
+        }
+      } catch (approveErr) {
+        // ★ ย้อน clients.status กลับ 'pending' ไม่ว่าจะพังตรงขั้นตอนไหนก็ตาม (หา/สร้าง
+        // organization หรือ insert b2b_customers) — ไม่งั้น client จะค้างที่ 'approved'
+        // ทั้งที่ไม่มี b2b_customer จริงผูกอยู่เลย (แต่ละ statement ข้างบนเป็นคนละ
+        // statement ไม่ใช่ transaction เดียวกัน ถ้าพังกลางทางแล้วปล่อย status ค้างไว้
+        // จะกลายเป็นข้อมูลขัดแย้งแบบเดียวกับที่เจอใน client เก่าที่หลุดมาก่อนหน้านี้)
+        await supabaseAdmin.from('clients').update({ status: 'pending' }).eq('id', clientId);
+        throw approveErr;
       }
     }
 
@@ -420,6 +502,43 @@ export async function getCustomerRequestHistory(customerId: number) {
     return { success: true, data: data ?? [] };
   } catch (e: unknown) {
     console.error('getCustomerRequestHistory error:', getErrorMessage(e));
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
+// รายละเอียดใบงานแบบเต็ม ไม่ผูกกับ customerId — ใช้เป็น fetchDetail ของ RequestHistoryList
+// ในแท็บ "ประวัติใบงาน" ของ CSR Dashboard ที่ครอบคลุมทุกลูกค้าพร้อมกัน (ต่างจาก
+// getStaffRequestDetail ที่ต้องรู้ customerId ล่วงหน้าจากหน้าค้นหาลูกค้าทีละราย)
+export async function getCSRRequestDetail(requestId: number) {
+  try {
+    await getCSRSession();
+
+    const { data: request, error: reqErr } = await supabaseAdmin
+      .from('requests')
+      .select('*, drug_items(*)')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (reqErr || !request) throw new Error('ไม่พบข้อมูลใบงานนี้');
+
+    const { data: timelineRaw } = await supabaseAdmin
+      .from('timeline_summary')
+      .select('status_name, log_date, staff_remark, drug_item_id')
+      .eq('request_id', request.id)
+      .order('log_date', { ascending: true });
+
+    const drugNameById: Record<number, string> = Object.fromEntries(
+      (request.drug_items ?? []).map((i: DrugItemRow) => [i.id, i.drug_name])
+    );
+
+    const timeline = (timelineRaw ?? []).map((t) => ({
+      ...t,
+      drug_name: t.drug_item_id != null ? drugNameById[t.drug_item_id] ?? null : null,
+    }));
+
+    return { success: true, data: { ...request, timeline } };
+  } catch (e: unknown) {
+    console.error('getCSRRequestDetail error:', getErrorMessage(e));
     return { success: false, error: getErrorMessage(e) };
   }
 }

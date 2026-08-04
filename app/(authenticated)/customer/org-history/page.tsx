@@ -38,39 +38,34 @@ export default function OrgHistoryPage() {
     : rawHistory;
 
   return (
-    <div>
-      <div
-        role="tablist"
-        aria-label="กรองตามประเภทงาน"
-        className="mx-auto flex max-w-5xl gap-2 px-6 pt-6"
-      >
-        {REQUEST_TYPE_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            role="tab"
-            aria-selected={activeTab === tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-              activeTab === tab.key
-                ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
-                : 'border border-border bg-white text-muted-foreground hover:bg-slate-50'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      <ExchangeHistoryView
-        key={activeTab}
-        fetcher={async () => filtered}
-        title="ประวัติงานรวมทั้งหน่วยงาน"
-        subtitle="รวมคำร้องคืน/แลกเปลี่ยนของทุกคนในหน่วยงานเดียวกัน"
-        icon={Building2}
-        showSubmitter
-        emptyText="ยังไม่มีคำร้องจากหน่วยงานนี้"
-        emptySubtext="คำร้องที่เพื่อนร่วมหน่วยงานยื่นจะแสดงที่นี่"
-      />
-    </div>
+    <ExchangeHistoryView
+      key={activeTab}
+      fetcher={async () => filtered}
+      title="ประวัติงานรวมทั้งหน่วยงาน"
+      subtitle="รวมคำร้องคืน/แลกเปลี่ยนของทุกคนในหน่วยงานเดียวกัน"
+      icon={Building2}
+      showSubmitter
+      emptyText="ยังไม่มีคำร้องจากหน่วยงานนี้"
+      emptySubtext="คำร้องที่เพื่อนร่วมหน่วยงานยื่นจะแสดงที่นี่"
+      headerExtra={
+        <div role="tablist" aria-label="กรองตามประเภทงาน" className="flex flex-wrap gap-2">
+          {REQUEST_TYPE_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                activeTab === tab.key
+                  ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
+                  : 'border border-teal-100 bg-white text-teal-700 hover:bg-teal-50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      }
+    />
   );
 }

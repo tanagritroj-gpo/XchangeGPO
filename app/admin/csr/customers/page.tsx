@@ -1,8 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet, LogOut } from 'lucide-react';
-import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType } from '@/app/actions/csr-actions';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet, LogOut, Sparkles } from 'lucide-react';
+import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType, searchOrganizations } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
@@ -113,6 +113,75 @@ function SubTabButton({ icon: Icon, label, count, active, onClick }: {
         </span>
       )}
     </button>
+  );
+}
+
+interface OrgSuggestion {
+  id: number;
+  hospital_name: string;
+  customer_code: string;
+  province: string | null;
+  org_type?: string | null;
+}
+
+// ── ช่องกรอกรหัสลูกค้า พร้อม autocomplete หน่วยงานที่เคยลงทะเบียนไว้แล้ว ──
+// ค้นด้วยชื่อหน่วยงานของ client แถวนี้เองอัตโนมัติตอน mount (ไม่ต้องให้ CSR พิมพ์ค้นหาเอง
+// เพราะรู้ชื่อหน่วยงานอยู่แล้วจากการลงทะเบียน) ถ้าเจอหน่วยงานเดิม กดเลือกแล้วรหัสจะกรอกให้
+// เลย กันเคส CSR พิมพ์รหัสไม่ตรงกับที่หน่วยงานนี้เคยใช้ (reviewClient เช็ค exact match ซ้ำ
+// อีกชั้นฝั่ง server อยู่ดี ตัวนี้แค่ช่วยแนะนำ ลดโอกาสพิมพ์ผิดตั้งแต่ต้นทาง)
+function CustomerCodeField({ hospitalName, value, onChange }: {
+  hospitalName: string; value: string; onChange: (v: string) => void;
+}) {
+  const [suggestions, setSuggestions] = useState<OrgSuggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    searchOrganizations(hospitalName).then((res) => {
+      if (cancelled) return;
+      if (res.success) setSuggestions(res.data ?? []);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [hospitalName]);
+
+  const showSuggestions = !dismissed && !loading && suggestions.length > 0 && !value.trim();
+
+  return (
+    <div className="flex-1 min-w-0 space-y-1.5">
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="รหัสลูกค้า (จำเป็นก่อนอนุมัติ)"
+        className="w-full px-3 py-2 rounded-lg border border-border text-xs focus:outline-none focus:border-[#E1592A] focus:ring-2 focus:ring-[#E1592A]/10"
+      />
+      {showSuggestions && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+            <Sparkles size={11} strokeWidth={2.5} /> พบหน่วยงานนี้ในระบบแล้ว:
+          </span>
+          {suggestions.map((org) => (
+            <button
+              key={org.id}
+              type="button"
+              onClick={() => { onChange(org.customer_code); setDismissed(true); }}
+              className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-1 rounded-lg hover:bg-emerald-100 transition-colors"
+            >
+              {org.hospital_name} · {org.customer_code}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            className="text-[10px] text-muted-foreground underline hover:text-slate-600"
+          >
+            ไม่ใช่หน่วยงานนี้
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -332,12 +401,11 @@ export default function CSRCustomersPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 pl-11">
-                        <input
+                      <div className="flex items-start gap-2 pl-11">
+                        <CustomerCodeField
+                          hospitalName={client.hospital_name}
                           value={customerCodes[client.id] ?? ''}
-                          onChange={(e) => setCustomerCodes((prev) => ({ ...prev, [client.id]: e.target.value }))}
-                          placeholder="รหัสลูกค้า (จำเป็นก่อนอนุมัติ)"
-                          className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border text-xs focus:outline-none focus:border-[#E1592A] focus:ring-2 focus:ring-[#E1592A]/10"
+                          onChange={(v) => setCustomerCodes((prev) => ({ ...prev, [client.id]: v }))}
                         />
                         <button
                           onClick={() => handleReviewClient(client.id, 'approved')}

@@ -33,6 +33,7 @@ import {
   rejectRequest,
   startExchangeProcess,
   completeRequest,
+  getCSRRequestDetail,
 } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
@@ -40,6 +41,7 @@ import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { StatCard } from '@/components/StatCard';
+import { RequestDetailPanel } from '@/components/history/RequestHistoryList';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
@@ -204,7 +206,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'c
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, openCompleteModal, fetchData,
-  emptyIcon: EmptyIcon, emptyText, pageSize, readOnly,
+  emptyIcon: EmptyIcon, emptyText, pageSize, readOnly, headerExtra,
 }: {
   title: string; icon: LucideIcon; iconBg: string; iconColor: string; subtitle: string; items: RequestRow[];
   expandedReq: number | null; setExpandedReq: (id: number | null) => void;
@@ -213,6 +215,7 @@ function RequestListSection({
   openCompleteModal: (requestId: number) => void;
   fetchData: (opts?: { silent?: boolean }) => void;
   emptyIcon: LucideIcon; emptyText: string; pageSize?: number; readOnly?: boolean;
+  headerExtra?: React.ReactNode;
 }) {
   const [page, setPage] = useState(1);
 
@@ -228,9 +231,12 @@ function RequestListSection({
         <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
           <Icon size={16} className={iconColor} strokeWidth={2.5} />
         </div>
-        <div>
-          <h2 className="text-sm font-bold text-[#241F5E]">{title}</h2>
-          <p className="text-[11px] text-[#6B6698]">{subtitle}</p>
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="text-sm font-bold text-[#241F5E]">{title}</h2>
+            <p className="text-[11px] text-[#6B6698]">{subtitle}</p>
+          </div>
+          {headerExtra}
         </div>
       </div>
 
@@ -372,40 +378,46 @@ function RequestListSection({
                     )}
                   </div>
 
-                  {/* Drug items expanded */}
-                  {isExpanded && drugCount > 0 && (
-                    <div className="px-4 md:px-6 pb-4">
-                      <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-[#6B6698] uppercase tracking-wide px-3 mb-1.5">
-                        <div className="col-span-3">ชื่อยา</div>
-                        <div className="col-span-1">จำนวน</div>
-                        <div className="col-span-1 text-center">Lot</div>
-                        <div className="col-span-1 text-center">Exp</div>
-                        <div className="col-span-2">ประเภท</div>
-                        <div className="col-span-1 text-center">เกณฑ์</div>
-                        <div className="col-span-3 text-right">{readOnly ? 'สถานะ' : 'Actions'}</div>
-                      </div>
-                      <div className="space-y-2 md:space-y-1.5">
-                        {(req.drug_items ?? []).map((item: DrugItemRow) => (
-                          <CSRDrugRow
-                            key={item.id}
-                            item={{ ...item, request_type: req.request_type ?? undefined }}
-                            onUpdate={() => fetchData({ silent: true })}
-                            readOnly={readOnly}
-                          />
-                        ))}
-                      </div>
-                      {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
-                        <div className="mt-3 flex justify-end">
-                          <div className="flex items-center gap-2 bg-[#ECEAF6] border border-[#D8D5E8] rounded-xl px-4 py-2 text-xs">
-                            <Pill size={13} className="text-[#6B6698]" strokeWidth={2.5} />
-                            <span className="text-[#6B6698]">มูลค่ารวม:</span>
-                            <span className="font-bold text-[#2E2B7A]">
-                              ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
+                  {/* Drug items expanded — readOnly (ประวัติใบงาน) ใช้ RequestDetailPanel แบบเดียวกับ
+                      sale/history (stepper + รายละเอียด + timeline) ส่วนแท็บที่ยังต้องดำเนินการ
+                      (ปุ่มอนุมัติ/ปฏิเสธรายชิ้น) ยังคงใช้ CSRDrugRow แบบเดิม */}
+                  {isExpanded && (
+                    readOnly ? (
+                      <RequestDetailPanel requestId={req.id} fetchDetail={getCSRRequestDetail} size="default" />
+                    ) : drugCount > 0 && (
+                      <div className="px-4 md:px-6 pb-4">
+                        <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-[#6B6698] uppercase tracking-wide px-3 mb-1.5">
+                          <div className="col-span-3">ชื่อยา</div>
+                          <div className="col-span-1">จำนวน</div>
+                          <div className="col-span-1 text-center">Lot</div>
+                          <div className="col-span-1 text-center">Exp</div>
+                          <div className="col-span-2">ประเภท</div>
+                          <div className="col-span-1 text-center">เกณฑ์</div>
+                          <div className="col-span-3 text-right">Actions</div>
                         </div>
-                      )}
-                    </div>
+                        <div className="space-y-2 md:space-y-1.5">
+                          {(req.drug_items ?? []).map((item: DrugItemRow) => (
+                            <CSRDrugRow
+                              key={item.id}
+                              item={{ ...item, request_type: req.request_type ?? undefined }}
+                              onUpdate={() => fetchData({ silent: true })}
+                              readOnly={readOnly}
+                            />
+                          ))}
+                        </div>
+                        {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
+                          <div className="mt-3 flex justify-end">
+                            <div className="flex items-center gap-2 bg-[#ECEAF6] border border-[#D8D5E8] rounded-xl px-4 py-2 text-xs">
+                              <Pill size={13} className="text-[#6B6698]" strokeWidth={2.5} />
+                              <span className="text-[#6B6698]">มูลค่ารวม:</span>
+                              <span className="font-bold text-[#2E2B7A]">
+                                ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                 </div>
               );
@@ -586,6 +598,9 @@ export default function CSRDashboard() {
   // ตัวกรองด่วนจากแถบสถิติด้านบน — ข้ามระบบแท็บ/แท็บย่อยไปแสดงเฉพาะกลุ่มสถานะที่กด
   // null = ไม่ได้กรอง (แสดงตามแท็บ/แท็บย่อยปกติ) — คลิกแท็บ/แท็บย่อยเดิมจะล้างตัวกรองนี้เสมอ
   const [statusFilter, setStatusFilter] = useState<'pending_review' | 'in_progress' | 'completed' | 'rejected' | null>(null);
+  // ตัวกรองประเภทงานในแท็บ "ประวัติใบงาน" — แยกอิสระจาก statusFilter ใช้ร่วมกันได้ (AND)
+  // กดซ้ำที่ตัวที่เลือกอยู่แล้วจะล้างกลับเป็น "ทั้งหมด"
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<'รับคืนลดหนี้' | 'รับคืนแลกเปลี่ยน' | null>(null);
 
   // Modal ยืนยันอนุมัติ/ปฏิเสธใบงาน (พร้อมหมายเหตุ) — เปิดเมื่อรายการยาครบทุกตัวแล้วเท่านั้น
   const [confirmModal, setConfirmModal] = useState<{ requestId: number; action: 'approved' | 'rejected' } | null>(null);
@@ -719,6 +734,8 @@ export default function CSRDashboard() {
   const historyRequestsSorted = [...requests].sort(
     (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
   );
+  const historyRequestsFiltered = !historyTypeFilter ? historyRequestsSorted
+    : historyRequestsSorted.filter((r) => r.request_type === historyTypeFilter);
 
   // ใบงานที่ modal "เริ่มกระบวนการ" กำลังเปิดอยู่ — ใช้ตัดสินใจว่าเป็นแลกเปลี่ยนหรือลดหนี้ (คำในปุ่ม/หัวข้อ modal ต้องตรงกัน)
   const exchangeModalRequest = exchangeModal ? requests.find(r => r.id === exchangeModal.requestId) : undefined;
@@ -930,7 +947,7 @@ export default function CSRDashboard() {
               iconBg="bg-[#ECEAF6]"
               iconColor="text-[#2E2B7A]"
               subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
-              items={historyRequestsSorted}
+              items={historyRequestsFiltered}
               pageSize={10}
               readOnly
               expandedReq={expandedReq}
@@ -941,6 +958,30 @@ export default function CSRDashboard() {
               fetchData={fetchData}
               emptyIcon={Inbox}
               emptyText="ยังไม่มีใบงานในระบบ"
+              headerExtra={
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                      historyTypeFilter === 'รับคืนลดหนี้'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                    }`}
+                  >
+                    รับคืนลดหนี้
+                  </button>
+                  <button
+                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                      historyTypeFilter === 'รับคืนแลกเปลี่ยน'
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                    }`}
+                  >
+                    รับคืนแลกเปลี่ยน
+                  </button>
+                </div>
+              }
             />
             )}
             </>

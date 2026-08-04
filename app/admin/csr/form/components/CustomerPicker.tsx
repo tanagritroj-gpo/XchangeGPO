@@ -93,11 +93,11 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
               ลูกค้าที่เลือก
             </p>
             <p className="text-base font-black text-slate-800">{selected.hospital_name}</p>
+            {selected.position && (
+              <p className="text-sm text-muted-foreground mt-0.5">{selected.position}</p>
+            )}
             <p className="text-sm text-muted-foreground mt-0.5">
-              {selected.contact_name || '-'} {selected.position && `· ${selected.position}`}
-            </p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              📞 {selected.phone || '-'} · ✉️ {selected.email}
+              📞 {selected.phone || '-'}
             </p>
           </div>
           <button
@@ -141,10 +141,9 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
               className="w-full text-left px-4 py-3 hover:bg-teal-50 border-b border-slate-50 last:border-0 transition-colors"
             >
               <p className="text-base font-black text-slate-800">{c.hospital_name}</p>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {c.contact_name || '-'} {c.customer_code && `· รหัส ${c.customer_code}`}
-              </p>
-              <p className="text-sm text-muted-foreground">{c.email}</p>
+              {c.customer_code && (
+                <p className="text-sm text-muted-foreground mt-0.5">รหัส {c.customer_code}</p>
+              )}
             </button>
           ))}
         </div>
