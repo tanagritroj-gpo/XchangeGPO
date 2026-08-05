@@ -7,6 +7,7 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import { SkeletonTopBar, SkeletonSubTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import type { LucideIcon } from 'lucide-react';
 import type { ClientRow, HistorySummaryRow } from '@/lib/types';
 
@@ -293,10 +294,11 @@ export default function CSRCustomersPage() {
   };
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
-      <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-[#E1592A] animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-[#6B6698] font-medium">กำลังโหลดข้อมูล...</p>
+    <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+      <SkeletonTopBar />
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-4">
+        <SkeletonSubTabs count={3} />
+        <SkeletonSimpleRows rows={4} />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, Loader2, FileText, Inbox, Pill, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Check, FileText, Inbox, Pill, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   STAGES,
   getStatusLabel,
@@ -11,6 +11,7 @@ import {
   formatCurrency,
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
+import { HistoryRowsSkeleton, RequestDetailSkeleton } from '@/components/skeletons/HistoryListSkeleton';
 import type { RequestRow, DrugItemRow, HistorySummaryRow } from '@/lib/types';
 
 interface TimelineEntry {
@@ -67,12 +68,7 @@ export function RequestDetailPanel({ requestId, fetchDetail, size }: { requestId
   }, [requestId]);
 
   if (loading) {
-    return (
-      <div className="py-8 text-center">
-        <Loader2 className="w-6 h-6 text-teal-600 animate-spin mx-auto mb-2" strokeWidth={2.5} />
-        <p className={`${T.body} text-muted-foreground font-medium`}>กำลังโหลดรายละเอียด...</p>
-      </div>
-    );
+    return <RequestDetailSkeleton />;
   }
   if (error || !data) {
     return <p className={`py-8 text-center ${T.empty} text-rose-500 font-medium`}>{error}</p>;
@@ -239,10 +235,7 @@ export function RequestHistoryList({
   return (
     <div className="bg-white rounded-2xl border border-border overflow-hidden">
       {loading ? (
-        <div className="py-10 text-center">
-          <Loader2 className="w-7 h-7 text-teal-600 animate-spin mx-auto mb-2" strokeWidth={2.5} />
-          <p className={`${T.body} text-muted-foreground font-medium`}>กำลังโหลดประวัติใบงาน...</p>
-        </div>
+        <HistoryRowsSkeleton />
       ) : error ? (
         <div className="py-10 text-center px-4">
           <p className={`${T.empty} text-rose-500 font-medium`}>{error}</p>

@@ -27,6 +27,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { getStatusMeta } from '@/lib/tracking-status';
+import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 import {
   getCSRDashboardData,
   approveRequest,
@@ -775,14 +776,7 @@ export default function CSRDashboard() {
   const selectTab = (tab: 'active' | 'history') => { setStatusFilter(null); setActiveTab(tab); };
   const selectWorkflowSubTab = (tab: 'csr' | 'monitor') => { setStatusFilter(null); setWorkflowSubTab(tab); };
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
-      <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-[#E1592A] animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-[#6B6698] font-medium">กำลังโหลดข้อมูล...</p>
-      </div>
-    </div>
-  );
+  if (isLoading) return <StaffDashboardSkeleton statCount={5} sidebarTabCount={2} subTabCount={2} rows={5} />;
 
   return (
     <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">

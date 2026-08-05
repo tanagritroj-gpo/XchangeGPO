@@ -23,6 +23,7 @@ import {
   getCurrentStageIndex,
   formatCurrency,
 } from '@/lib/tracking-status';
+import { ExchangeCardsSkeleton } from '@/components/skeletons/ExchangeCardsSkeleton';
 import type { RequestRow, DrugItemRow as DrugItemRowType } from '@/lib/types';
 
 // history RPC (get_customer_history / get_org_history) แนบ submitted_by เพิ่มมา
@@ -354,10 +355,7 @@ export function ExchangeHistoryView({
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center gap-3 py-20 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" strokeWidth={2} aria-hidden="true" />
-          กำลังโหลดประวัติ...
-        </div>
+        <ExchangeCardsSkeleton cards={3} />
       ) : history.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-20 text-center">
           <Inbox className="h-8 w-8 text-slate-300" strokeWidth={1.5} aria-hidden="true" />

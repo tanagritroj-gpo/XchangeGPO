@@ -26,6 +26,8 @@ import {
   formatCurrency,
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
+import { Skeleton } from '@/components/ui/skeleton';
+import { RequestDetailSkeleton } from '@/components/skeletons/HistoryListSkeleton';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 // รูปแบบข้อมูลที่ trackMyRequestByRefId() (private, ต้อง login) คืนจริง — request
@@ -254,10 +256,15 @@ function TrackingContent() {
       )}
 
       {loading && !data && (
-        <div className="space-y-4 animate-pulse">
-          <div className="h-24 bg-slate-100 rounded-2xl" />
-          <div className="h-32 bg-slate-100 rounded-2xl" />
-          <div className="h-16 bg-slate-100 rounded-2xl" />
+        <div className="rounded-2xl border border-border bg-white overflow-hidden">
+          <div className="px-4 md:px-6 py-5 flex items-center justify-between gap-3">
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-32 rounded" />
+              <Skeleton className="h-3 w-24 rounded" />
+            </div>
+            <Skeleton className="h-7 w-20 rounded-full shrink-0" />
+          </div>
+          <RequestDetailSkeleton />
         </div>
       )}
 

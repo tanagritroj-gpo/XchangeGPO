@@ -9,6 +9,7 @@ import { logoutStaffAction } from '@/app/actions/auth-staff';
 import ManagerInsights from '@/app/admin/manager/staff-approvals/component/ManagerInsights';
 import { filterCsrRequests, type CsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
+import { SkeletonTopBar, SkeletonFilterBar, SkeletonTableRows } from '@/components/skeletons/DashboardSkeleton';
 import type { RequestRow, StatusLogRow } from '@/lib/types';
 
 const REQUEST_TYPES = ['รับคืนลดหนี้', 'รับคืน CCR', 'รับคืนแลกเปลี่ยน'];
@@ -135,10 +136,11 @@ export default function CsrReportsPage() {
   }, [filters]);
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
-      <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-[#E1592A] animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-[#6B6698] font-medium">กำลังโหลดข้อมูล...</p>
+    <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+      <SkeletonTopBar />
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-6">
+        <SkeletonFilterBar fields={5} />
+        <SkeletonTableRows rows={5} />
       </div>
     </div>
   );

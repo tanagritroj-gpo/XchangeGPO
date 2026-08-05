@@ -8,6 +8,7 @@ import { logoutStaffAction } from '@/app/actions/auth-staff';
 import { getSaleCustomerHistory, getSaleRequestDetail } from '@/app/actions/sale-actions';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import { StatCard } from '@/components/StatCard';
+import { SkeletonStatCards } from '@/components/skeletons/DashboardSkeleton';
 import type { HistorySummaryRow } from '@/lib/types';
 
 type StatusFilter = 'pending_review' | 'in_progress' | 'completed' | 'rejected' | null;
@@ -83,6 +84,8 @@ export default function SaleHistoryPage() {
             <p className="text-xs text-[#6B6698]">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
           </div>
         </div>
+
+        {loading && <div className="mb-5"><SkeletonStatCards count={5} /></div>}
 
         {!loading && history.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-5">

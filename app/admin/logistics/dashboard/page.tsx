@@ -7,6 +7,7 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
+import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
@@ -338,14 +339,7 @@ export default function LogisticsDashboard() {
     });
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
-      </div>
-    </div>
-  );
+  if (isLoading) return <StaffDashboardSkeleton statCount={3} sidebarTabCount={3} rows={4} bgClassName="bg-background" />;
 
   const approvedRequests  = requests.filter(r => r.current_status === 'approved');
   const inTransitRequests = requests.filter(r => r.current_status === 'in_transit');

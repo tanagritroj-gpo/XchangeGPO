@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Users,
@@ -14,13 +14,20 @@ import {
   ShieldCheck,
   BarChart3,
   HelpCircle,
+  FileSpreadsheet,
+  Download,
+  CalendarRange,
+  Search,
+  FileText,
 } from 'lucide-react';
 import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs, getUnansweredChatbotQuestions, getManagerRequestDetail } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
 import { StatCard } from '@/components/StatCard';
+import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import { filterCsrRequests } from '@/lib/csr-report-filters';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
@@ -48,8 +55,34 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
   );
 }
 
-export default function StaffApprovalPage() {
+// ── segmented control สำหรับ sub-tab ภายใน Download Center ──
+function DownloadSubTabButton({ icon: Icon, label, active, onClick }: {
+  icon: LucideIcon; label: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 shrink-0 whitespace-nowrap
+        ${active ? 'bg-white shadow-sm text-teal-700' : 'text-muted-foreground hover:text-slate-700'}`}
+    >
+      <Icon size={15} className={active ? 'text-teal-600' : 'text-muted-foreground'} strokeWidth={2.5} />
+      {label}
+    </button>
+  );
+}
+
+// tab ที่ยอมรับได้จาก query param ?tab= (ลิงก์มาจากการ์ดในหน้า hub — app/admin/manager/page.tsx)
+const VALID_TABS = ['staff', 'all', 'insights', 'downloads', 'chatbot'] as const;
+type ManagerTab = (typeof VALID_TABS)[number];
+
+function StaffApprovalPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab: ManagerTab = (VALID_TABS as readonly string[]).includes(tabFromUrl ?? '')
+    ? (tabFromUrl as ManagerTab)
+    : 'staff';
+
   const [pendingStaff, setPendingStaff] = useState<PendingStaffRow[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
@@ -57,12 +90,18 @@ export default function StaffApprovalPage() {
   const [isLoading, setIsLoading] = useState(true);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'staff' | 'all' | 'insights' | 'chatbot'>('staff');
+  const [activeTab, setActiveTab] = useState<ManagerTab>(initialTab);
   // ตัวกรองด่วนในแท็บ "ใบงานทั้งหมด" — แพทเทิร์นเดียวกับ "ประวัติการแลกเปลี่ยน" ของ Sale
   const [statusFilter, setStatusFilter] = useState<'pending_review' | 'in_progress' | 'completed' | 'rejected' | null>(null);
   // ตัวกรองประเภทงาน (request_type) — แยกอิสระจาก statusFilter ใช้ร่วมกันได้ (AND)
   // กดซ้ำที่ตัวที่เลือกอยู่แล้วจะล้างกลับเป็น "ทั้งหมด"
   const [requestTypeFilter, setRequestTypeFilter] = useState<'รับคืนลดหนี้' | 'รับคืนแลกเปลี่ยน' | null>(null);
+
+  // ── Download Center (แท็บ downloads) — sub-tab + ตัวกรองช่วงวันที่ + คำค้นหาใบงานเดี่ยว ──
+  const [downloadSubTab, setDownloadSubTab] = useState<'range' | 'single'>('range');
+  const [downloadDateFrom, setDownloadDateFrom] = useState('');
+  const [downloadDateTo, setDownloadDateTo] = useState('');
+  const [downloadSearch, setDownloadSearch] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -124,11 +163,29 @@ export default function StaffApprovalPage() {
   };
 
   const handleBack = () => {
-    router.replace('/');
+    router.replace('/admin/manager');
   };
 
   // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย ทุกลูกค้า ไม่จำกัดขอบเขต (ต่างจาก sale ที่ scope ตามลูกค้าที่ดูแล)
   const allRequests = requests;
+
+  // ── Download Center: preview จำนวนใบงาน/log ที่จะได้ก่อนกดดาวน์โหลดจริง ──
+  // ใช้ filterCsrRequests ตัวเดียวกับที่ downloads-export/route.ts ใช้จริง เพื่อให้ตัวเลข
+  // ที่เห็นตรงกับไฟล์ที่ดาวน์โหลดเสมอ (ไม่ต้องยิง request ไปนับล่วงหน้า)
+  const rangePreviewRequests = filterCsrRequests(allRequests, { dateFrom: downloadDateFrom, dateTo: downloadDateTo });
+  const rangePreviewRequestIds = new Set(rangePreviewRequests.map((r) => r.id));
+  const rangePreviewLogCount = statusLogs.filter((l) => rangePreviewRequestIds.has(l.request_id)).length;
+
+  // ── Download Center: ค้นหาใบงานเดี่ยว (ref id หรือชื่อหน่วยงาน) เรียงใหม่สุดก่อน จำกัด 30 แถวกันลิสต์ยาวเกิน ──
+  const downloadSearchTrimmed = downloadSearch.trim().toLowerCase();
+  const singleRequestResults = [...allRequests]
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .filter((r) => {
+      if (!downloadSearchTrimmed) return true;
+      const haystack = `${r.ref_id ?? ''} ${r.hospital_name ?? ''}`.toLowerCase();
+      return haystack.includes(downloadSearchTrimmed);
+    })
+    .slice(0, 30);
 
   // แปลงเป็น HistorySummaryRow[] เพื่อป้อนให้ RequestHistoryList แบบเดียวกับหน้า sale/history —
   // ข้อมูลตัวเต็ม (drug_items ฯลฯ) โหลดแยกต่างหากตอนขยายแถวผ่าน getManagerRequestDetail
@@ -158,42 +215,54 @@ export default function StaffApprovalPage() {
     : statusFilteredHistory.filter((r) => r.request_type === requestTypeFilter);
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-orange-500 animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
+    <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+      <SkeletonTopBar />
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+          <SkeletonSidebarTabs count={5} />
+          <div className="flex-1 min-w-0">
+            <SkeletonSimpleRows rows={4} />
+          </div>
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
+
+      {/* ── พื้นหลังลูกเล่น — ตรงกับหน้า hub (app/admin/manager/page.tsx) ── */}
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
+        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
+        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
+      </div>
 
       {/* ══ Top Bar ══ */}
-      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-border">
+      <div className="relative z-30 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-white/50">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={handleBack}
-              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#241F5E] bg-white/60 hover:bg-white/90 px-3 py-2 rounded-xl transition-all group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
-            <div className="w-px h-5 bg-slate-200 shrink-0" />
+            <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">Manager Portal</h1>
-              <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-[#241F5E] leading-tight truncate">Manager Portal</h1>
+              <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
-          <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-orange-50 border-orange-100 text-orange-700 text-[11px] md:text-xs font-semibold shrink-0">
+          <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-[#ECEAF6] border-[#D8D5E8] text-[#2E2B7A] text-[11px] md:text-xs font-semibold shrink-0">
             <ShieldCheck size={13} strokeWidth={2.5} />
             <span>Manager</span>
           </span>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — เหมือน CSR Dashboard) ══ */}
@@ -202,22 +271,27 @@ export default function StaffApprovalPage() {
               <TabButton
                 icon={Users} label="จัดการสิทธิ์พนักงาน" count={pendingStaff.length}
                 active={activeTab === 'staff'} onClick={() => setActiveTab('staff')}
-                accentBg="bg-orange-100" accentColor="text-orange-600"
+                accentBg="bg-[#ECEAF6]" accentColor="text-[#2E2B7A]"
               />
               <TabButton
                 icon={ClipboardList} label="ใบงานทั้งหมด" count={allRequests.length}
                 active={activeTab === 'all'} onClick={() => setActiveTab('all')}
-                accentBg="bg-blue-100" accentColor="text-blue-600"
+                accentBg="bg-violet-100" accentColor="text-violet-600"
               />
               <TabButton
                 icon={BarChart3} label="ภาพรวม & สถิติ" count={allRequests.length}
                 active={activeTab === 'insights'} onClick={() => setActiveTab('insights')}
-                accentBg="bg-purple-100" accentColor="text-purple-600"
+                accentBg="bg-[#FBF0C8]" accentColor="text-[#8A7420]"
+              />
+              <TabButton
+                icon={FileSpreadsheet} label="Download Center" count={allRequests.length}
+                active={activeTab === 'downloads'} onClick={() => setActiveTab('downloads')}
+                accentBg="bg-teal-100" accentColor="text-teal-600"
               />
               <TabButton
                 icon={HelpCircle} label="คำถามที่บอทตอบไม่ได้" count={unansweredQuestions.length}
                 active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')}
-                accentBg="bg-teal-100" accentColor="text-teal-600"
+                accentBg="bg-slate-100" accentColor="text-slate-600"
               />
             </nav>
           </aside>
@@ -358,12 +432,120 @@ export default function StaffApprovalPage() {
               <ManagerInsights requests={requests} statusLogs={statusLogs} />
             )}
 
+            {/* ── Tab: Download Center — export audit trail (status_logs) เป็นไฟล์ Excel
+                 ให้ manager โหลดเก็บไว้ตรวจสอบย้อนหลังได้ (ดู downloads-export/route.ts) ── */}
+            {activeTab === 'downloads' && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-2.5 px-1">
+                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
+                    <FileSpreadsheet size={16} className="text-teal-600" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground">Download Center</h2>
+                    <p className="text-[11px] text-muted-foreground">
+                      ดาวน์โหลดประวัติการเปลี่ยนสถานะ (audit trail) พร้อมรายละเอียดใบงาน เป็นไฟล์ Excel ไว้เก็บ/ตรวจสอบย้อนหลัง
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 w-fit">
+                  <DownloadSubTabButton
+                    icon={CalendarRange} label="ตามช่วงเวลา"
+                    active={downloadSubTab === 'range'} onClick={() => setDownloadSubTab('range')}
+                  />
+                  <DownloadSubTabButton
+                    icon={FileText} label="ตามใบงานเดี่ยว"
+                    active={downloadSubTab === 'single'} onClick={() => setDownloadSubTab('single')}
+                  />
+                </div>
+
+                {downloadSubTab === 'range' && (
+                  <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      เลือกช่วงวันที่สร้างใบงาน ระบบจะรวม status_logs (ทุกจุดเปลี่ยนสถานะ พร้อมผู้ดำเนินการและหมายเหตุ) ของใบงานทั้งหมดในช่วงนั้นไว้ในไฟล์เดียว — ไม่เลือกวันที่ = ดาวน์โหลดทุกใบงาน
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase">จากวันที่</label>
+                        <input
+                          type="date" value={downloadDateFrom}
+                          onChange={(e) => setDownloadDateFrom(e.target.value)}
+                          className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-muted-foreground uppercase">ถึงวันที่</label>
+                        <input
+                          type="date" value={downloadDateTo}
+                          onChange={(e) => setDownloadDateTo(e.target.value)}
+                          className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-teal-50 border border-teal-100 rounded-xl px-4 py-3.5">
+                      <p className="text-xs text-teal-800 font-semibold">
+                        พบ {rangePreviewRequests.length} ใบงาน · {rangePreviewLogCount} รายการ log ในช่วงที่เลือก
+                      </p>
+                      <a
+                        href={`/admin/manager/downloads-export?mode=range${downloadDateFrom ? `&dateFrom=${downloadDateFrom}` : ''}${downloadDateTo ? `&dateTo=${downloadDateTo}` : ''}`}
+                        className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
+                      >
+                        <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {downloadSubTab === 'single' && (
+                  <div className="bg-white rounded-2xl border border-border overflow-hidden">
+                    <div className="p-4 border-b border-border">
+                      <div className="relative max-w-sm">
+                        <Search size={14} strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          type="text" value={downloadSearch}
+                          onChange={(e) => setDownloadSearch(e.target.value)}
+                          placeholder="ค้นหา ref id หรือชื่อหน่วยงาน..."
+                          className="w-full text-sm border border-border rounded-lg pl-8 pr-3 py-2"
+                        />
+                      </div>
+                    </div>
+                    <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+                      {singleRequestResults.length === 0 ? (
+                        <div className="py-10 text-center">
+                          <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.75} />
+                          <p className="text-sm text-muted-foreground font-medium">ไม่พบใบงานที่ตรงกับคำค้นหา</p>
+                        </div>
+                      ) : (
+                        singleRequestResults.map((r) => (
+                          <div key={r.id} className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-foreground font-mono">{r.ref_id}</p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {r.hospital_name ?? '-'} · {new Date(r.created_at || 0).toLocaleDateString('th-TH')}
+                              </p>
+                            </div>
+                            <a
+                              href={`/admin/manager/downloads-export?mode=request&requestId=${r.id}`}
+                              className="flex items-center gap-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-2 rounded-xl transition-colors shrink-0"
+                            >
+                              <Download size={13} strokeWidth={2.5} /> ดาวน์โหลด
+                            </a>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* ── Tab 5: คำถามที่บอทลูกค้าตอบ "ไม่แน่ใจ" — ดูว่าควรเพิ่มเข้า FAQ_ENTRIES ไหม ── */}
             {activeTab === 'chatbot' && (
               <section>
                 <div className="flex items-center gap-2.5 mb-3 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
-                    <HelpCircle size={16} className="text-teal-600" strokeWidth={2.5} />
+                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                    <HelpCircle size={16} className="text-slate-600" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-foreground">คำถามที่บอทตอบไม่ได้</h2>
@@ -404,5 +586,23 @@ export default function StaffApprovalPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StaffApprovalPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+        <SkeletonTopBar />
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+            <SkeletonSidebarTabs count={5} />
+            <div className="flex-1 min-w-0"><SkeletonSimpleRows rows={4} /></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <StaffApprovalPageInner />
+    </Suspense>
   );
 }

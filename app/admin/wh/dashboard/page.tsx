@@ -8,6 +8,7 @@ import {
 import { getWHData, confirmCheckedInBatch } from '@/app/actions/wh-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import WHDrugRow from './component/WHDrugrow';
+import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
@@ -319,14 +320,7 @@ export default function WHDashboard() {
     }
   };
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
-      </div>
-    </div>
-  );
+  if (isLoading) return <StaffDashboardSkeleton statCount={3} sidebarTabCount={2} rows={4} bgClassName="bg-background" />;
 
   const atWarehouseRequests = data.filter(req => req.current_status === 'at_warehouse');
   const checkedInRequests   = data.filter(req => req.current_status === 'checked_in');
