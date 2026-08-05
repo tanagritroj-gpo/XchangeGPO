@@ -22,16 +22,16 @@ interface ReturnItemInput {
   invoice_number: string;
 }
 
+// แค่ตัวอย่างเลขที่จะได้ ไม่ได้จองเลขจริง (ไม่ lock ไม่กันชนกัน) — เลขจริงเกิดขึ้นแบบ atomic
+// ใน create_exchange_request ตอน submit จริงเท่านั้น (ดู migration
+// 20260805000000_fix_doc_number_race_condition.sql)
 export async function getNextDocNumber() {
   const session = await getCustomerSession();
   if (!session) throw new Error("กรุณาเข้าสู่ระบบ");
 
-  const { data, error } = await supabaseAdmin.rpc('get_latest_doc_number');
-  if (error || !data) return "S001/2026";
-
-  const lastNum = parseInt(data.split('/')[0].replace('S', ''));
-  const nextNum = (lastNum + 1).toString().padStart(3, '0');
-  return `S${nextNum}/2026`;
+  const { data, error } = await supabaseAdmin.rpc('peek_next_doc_number');
+  if (error || !data) return "S001/" + new Date().getFullYear();
+  return data;
 }
 
 export async function createReturnRequest(formData: ReturnFormData) {
@@ -105,7 +105,7 @@ export async function createReturnRequest(formData: ReturnFormData) {
 
   const requestData = {
     ref_id: refId,
-    doc_number: formData.sender?.doc_number,
+    // doc_number ไม่รับจาก client อีกต่อไป — create_exchange_request จอง atomic เอง
     request_type: formData.sender?.request_type,
     hospital_name: formData.sender?.hospital_name,
     contact_name: formData.sender?.contact_name,

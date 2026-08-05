@@ -66,12 +66,12 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
   const handleNext = async () => {
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
-    const latestDocNumber = await getNextDocNumber();
+    // doc_number ไม่ต้องพกไปกับ formData อีกต่อไป — เลขจริงถูกจองแบบ atomic ตอน submit จริง
+    // ใน create_exchange_request เอง (ค่าที่โชว์ด้านบนเป็นแค่ตัวอย่าง ไม่ผูกมัด)
     updateData((prev) => ({
       ...prev,
       sender: {
         ...prev.sender,
-        doc_number: latestDocNumber,
         request_type: selectedType,
         return_reason: selectedType === 'อื่นๆ' ? otherDetail : selectedType,
         hospital_name: clientData?.hospital_name,
