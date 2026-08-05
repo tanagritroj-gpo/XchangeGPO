@@ -45,6 +45,16 @@ function getCardTone(request: HistoryRequestRow) {
 
 type Group = { key: string; label: string; icon: LucideIcon; iconTone: string };
 
+// แท็บแรกสุด — รวมทุกสถานะไม่กรองเลย (เดิมไม่มีแท็บนี้ ค่า default ที่โหลดมาคือ "ปฏิเสธคำร้อง"
+// ซึ่งให้ความรู้สึกลบเป็นมุมมองแรกที่เห็น) items ของแท็บนี้ handle แยกเป็นพิเศษใน tabs ด้านล่าง
+// (ใช้ history เต็มก้อน ไม่ผ่าน getGroupKey เหมือนแท็บอื่น)
+const ALL_GROUP: Group = {
+  key: 'all',
+  label: 'ทั้งหมด',
+  icon: ClipboardList,
+  iconTone: 'text-slate-600',
+};
+
 const REJECTED_GROUP: Group = {
   key: 'rejected',
   label: 'ปฏิเสธคำร้อง',
@@ -57,7 +67,9 @@ const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
   return { key: stage.key, label: stage.label, icon: meta.icon, iconTone: meta.fg };
 });
 
-const GROUP_ORDER: Group[] = [REJECTED_GROUP, ...STAGE_GROUPS];
+// ลำดับแท็บ: ทั้งหมด -> ตามขั้นตอนงานจริง (จบที่ "เสร็จสิ้น") -> ปฏิเสธคำร้อง (ย้ายไปท้ายสุด
+// แทนที่จะขึ้นก่อนตามที่ตกลงกันไว้)
+const GROUP_ORDER: Group[] = [ALL_GROUP, ...STAGE_GROUPS, REJECTED_GROUP];
 
 function getGroupKey(request: HistoryRequestRow): string {
   if (request.current_status === REJECTED_STATUS) return 'rejected';
@@ -274,7 +286,7 @@ export function ExchangeHistoryView({
 
   const tabs = GROUP_ORDER.map((group) => ({
     ...group,
-    items: history.filter((r) => getGroupKey(r) === group.key),
+    items: group.key === 'all' ? history : history.filter((r) => getGroupKey(r) === group.key),
   }));
 
   useEffect(() => {

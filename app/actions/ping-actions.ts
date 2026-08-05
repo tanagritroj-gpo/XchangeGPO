@@ -49,16 +49,21 @@ export async function pingRequestAttention(requestId: number) {
       return { success: false, error: 'รหัสคำร้องไม่ถูกต้อง' };
     }
 
+    // join b2b_customers(customer_code) — เช็คสิทธิ์ระดับหน่วยงาน ไม่ใช่ exact b2b_customer_id
+    // (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts — 1 หน่วยงานมี login ได้
+    // หลายบัญชี ต้องให้บัญชีไหนของหน่วยงานเดียวกันก็เร่งงานได้ ไม่ใช่แค่บัญชีที่ยื่นคำร้องเป๊ะๆ)
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('id, ref_id, b2b_customer_id, current_status')
+      .select('id, ref_id, b2b_customer_id, current_status, b2b_customers(customer_code)')
       .eq('id', requestId)
       .maybeSingle();
 
     if (reqErr || !request) {
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
-    if (request.b2b_customer_id !== customer.id) {
+    const owner = Array.isArray(request.b2b_customers) ? request.b2b_customers[0] : request.b2b_customers;
+    const sameOrg = !!customer.customer_code && !!owner?.customer_code && owner.customer_code === customer.customer_code;
+    if (!sameOrg) {
       // ข้อความเดียวกับกรณี "ไม่พบ" โดยตั้งใจ — กันบอกใบ้ว่า request_id นี้
       // มีอยู่จริงแค่ไม่ใช่ของลูกค้าคนนี้ (แนวทางเดียวกับที่ auth-actions.ts
       // ใช้กัน enumeration ตอน sendOTP)
@@ -111,15 +116,17 @@ export async function getPingStatus(requestId: number) {
       return { success: false, error: 'รหัสคำร้องไม่ถูกต้อง' };
     }
 
-    // เช็คความเป็นเจ้าของเหมือนกับ pingRequestAttention — กันลูกค้าคนอื่น
-    // เดา requestId แล้วรู้ cooldown ของคำร้องคนอื่นได้
+    // เช็คความเป็นเจ้าของเหมือนกับ pingRequestAttention (ระดับหน่วยงานผ่าน customer_code
+    // ไม่ใช่ exact b2b_customer_id) — กันลูกค้าคนอื่นเดา requestId แล้วรู้ cooldown ของคำร้องคนอื่นได้
     const { data: request } = await supabaseAdmin
       .from('requests')
-      .select('id, b2b_customer_id, current_status')
+      .select('id, b2b_customer_id, current_status, b2b_customers(customer_code)')
       .eq('id', requestId)
       .maybeSingle();
 
-    if (!request || request.b2b_customer_id !== customer.id) {
+    const owner = Array.isArray(request?.b2b_customers) ? request.b2b_customers[0] : request?.b2b_customers;
+    const sameOrg = !!customer.customer_code && !!owner?.customer_code && owner.customer_code === customer.customer_code;
+    if (!request || !sameOrg) {
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
 

@@ -23,13 +23,18 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
   }
 
   // ★ 3. ดึงข้อมูล + ตรวจสิทธิ์เจ้าของในคำสั่งเดียว (ownership check ที่ server)
+  // join b2b_customers(customer_code) เพิ่ม — เช็คสิทธิ์ระดับหน่วยงาน ไม่ใช่ exact
+  // b2b_customer_id (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts)
   const { data: request, error: fetchErr } = await supabaseAdmin
     .from('requests')
-    .select('*, drug_items(*)')
+    .select('*, drug_items(*), b2b_customers(customer_code)')
     .eq('id', requestId)
     .maybeSingle();
 
-  if (fetchErr || !request || request.b2b_customer_id !== session.id) {
+  const owner = Array.isArray(request?.b2b_customers) ? request.b2b_customers[0] : request?.b2b_customers;
+  const sameOrg = !!session.customer_code && !!owner?.customer_code && owner.customer_code === session.customer_code;
+
+  if (fetchErr || !request || !sameOrg) {
     // ข้อความเดียวกันทั้ง "ไม่เจอ" และ "เจอแต่ไม่ใช่ของคุณ" กัน enumeration
     return { success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' };
   }
