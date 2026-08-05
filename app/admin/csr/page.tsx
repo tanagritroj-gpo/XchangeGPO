@@ -205,7 +205,7 @@ export default function CsrHubPage() {
                   Download Center
                   <span className="text-[9px] font-bold uppercase tracking-wide bg-[#F1EDE0] text-[#6B6698] px-2 py-0.5 rounded-full shrink-0">อยู่ระหว่างการพัฒนา</span>
                 </h2>
-                <p className="text-xs text-[#A7A2C4] truncate">เตรียมไว้เป็น template — จะออกแบบเนื้อหาภายหลัง</p>
+                <p className="text-xs text-[#A7A2C4] truncate">อยู่ระหว่างการพัฒนา และออกแบบเนื้อหาภายหลัง</p>
               </div>
             </div>
           </div>
@@ -218,7 +218,7 @@ export default function CsrHubPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-black text-[#241F5E]">ศูนย์รายงาน (Report Center)</h2>
-                <p className="text-xs text-[#6B6698] truncate">สรุปสถิติและออกรายงาน Excel</p>
+                <p className="text-xs text-[#6B6698] truncate">สรุปสถิติและ Visual dashboard</p>
               </div>
               <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
             </div>

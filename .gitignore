@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal-only assessment docs (read locally, never committed — see repo history
+# for the 2026-08-03 decision) — covers the numbered 01-05 series plus this one
+/0[0-9]-*.md
+/SYSTEM_ASSESSMENT.md
