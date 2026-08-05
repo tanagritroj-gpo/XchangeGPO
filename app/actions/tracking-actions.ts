@@ -108,13 +108,23 @@ export async function trackMyRequestByRefId(refId: string) {
   }
 
   // แก้ไข: .select('*') ปกติจะดึง 'id' มาให้แล้ว แต่เพื่อให้ชัวร์ว่าเข้าถึง request.id ได้แน่นอน
+  // ★ join b2b_customers(customer_code) เพิ่ม — ใช้เช็คสิทธิ์ระดับ "หน่วยงาน" แทน exact
+  // b2b_customer_id (ดูเหตุผลด้านล่าง)
   const { data: request, error: reqErr } = await supabaseAdmin
     .from('requests')
-    .select('*, drug_items(*)')
+    .select('*, drug_items(*), b2b_customers(customer_code)')
     .eq('ref_id', refId)
     .single();
 
-  if (reqErr || !request || request.b2b_customer_id !== session.id) {
+  // ★ เช็คสิทธิ์ระดับหน่วยงาน (customer_code) ไม่ใช่ exact b2b_customer_id — 1 หน่วยงานมี
+  // login ได้หลายบัญชี (เช่น CSR กรอกแทนลูกค้าโดยเลือกบัญชีหนึ่ง แต่ลูกค้าคนที่ login จริงเป็น
+  // อีกบัญชีของหน่วยงานเดียวกัน) ใช้ pattern เดียวกับ getOrgExchangeHistory/get_org_history
+  // ที่ scope ด้วย customer_code เช่นกัน ไม่ใช้ requests.customer_code เพราะคอลัมน์นี้เป็น legacy
+  // ไม่ได้ถูกเติมค่าเสมอไป (ตัวจริงต้องอ่านจาก b2b_customers ที่ join มา)
+  const owner = Array.isArray(request?.b2b_customers) ? request.b2b_customers[0] : request?.b2b_customers;
+  const sameOrg = !!session.customer_code && !!owner?.customer_code && owner.customer_code === session.customer_code;
+
+  if (reqErr || !request || !sameOrg) {
     return { success: false, error: 'ไม่พบข้อมูล หรือไม่มีสิทธิ์เข้าถึง' };
   }
 

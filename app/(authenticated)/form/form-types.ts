@@ -21,7 +21,6 @@ export interface DrugItemEntry {
 export interface ReturnFormSender extends Partial<CustomerSessionInfo> {
   request_type?: string;
   return_reason?: string;
-  doc_number?: string;
   customer_email?: string;
   b2b_customer_id?: number;
 }

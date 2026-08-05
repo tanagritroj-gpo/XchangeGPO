@@ -21,14 +21,18 @@ export async function sendPdfEmailAction(requestId: number) {
       return { success: false, error: 'ส่งอีเมลถี่เกินไป กรุณาลองใหม่ภายหลัง' };
     }
 
-    // ★ 3. ดึงข้อมูล + ตรวจสิทธิ์เจ้าของในคำสั่งเดียว
+    // ★ 3. ดึงข้อมูล + ตรวจสิทธิ์เจ้าของในคำสั่งเดียว — เช็คสิทธิ์ระดับหน่วยงาน ไม่ใช่ exact
+    // b2b_customer_id (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts)
     const { data: requestData, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('ref_id, hospital_name, b2b_customer_id')
+      .select('ref_id, hospital_name, b2b_customer_id, b2b_customers(customer_code)')
       .eq('id', requestId)
       .maybeSingle();
 
-    if (reqErr || !requestData || requestData.b2b_customer_id !== session.id) {
+    const owner = Array.isArray(requestData?.b2b_customers) ? requestData.b2b_customers[0] : requestData?.b2b_customers;
+    const sameOrg = !!session.customer_code && !!owner?.customer_code && owner.customer_code === session.customer_code;
+
+    if (reqErr || !requestData || !sameOrg) {
       return { success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' };
     }
 

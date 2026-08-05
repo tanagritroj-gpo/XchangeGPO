@@ -80,16 +80,15 @@ export async function searchB2BCustomers(query: string) {
   return { success: true, data: flattened };
 }
 
-// ── 2. เลขที่เอกสารถัดไป ฝั่ง staff ──
+// ── 2. เลขที่เอกสารถัดไป ฝั่ง staff — แค่ตัวอย่าง ไม่ได้จองเลขจริง (เหมือน getNextDocNumber
+// ฝั่งลูกค้าใน form-actions.ts) เลขจริงเกิดขึ้นแบบ atomic ใน create_exchange_request ตอน
+// submit จริงเท่านั้น ──
 export async function getStaffNextDocNumber() {
   await requireCsrSession();
 
-  const { data, error } = await supabaseAdmin.rpc('get_latest_doc_number');
-  if (error || !data) return 'S001/2026';
-
-  const lastNum = parseInt(data.split('/')[0].replace('S', ''));
-  const nextNum = (lastNum + 1).toString().padStart(3, '0');
-  return `S${nextNum}/2026`;
+  const { data, error } = await supabaseAdmin.rpc('peek_next_doc_number');
+  if (error || !data) return 'S001/' + new Date().getFullYear();
+  return data;
 }
 
 // ── 3. สร้างคำร้องแทนลูกค้า — ไม่มีลายเซ็น ไม่ส่งอีเมล ──
@@ -151,7 +150,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
 
   const requestData = {
     ref_id: `REF-${crypto.randomUUID().substring(0, 8).toUpperCase()}`,
-    doc_number: formData.sender?.doc_number,
+    // doc_number ไม่รับจาก client อีกต่อไป — create_exchange_request จอง atomic เอง
     request_type: formData.sender?.request_type,
 
     // ★ ข้อมูลหน่วยงาน ยึดจากลูกค้าที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ

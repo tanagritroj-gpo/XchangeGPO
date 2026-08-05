@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trackMyRequestByRefId } from '@/app/actions/tracking-actions';
 import { pingRequestAttention, getPingStatus } from '@/app/actions/ping-actions';
+import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 import {
   Search,
   Copy,
@@ -16,6 +17,7 @@ import {
   PackageSearch,
   Bell,
   BellRing,
+  FileDown,
 } from 'lucide-react';
 import {
   STAGES,
@@ -123,6 +125,45 @@ function PingButton({
   );
 }
 
+/** badge ดาวน์โหลด PDF ใบรับคืน — เรียก generatePdfAction สดทุกครั้ง (signed URL อายุ 5 นาที
+ *  เหมือนกัน ไม่ cache ไว้) แล้วเปิดเป็น modal เดียวกับตอนสร้างแบบฟอร์มเสร็จใหม่ๆ
+ *  (ดู ReviewSuccessCard.tsx) เพื่อให้ลูกค้าเรียกดู/พิมพ์เอกสารเดิมย้อนหลังได้จากหน้า tracking ด้วย */
+function PdfDownloadBadge({ requestId, onOpen }: { requestId: number; onOpen: (url: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await generatePdfAction(requestId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      onOpen(result.url);
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="print:hidden">
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="inline-flex items-center gap-1.5 rounded-full border-2 border-teal-200 px-3 py-1.5 text-xs font-bold text-teal-700 transition-all hover:bg-teal-50 disabled:opacity-50"
+      >
+        <FileDown className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} />
+        {loading ? 'กำลังเตรียม...' : 'ดาวน์โหลด PDF'}
+      </button>
+      {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
+    </div>
+  );
+}
+
 function TrackingContent() {
   const searchParams = useSearchParams();
   const [refId, setRefId] = useState(searchParams.get('ref') || '');
@@ -136,6 +177,7 @@ function TrackingContent() {
     onCooldown: boolean;
     cooldownRemainingHours: number;
   } | null>(null);
+  const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null);
 
   const performSearch = async (id: string) => {
     if (!id.trim()) return;
@@ -295,6 +337,7 @@ function TrackingContent() {
                   >
                     {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                   </button>
+                  {data.id && <PdfDownloadBadge requestId={data.id} onOpen={setPdfModalUrl} />}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -476,6 +519,42 @@ function TrackingContent() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               รีเฟรช
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ══ โมดัลดูใบรับคืน — pattern เดียวกับตอนสร้างแบบฟอร์มเสร็จใหม่ๆ
+          (ดู ReviewSuccessCard.tsx) ให้ลูกค้าเรียกดู/พิมพ์เอกสารเดิมย้อนหลังได้จากหน้านี้ด้วย ══ */}
+      {pdfModalUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-slate-900/60 backdrop-blur-sm print:hidden"
+          onClick={() => setPdfModalUrl(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-base font-bold text-foreground">ใบรับคืนสินค้า</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={pdfModalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
+                >
+                  📥 เปิดในแท็บใหม่ / ดาวน์โหลด
+                </a>
+                <button
+                  onClick={() => setPdfModalUrl(null)}
+                  className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-slate-600 transition-all"
+                  aria-label="ปิด"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <iframe src={pdfModalUrl} className="flex-1 w-full" title="ใบรับคืนสินค้า" />
           </div>
         </div>
       )}
