@@ -3,15 +3,26 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
+import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, ArrowRight, LogOut, Users, Loader2, BarChart3 } from 'lucide-react';
+import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, Users, ArrowRight, LogOut, Loader2, BarChart3, FileSpreadsheet, Clock } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 
+// ── หน้า hub ของ CSR — จัดวางแบบ "bento grid" เดียวกับ Manager hub (app/admin/manager/page.tsx)
+// คงโทนสีเดิมของ CSR ไว้ทั้งหมด (hero indigo, ปุ่มฟอร์มส้ม, จัดการลูกค้ามัสตาร์ด, รายงานเทา)
+// แค่ปรับโครงจาก "hero + action grid แยกกัน" มาเป็น "grid เดียวผสมกัน" พร้อมเสียบตัวเลขจริง
+// (ลูกค้ารออนุมัติ, ใบงานรอตรวจสอบ) เข้าไปในบาง tile — ดึงจาก getCSRDashboardData() ตัวเดิม
+// ที่หน้า dashboard/customers ใช้อยู่แล้ว ไม่เพิ่ม endpoint ใหม่
+//
+// Download Center เป็น tile ใหม่ที่เพิ่มเข้ามาตาม request — แต่ยัง "อยู่ระหว่างการพัฒนา"
+// (placeholder เท่านั้น ไม่ลิงก์ไปไหน) ทำเป็น template ไว้รอออกแบบเนื้อหาจริงภายหลัง
+// (ดู pattern เดียวกันที่ Sale hub ใช้กับการ์ด "ศูนย์รายงาน — เร็วๆ นี้")
 export default function CsrHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [counts, setCounts] = useState<{ pendingClients: number; pendingReview: number } | null>(null);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -23,6 +34,20 @@ export default function CsrHubPage() {
       setStaff(session);
     }
     loadStaff();
+  }, []);
+
+  // ตัวเลขสรุปสำหรับ tile "การจัดการข้อมูลลูกค้า" / "CSR Dashboard" — โหลดแยกอิสระจาก
+  // session ไม่บล็อกการแสดงผลหลัก (tile ที่รอข้อมูลจะโชว์ "…" ระหว่างนี้แทนตัวเลข)
+  useEffect(() => {
+    async function loadCounts() {
+      const dashboardResult = await getCSRDashboardData();
+      if (!dashboardResult.success) return;
+      setCounts({
+        pendingClients: dashboardResult.clients?.length ?? 0,
+        pendingReview: (dashboardResult.requests ?? []).filter((r) => r.current_status === 'pending_review').length,
+      });
+    }
+    loadCounts();
   }, []);
 
   const handleLogout = async () => {
@@ -39,6 +64,8 @@ export default function CsrHubPage() {
       </div>
     </div>
   );
+
+  const fmt = (n: number | undefined) => (n === undefined ? '…' : n.toLocaleString('th-TH'));
 
   return (
     <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
@@ -57,7 +84,7 @@ export default function CsrHubPage() {
       <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
 
         {/* ── LOGO & BRAND IDENTITY ── */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 mb-8 rounded-2xl bg-white/45 backdrop-blur-md border border-white/50 shadow-sm">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white/45 backdrop-blur-md border border-white/50 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] text-[#241F5E] shadow-sm shadow-[#EAD94C]/40">
               <ShieldCheck className="w-5 h-5" />
@@ -77,14 +104,16 @@ export default function CsrHubPage() {
           </button>
         </div>
 
-        {/* ── Welcome Header ── */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#38339B] via-[#2E2B7A] to-[#211D57] p-8 text-white shadow-lg shadow-[#2E2B7A]/30">
-          <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)] bg-[length:16px_16px]" />
-          <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_70%)] opacity-60 blur-sm" />
-          <div className="absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_70%)] opacity-50 blur-sm" />
+        {/* ══ Bento Grid — hero + สถานะ + ปลายทางทั้งหมดรวมในผืนเดียว (pattern เดียวกับ
+             Manager hub) — mobile เรียงเดี่ยว / md ขึ้นไปเป็น bento 6 คอลัมน์จริง ══ */}
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4 md:auto-rows-[128px]">
 
-          <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
+          {/* Tile: Welcome hero — ใหญ่สุด กว้าง 4/สูง 2 หน่วย โทน indigo เดิมของ CSR */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#38339B] via-[#2E2B7A] to-[#211D57] p-6 md:p-7 text-white shadow-lg shadow-[#2E2B7A]/30 md:col-span-4 md:row-span-2">
+            <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)] bg-[length:16px_16px]" />
+            <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_70%)] opacity-60 blur-sm" />
+            <div className="absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_70%)] opacity-50 blur-sm" />
+            <div className="relative h-full flex flex-col justify-center">
               <p className="text-[#EAD94C] text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#EAD94C] animate-pulse" /> ยินดีต้อนรับ
               </p>
@@ -99,108 +128,99 @@ export default function CsrHubPage() {
                 ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
               </p>
             </div>
-            <div className="bg-white/15 border border-white/25 rounded-2xl px-5 py-4 text-center hidden md:block backdrop-blur-md">
-              <p className="text-[#EAD94C] text-[11px] font-semibold uppercase tracking-wide mb-1">สถานะบัญชี</p>
-              <div className="flex items-center gap-1.5 justify-center">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-white font-bold text-sm">Active</span>
+          </div>
+
+          {/* Tile: สถานะบัญชี — เล็ก กว้าง 2/สูง 1 หน่วย */}
+          <div className="rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm p-5 flex flex-col justify-center md:col-span-2 md:row-span-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6698] mb-1.5">สถานะบัญชี</p>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[#241F5E] font-black text-lg">Active</span>
+            </div>
+          </div>
+
+          {/* Tile: กรอกแบบฟอร์มแทนลูกค้า — featured action, กว้าง 2/สูง 1 หน่วย โทนส้ม (คำร้องหลัก) */}
+          <Link href="/admin/csr/form" className="group block md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-3xl bg-gradient-to-br from-[#E1592A] to-[#C9481E] shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 shrink-0">
+                <PenLine className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-white">กรอกแบบฟอร์มแทนลูกค้า</h2>
+                <p className="text-xs text-white/80 truncate">สร้างคำร้องคืน/แลกเปลี่ยนแทนลูกค้า</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-white/80 group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+          </Link>
+
+          {/* Tile: CSR Dashboard — กว้าง 2/สูง 2 หน่วย โทนน้ำเงินม่วง เน้นตัวเลขรอตรวจสอบ */}
+          <Link href="/admin/csr/dashboard" className="group block md:col-span-2 md:row-span-2">
+            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#2E2B7A]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="absolute top-0 left-6 right-6 h-1 rounded-b-full bg-gradient-to-r from-[#2E2B7A] via-[#4A46B0] to-[#2E2B7A] opacity-70" />
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#4A46B0] to-[#2E2B7A] mb-3">
+                  <LayoutDashboard className="w-5 h-5 text-white" />
+                </div>
+                <p className="text-[#2E2B7A] font-black text-3xl leading-none mb-1 flex items-center gap-1.5">
+                  {fmt(counts?.pendingReview)}
+                  <Clock className="w-4 h-4 opacity-60" />
+                </p>
+                <h2 className="text-sm font-black text-[#241F5E] mb-1">CSR Dashboard</h2>
+                <p className="text-xs text-[#6B6698] mb-4">ใบงานรอตรวจสอบ/อนุมัติ — ตรวจสอบรายการที่รอดำเนินการ</p>
+                <span className="mt-auto text-xs font-bold text-[#2E2B7A] flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                  ดูรายการที่รอดำเนินการ <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* Tile: การจัดการข้อมูลลูกค้า — กว้าง 2/สูง 2 หน่วย โทนมัสตาร์ด เน้นตัวเลขรออนุมัติ */}
+          <Link href="/admin/csr/customers" className="group block md:col-span-2 md:row-span-2">
+            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#EAD94C]/60 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+              <div className="absolute top-0 left-6 right-6 h-1 rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#F4E27E] to-[#EAD94C] opacity-70" />
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] mb-3">
+                  <Users className="w-5 h-5 text-[#241F5E]" />
+                </div>
+                <p className="text-[#8A7420] font-black text-3xl leading-none mb-1">{fmt(counts?.pendingClients)}</p>
+                <h2 className="text-sm font-black text-[#241F5E] mb-1">การจัดการข้อมูลลูกค้า</h2>
+                <p className="text-xs text-[#6B6698] mb-4">ลูกค้าใหม่รออนุมัติ — ตรวจสอบและกำหนดรหัสลูกค้า</p>
+                <span className="mt-auto text-xs font-bold text-[#8A7420] flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                  ดูลูกค้าที่รออนุมัติ <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* Tile: Download Center — placeholder "อยู่ระหว่างการพัฒนา" ตาม request ผู้ใช้
+               (ยังไม่ลิงก์ไปไหน เป็น template รอออกแบบเนื้อหาจริงภายหลัง — pattern เดียวกับ
+               การ์ด "ศูนย์รายงาน — เร็วๆ นี้" ที่ Sale hub ใช้) — กว้าง 2/สูง 1 หน่วย โทนทีล */}
+          <div className="rounded-3xl bg-white/60 backdrop-blur-xl border border-dashed border-white/60 opacity-70 overflow-hidden md:col-span-2 md:row-span-1">
+            <div className="h-full p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#F1EDE0] shrink-0">
+                <FileSpreadsheet className="w-5 h-5 text-[#6B6698]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-1.5 flex-wrap">
+                  Download Center
+                  <span className="text-[9px] font-bold uppercase tracking-wide bg-[#F1EDE0] text-[#6B6698] px-2 py-0.5 rounded-full shrink-0">อยู่ระหว่างการพัฒนา</span>
+                </h2>
+                <p className="text-xs text-[#A7A2C4] truncate">เตรียมไว้เป็น template — จะออกแบบเนื้อหาภายหลัง</p>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ── Action Grid — การ์ดแก้ว ไอคอนไล่เฉดในโทนเดียวกัน แยกแต่ละใบด้วยสีเน้น ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-stretch">
-          {/* Card: กรอกแบบฟอร์มแทนลูกค้า — สีเน้นส้ม (คำร้องหลัก) */}
-          <Link href="/admin/csr/form" className="group block h-full">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#E1592A]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-7 right-7 h-1 rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#E1592A] to-[#2E2B7A] opacity-70" />
-              <div className="p-7 flex-1 flex flex-col">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F4917A] to-[#E1592A] shrink-0">
-                    <PenLine className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-black text-[#241F5E]">กรอกแบบฟอร์มแทนลูกค้า</h2>
-                    <p className="text-xs text-[#6B6698]">สร้างคำร้องคืน/แลกเปลี่ยนสินค้าแทนลูกค้าที่ติดต่อเข้ามา</p>
-                  </div>
-                </div>
-                <div className="mt-auto h-16 w-full rounded-2xl font-bold text-white text-sm bg-gradient-to-r from-[#E1592A] to-[#C9481E] shadow-md shadow-[#E1592A]/30 group-hover:shadow-xl group-hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
-                  <PenLine className="w-4 h-4" /> เริ่มสร้างคำร้องใหม่
-                </div>
+          {/* Tile: ศูนย์รายงาน (Report Center) — กว้าง 2/สูง 1 หน่วย โทนเทา */}
+          <Link href="/admin/csr/reports" className="group block md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ECEAF6] shrink-0">
+                <BarChart3 className="w-5 h-5 text-[#6B6698]" />
               </div>
-            </div>
-          </Link>
-
-          {/* Card: CSR Dashboard — สีเน้นน้ำเงินม่วง (แบรนด์หลัก) */}
-          <Link href="/admin/csr/dashboard" className="group block h-full">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#2E2B7A]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-7 right-7 h-1 rounded-b-full bg-gradient-to-r from-[#2E2B7A] via-[#4A46B0] to-[#2E2B7A] opacity-70" />
-              <div className="p-7 flex-1 flex flex-col">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#4A46B0] to-[#2E2B7A] shrink-0">
-                    <LayoutDashboard className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-black text-[#241F5E]">CSR Dashboard</h2>
-                    <p className="text-xs text-[#6B6698]">ตรวจสอบ/อนุมัติใบงานที่รอดำเนินการ</p>
-                  </div>
-                </div>
-                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-[#2E2B7A]/25 rounded-2xl text-sm text-[#2E2B7A] bg-[#ECEAF6] gap-1 group-hover:bg-[#E2DEF6] group-hover:border-[#2E2B7A]/40 transition-colors">
-                  <LayoutDashboard className="w-5 h-5 opacity-70" />
-                  <span className="font-bold text-xs flex items-center gap-1">
-                    ดูรายการที่รอดำเนินการ <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-[#241F5E]">ศูนย์รายงาน (Report Center)</h2>
+                <p className="text-xs text-[#6B6698] truncate">สรุปสถิติและออกรายงาน Excel</p>
               </div>
-            </div>
-          </Link>
-
-          {/* Card: การจัดการข้อมูลลูกค้า — สีเน้นมัสตาร์ด */}
-          <Link href="/admin/csr/customers" className="group block h-full">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#EAD94C]/60 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-7 right-7 h-1 rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#F4E27E] to-[#EAD94C] opacity-70" />
-              <div className="p-7 flex-1 flex flex-col">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] shrink-0">
-                    <Users className="w-5 h-5 text-[#241F5E]" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-black text-[#241F5E]">การจัดการข้อมูลลูกค้า</h2>
-                    <p className="text-xs text-[#6B6698]">อนุมัติ/ปฏิเสธลูกค้าใหม่ที่รอตรวจสอบ</p>
-                  </div>
-                </div>
-                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-[#EADFAF] rounded-2xl text-sm text-[#8A7420] bg-[#FBF0C8]/60 gap-1 group-hover:bg-[#FBF0C8] group-hover:border-[#EAD94C] transition-colors">
-                  <Users className="w-5 h-5 opacity-70" />
-                  <span className="font-bold text-xs flex items-center gap-1">
-                    ดูลูกค้าที่รออนุมัติ <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </div>
-            </div>
-          </Link>
-
-          {/* Card: ศูนย์รายงาน (Report Center) — สีเน้นน้ำเงินอ่อน/กลาง */}
-          <Link href="/admin/csr/reports" className="group block h-full">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-sm hover:shadow-xl hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-7 right-7 h-1 rounded-b-full bg-gradient-to-r from-[#6B6698] via-[#9490C0] to-[#6B6698] opacity-70" />
-              <div className="p-7 flex-1 flex flex-col">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-11 h-11 rounded-2xl flex items-center justify-center bg-[#ECEAF6] shrink-0">
-                    <BarChart3 className="w-5 h-5 text-[#6B6698]" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-black text-[#241F5E]">ศูนย์รายงาน (Report Center)</h2>
-                    <p className="text-xs text-[#6B6698]">สรุปสถิติและออกรายงานคำร้องคืน/แลกเปลี่ยนสินค้า</p>
-                  </div>
-                </div>
-                <div className="mt-auto h-16 flex flex-col items-center justify-center border-2 border-dashed border-[#D8D5E8] rounded-2xl text-sm text-[#6B6698] bg-[#F1EDE0] gap-1 group-hover:bg-[#ECEAF6] group-hover:border-[#6B6698]/40 transition-colors">
-                  <BarChart3 className="w-5 h-5 opacity-70" />
-                  <span className="font-bold text-xs flex items-center gap-1">
-                    ดูรายงาน/ดาวน์โหลด Excel <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </div>
+              <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </Link>
         </div>

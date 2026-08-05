@@ -6,8 +6,8 @@ import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 
 // เช็คสิทธิ์เฉพาะ role 'manager' เท่านั้น (เข้มกว่า getCSRSession ที่อนุญาต department 'csr' ด้วย)
-// ยังคงไว้เหมือนเดิมทุกบรรทัด — ใช้กับ action ที่ควรเป็นสิทธิ์ manager ล้วนๆ เท่านั้น
-async function getManagerSession() {
+// export ออกมาให้ route อื่น (เช่น downloads-export) เรียกใช้ตรวจสิทธิ์แบบเดียวกันได้
+export async function getManagerSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
   if (session.role !== 'manager') throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
@@ -100,6 +100,52 @@ export async function getManagerStatusLogs() {
 
     if (error) return { success: false, error: error.message };
     return { success: true, data: data || [] };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
+// ดึง status_logs พร้อมชื่อพนักงานผู้ดำเนินการ (join staff_users.full_name ด้วยมือ ตาม
+// pattern เดียวกับ drugNameById ใน getManagerRequestDetail) — ใช้เฉพาะ Download Center
+// สำหรับ export เป็น audit trail แบบเต็ม แยกจาก getManagerStatusLogs ตัวเดิมที่
+// ManagerInsights/staff-chat พึ่งพา shape เดิมอยู่แล้ว (กันไม่ให้กระทบจุดอื่น)
+// requestIds === undefined -> ทุกใบงาน, ระบุ array (แม้ว่าง) -> กรองเฉพาะ id ที่ให้มาเท่านั้น
+export async function getManagerStatusLogsDetailed(requestIds?: number[]) {
+  try {
+    await getManagerSession();
+
+    let query = supabaseAdmin
+      .from('status_logs')
+      .select('id, request_id, staff_id, status_name, log_date, staff_remark, department, actor_type, drug_item_id, rejection_reason_code')
+      .order('log_date', { ascending: true });
+
+    if (requestIds !== undefined) {
+      // .in() กับ array ว่างพฤติกรรมไม่แน่นอนข้าม driver — ใส่ sentinel ที่ไม่มีจริงแทน
+      // เพื่อการันตีว่าได้ผลลัพธ์ 0 แถวเสมอเมื่อไม่มีใบงานตรงตามตัวกรอง
+      query = query.in('request_id', requestIds.length > 0 ? requestIds : [-1]);
+    }
+
+    const { data: logs, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const staffIds = Array.from(
+      new Set((logs ?? []).map((l) => l.staff_id).filter((id): id is string => !!id))
+    );
+    const staffNameById: Record<string, string> = {};
+    if (staffIds.length > 0) {
+      const { data: staffRows } = await supabaseAdmin
+        .from('staff_users')
+        .select('id, full_name')
+        .in('id', staffIds);
+      (staffRows ?? []).forEach((s) => { staffNameById[s.id] = s.full_name ?? s.id; });
+    }
+
+    const data = (logs ?? []).map((l) => ({
+      ...l,
+      staff_name: l.staff_id ? staffNameById[l.staff_id] ?? null : null,
+    }));
+
+    return { success: true, data };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
   }
