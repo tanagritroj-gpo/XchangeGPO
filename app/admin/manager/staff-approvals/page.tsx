@@ -1,6 +1,6 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   Users,
@@ -20,6 +20,7 @@ import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs, getUnansweredChatbotQuestions, getManagerRequestDetail } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
 import { StatCard } from '@/components/StatCard';
+import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
@@ -48,8 +49,18 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
   );
 }
 
-export default function StaffApprovalPage() {
+// tab ที่ยอมรับได้จาก query param ?tab= (ลิงก์มาจากการ์ดในหน้า hub — app/admin/manager/page.tsx)
+const VALID_TABS = ['staff', 'all', 'insights', 'chatbot'] as const;
+type ManagerTab = (typeof VALID_TABS)[number];
+
+function StaffApprovalPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const initialTab: ManagerTab = (VALID_TABS as readonly string[]).includes(tabFromUrl ?? '')
+    ? (tabFromUrl as ManagerTab)
+    : 'staff';
+
   const [pendingStaff, setPendingStaff] = useState<PendingStaffRow[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
@@ -57,7 +68,7 @@ export default function StaffApprovalPage() {
   const [isLoading, setIsLoading] = useState(true);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'staff' | 'all' | 'insights' | 'chatbot'>('staff');
+  const [activeTab, setActiveTab] = useState<ManagerTab>(initialTab);
   // ตัวกรองด่วนในแท็บ "ใบงานทั้งหมด" — แพทเทิร์นเดียวกับ "ประวัติการแลกเปลี่ยน" ของ Sale
   const [statusFilter, setStatusFilter] = useState<'pending_review' | 'in_progress' | 'completed' | 'rejected' | null>(null);
   // ตัวกรองประเภทงาน (request_type) — แยกอิสระจาก statusFilter ใช้ร่วมกันได้ (AND)
@@ -124,7 +135,7 @@ export default function StaffApprovalPage() {
   };
 
   const handleBack = () => {
-    router.replace('/');
+    router.replace('/admin/manager');
   };
 
   // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย ทุกลูกค้า ไม่จำกัดขอบเขต (ต่างจาก sale ที่ scope ตามลูกค้าที่ดูแล)
@@ -158,32 +169,44 @@ export default function StaffApprovalPage() {
     : statusFilteredHistory.filter((r) => r.request_type === requestTypeFilter);
 
   if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <Loader2 className="w-9 h-9 text-orange-500 animate-spin mx-auto" strokeWidth={2.5} />
-        <p className="text-sm text-muted-foreground font-medium">กำลังโหลดข้อมูล...</p>
+    <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+      <SkeletonTopBar />
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+          <SkeletonSidebarTabs count={4} />
+          <div className="flex-1 min-w-0">
+            <SkeletonSimpleRows rows={4} />
+          </div>
+        </div>
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
+
+      {/* ── พื้นหลังลูกเล่น — ตรงกับหน้า hub (app/admin/manager/page.tsx) ── */}
+      <div className="pointer-events-none fixed inset-0 -z-0">
+        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
+        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
+        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
+      </div>
 
       {/* ══ Top Bar ══ */}
-      <div className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-border">
+      <div className="relative z-30 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-white/50">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={handleBack}
-              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#241F5E] bg-white/60 hover:bg-white/90 px-3 py-2 rounded-xl transition-all group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
-            <div className="w-px h-5 bg-slate-200 shrink-0" />
+            <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">Manager Portal</h1>
-              <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-[#241F5E] leading-tight truncate">Manager Portal</h1>
+              <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
           <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-orange-50 border-orange-100 text-orange-700 text-[11px] md:text-xs font-semibold shrink-0">
@@ -193,7 +216,7 @@ export default function StaffApprovalPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — เหมือน CSR Dashboard) ══ */}
@@ -404,5 +427,23 @@ export default function StaffApprovalPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StaffApprovalPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+        <SkeletonTopBar />
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+          <div className="flex flex-col md:flex-row gap-4 md:gap-8">
+            <SkeletonSidebarTabs count={4} />
+            <div className="flex-1 min-w-0"><SkeletonSimpleRows rows={4} /></div>
+          </div>
+        </div>
+      </div>
+    }>
+      <StaffApprovalPageInner />
+    </Suspense>
   );
 }

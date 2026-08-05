@@ -109,7 +109,7 @@ function HomePageContent() {
       const result = await loginStaffAction({ username: empId, password });
       if (result.success) {
         const deptRoutes: Record<string, string> = {
-          'manager': '/admin/manager/staff-approvals',
+          'manager': '/admin/manager',
           'csr': '/admin/csr',
           'log': '/admin/logistics/dashboard',
           'wh': '/admin/wh/dashboard',
