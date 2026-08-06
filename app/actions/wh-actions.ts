@@ -131,6 +131,11 @@ export async function confirmCheckedInBatch(
       return { success: false, error: 'ยังมีรายการยาที่ยังไม่ได้ตรวจรับ กรุณาตรวจรับให้ครบก่อน' };
     }
 
+    // ★ ถ้ารายการยาถูกปฏิเสธไปหมดแล้วทุกตัว ไม่มีอะไรเหลือให้ตรวจรับต่อ — ปิดใบงานเป็น
+    // rejected แทนที่จะส่งต่อ checked_in (pattern เดียวกับ stampReceiving/rejectWHItem ด้านล่าง)
+    const hasAccepted = allItems?.some(i => i.current_status !== 'rejected');
+    const finalRequestStatus = hasAccepted ? 'checked_in' : 'rejected';
+
     const logs = allItems
       ?.filter(i => i.current_status === 'checked_in')
       .map(i => ({
@@ -148,7 +153,7 @@ export async function confirmCheckedInBatch(
 
     await supabaseAdmin
       .from('requests')
-      .update({ current_status: 'checked_in', updated_at: new Date().toISOString() })
+      .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
       .eq('id', requestId);
 
     revalidatePath('/admin/wh/dashboard');

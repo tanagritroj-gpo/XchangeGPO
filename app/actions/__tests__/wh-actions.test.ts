@@ -116,6 +116,18 @@ describe('confirmCheckedInBatch', () => {
     // already-rejected one was already logged when it was rejected.
     expect(fakeAdmin.rows('status_logs')).toHaveLength(1);
   });
+
+  it('rejects the whole request when every item is already rejected — not forwarded to checked_in', async () => {
+    seedRequest(1, [
+      { id: 1, current_status: 'rejected' },
+      { id: 2, current_status: 'rejected' },
+    ]);
+
+    const res = await confirmCheckedInBatch(1, 'batch ok');
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+  });
 });
 
 describe('stampReceiving — request status depends on whether anything survived', () => {
