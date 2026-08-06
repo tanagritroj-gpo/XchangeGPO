@@ -31,6 +31,76 @@ export async function getManagerOrCsrSession() {
   return session;
 }
 
+// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ manager (รออนุมัติ/ใบงานทั้งหมด/คำถามค้าง) —
+// ใช้ count: 'exact', head: true ทั้งสามคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย เร็วกว่าเดิมมาก
+// เทียบกับที่หน้า hub เคยเรียก getPendingStaff (ดึงทุกคอลัมน์ทุกแถว) + getCSRDashboardData
+// (join requests กับ drug_items ทั้งตาราง) + getUnansweredChatbotQuestions (limit 50 แล้วนับ
+// .length ซึ่งจะนิ่งที่ 50 ไม่โตต่อทั้งที่มีมากกว่านั้นจริง — เป็นบั๊กนับเพี้ยน ไม่ใช่แค่ช้า)
+export async function getManagerHubCounts(): Promise<
+  | { success: true; pendingStaff: number; totalRequests: number; unanswered: number }
+  | { success: false; error: string }
+> {
+  try {
+    await getManagerSession();
+
+    const [pendingStaffRes, totalRequestsRes, unansweredRes] = await Promise.all([
+      supabaseAdmin.from('staff_users').select('id', { count: 'exact', head: true }).eq('is_approved', false),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('chatbot_unanswered_questions').select('id', { count: 'exact', head: true }),
+    ]);
+
+    const firstError = pendingStaffRes.error || totalRequestsRes.error || unansweredRes.error;
+    if (firstError) return { success: false, error: firstError.message };
+
+    return {
+      success: true,
+      pendingStaff: pendingStaffRes.count ?? 0,
+      totalRequests: totalRequestsRes.count ?? 0,
+      unanswered: unansweredRes.count ?? 0,
+    };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
+// รายชื่อหน่วยงานที่ลงทะเบียนทั้งหมด (master list — สร้างตอน CSR อนุมัติลูกค้าใหม่ ดู
+// reviewClient ใน csr-actions.ts) ใช้เฉพาะสำหรับรายงาน "พอร์ตลูกค้า/หน่วยงาน" ใน
+// Download Center — ต่างจาก searchOrganizations ที่จำกัดผลลัพธ์ 5 แถวสำหรับ autocomplete
+export async function getAllOrganizations() {
+  try {
+    await getManagerSession();
+
+    const { data, error } = await supabaseAdmin
+      .from('organizations')
+      .select('id, customer_code, hospital_name, province, org_type')
+      .order('hospital_name', { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data ?? [] };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
+// จับคู่ b2b_customers.id -> organization_id — requests ผูกกับลูกค้าผ่าน b2b_customer_id
+// เสมอ (ทั้ง submission_channel='customer_portal' และ 'csr_manual') ส่วน requests.customer_code
+// เอง "ไม่เคยถูกเซ็ตค่าเลยสักแถวเดียว" ในข้อมูลจริง — ใช้ join สาย b2b_customer_id นี้เท่านั้น
+// ในการนับใบงาน/มูลค่าต่อหน่วยงานสำหรับรายงานพอร์ตลูกค้า ห้ามกลับไป join ด้วย customer_code ตรงๆ
+export async function getB2BCustomerOrgLinks() {
+  try {
+    await getManagerSession();
+
+    const { data, error } = await supabaseAdmin
+      .from('b2b_customers')
+      .select('id, organization_id');
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data ?? [] };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
+}
+
 // คำถามที่บอทลูกค้า (app/api/chat) ตอบว่า "ไม่แน่ใจ" — เก็บไว้ให้ manager ทบทวน
 // ว่าควรเพิ่มเข้า FAQ_ENTRIES (lib/chatbot-knowledge.ts) ไหม ดู app/api/chat/route.ts
 export async function getUnansweredChatbotQuestions(limit: number = 50) {

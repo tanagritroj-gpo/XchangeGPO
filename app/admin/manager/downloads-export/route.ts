@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
-import { getManagerSession, getManagerRequestDetail, getManagerStatusLogsDetailed } from '@/app/actions/manager-actions';
+import { getManagerSession, getManagerRequestDetail, getManagerStatusLogsDetailed, getAllOrganizations, getB2BCustomerOrgLinks } from '@/app/actions/manager-actions';
 import { filterCsrRequests, parseCsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
 import { getRejectionReasonLabel } from '@/lib/rejection-reasons';
 import { getErrorMessage } from '@/lib/error-message';
+import { STAGE_ORDER, STAGE_LABEL } from '@/lib/manager-stats';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 // Download Center ของ Manager Portal — export "audit trail" (status_logs) จริง
@@ -115,6 +116,76 @@ function addDrugItemsSheet(workbook: ExcelJS.Workbook, drugItems: DrugItemRow[])
   });
 }
 
+// ── เวลาต่อขั้นตอน (SLA) — ใช้ STAGE_ORDER/STAGE_LABEL ชุดเดียวกับที่ ManagerInsights/
+// computeManagerStats ใช้คำนวณค่าเฉลี่ยรวม (lib/manager-stats.ts) แต่ตรงนี้แจกแจงเป็นราย
+// ใบงานแทนการเฉลี่ยรวม — หา timestamp แรกที่แต่ละใบงานเข้าแต่ละสถานะ แล้ววัดระยะเวลา
+// ระหว่างสถานะที่ติดกันตามลำดับ workflow จริง (ตั้งแต่รับคำร้อง/pending_review จนเสร็จสิ้น/completed)
+function buildStageTimestamps(logs: Array<{ request_id: number; status_name: string; log_date: string | null }>) {
+  const byRequest: Record<number, Record<string, string>> = {};
+  logs.forEach((log) => {
+    if (!log.status_name || !log.log_date) return;
+    if (!byRequest[log.request_id]) byRequest[log.request_id] = {};
+    const existing = byRequest[log.request_id][log.status_name];
+    if (!existing || new Date(log.log_date) < new Date(existing)) {
+      byRequest[log.request_id][log.status_name] = log.log_date;
+    }
+  });
+  return byRequest;
+}
+
+function addStageDurationSheet(
+  workbook: ExcelJS.Workbook,
+  requests: RequestRow[],
+  logs: Array<{ request_id: number; status_name: string; log_date: string | null }>,
+) {
+  const stageTimestamps = buildStageTimestamps(logs);
+  const sheet = workbook.addWorksheet('เวลาต่อขั้นตอน (SLA)');
+
+  const stagePairs = STAGE_ORDER.slice(0, -1).map((stage, i) => ({
+    from: stage,
+    to: STAGE_ORDER[i + 1],
+    key: `stage_${i}`,
+  }));
+
+  sheet.columns = [
+    { header: 'Ref ID', key: 'ref_id', width: 18 },
+    { header: 'หน่วยงาน', key: 'hospital_name', width: 26 },
+    { header: 'สถานะปัจจุบัน', key: 'status_label', width: 16 },
+    ...stagePairs.map((p) => ({
+      header: `${STAGE_LABEL[p.from]} → ${STAGE_LABEL[p.to]} (ชม.)`,
+      key: p.key,
+      width: 22,
+    })),
+    { header: 'รวมเวลาทั้งหมด: รับคำร้อง → เสร็จสิ้น (วัน)', key: 'totalDays', width: 32 },
+  ];
+  styleHeaderRow(sheet.getRow(1));
+
+  requests.forEach((r) => {
+    const stamps = stageTimestamps[r.id] ?? {};
+    const row: Record<string, string | number> = {
+      ref_id: r.ref_id,
+      hospital_name: r.hospital_name ?? '-',
+      status_label: getStatusLabel(r.current_status),
+    };
+
+    stagePairs.forEach((p) => {
+      const from = stamps[p.from];
+      const to = stamps[p.to];
+      row[p.key] = from && to
+        ? Math.round(((new Date(to).getTime() - new Date(from).getTime()) / 3600000) * 10) / 10
+        : '-';
+    });
+
+    const firstStamp = STAGE_ORDER.map((s) => stamps[s]).find(Boolean);
+    const completedStamp = stamps['completed'];
+    row.totalDays = firstStamp && completedStamp
+      ? Math.round(((new Date(completedStamp).getTime() - new Date(firstStamp).getTime()) / 86400000) * 10) / 10
+      : 'ยังไม่เสร็จสิ้น';
+
+    sheet.addRow(row);
+  });
+}
+
 async function buildRangeWorkbook(request: NextRequest) {
   const filters = parseCsrReportFilters(request.nextUrl.searchParams);
 
@@ -145,6 +216,7 @@ async function buildRangeWorkbook(request: NextRequest) {
   summarySheet.addRow(['จำนวนรายการ log', logs.length]);
 
   addRequestSummarySheet(workbook, requests);
+  addStageDurationSheet(workbook, requests, logs);
   addAuditTrailSheet(workbook, logs, refIdByRequestId, true);
 
   return { workbook, filenamePart: 'audit-trail' };
@@ -196,6 +268,84 @@ async function buildSingleRequestWorkbook(requestIdRaw: string | null) {
   return { workbook, filenamePart: req.ref_id };
 }
 
+// ── รายงานพอร์ตลูกค้า/หน่วยงาน — รายชื่อหน่วยงานที่ลงทะเบียนทั้งหมด (master list จาก
+// organizations) พร้อมยอดใบงาน/มูลค่ารวมสะสมทั้งหมด (ไม่มีตัวกรองวันที่ ตั้งใจให้เป็นภาพรวม
+// สะสมของพอร์ตทั้งหมด ไม่ใช่รายงานตามช่วงเวลาแบบ audit trail — และไม่รวม logic แยก
+// dormant/active ตามที่ผู้ใช้ระบุไว้ตอนวางแผน)
+//
+// ⚠️ join ผ่าน requests.b2b_customer_id -> b2b_customers.organization_id เท่านั้น — ห้าม
+// join ตรงด้วย requests.customer_code เพราะคอลัมน์นั้นไม่เคยถูกเซ็ตค่าเลยในข้อมูลจริง (ทั้ง
+// customer_portal และ csr_manual) ลอง join ด้วย customer_code ตรงๆ มาก่อนแล้วได้ 0 ทุกแถว ──
+async function buildCustomerPortfolioWorkbook() {
+  const [orgsResult, dashboard, b2bLinksResult] = await Promise.all([
+    getAllOrganizations(),
+    getCSRDashboardData(),
+    getB2BCustomerOrgLinks(),
+  ]);
+
+  const organizations = orgsResult.success ? orgsResult.data ?? [] : [];
+  const allRequests: RequestRow[] = dashboard.success ? dashboard.requests ?? [] : [];
+  const b2bLinks = b2bLinksResult.success ? b2bLinksResult.data ?? [] : [];
+
+  const orgIdByB2bCustomerId = new Map<number, number>();
+  b2bLinks.forEach((l) => {
+    if (l.organization_id != null) orgIdByB2bCustomerId.set(l.id, l.organization_id);
+  });
+
+  type CustomerAgg = { totalRequests: number; totalValue: number; lastRequestAt: string | null };
+  const byOrgId = new Map<number, CustomerAgg>();
+  allRequests.forEach((r) => {
+    if (r.b2b_customer_id == null) return;
+    const orgId = orgIdByB2bCustomerId.get(r.b2b_customer_id);
+    if (orgId == null) return;
+    if (!byOrgId.has(orgId)) byOrgId.set(orgId, { totalRequests: 0, totalValue: 0, lastRequestAt: null });
+    const agg = byOrgId.get(orgId)!;
+    agg.totalRequests += 1;
+    agg.totalValue += Number(r.total_value) || 0;
+    if (r.created_at && (!agg.lastRequestAt || r.created_at > agg.lastRequestAt)) agg.lastRequestAt = r.created_at;
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'GPO Xchange Portal';
+  workbook.created = new Date();
+
+  const summarySheet = workbook.addWorksheet('สรุป');
+  summarySheet.columns = [{ width: 30 }, { width: 30 }];
+  const titleRow = summarySheet.addRow(['Manager Download Center — พอร์ตลูกค้า/หน่วยงาน']);
+  titleRow.font = { bold: true, size: 13 };
+  summarySheet.addRow(['สร้างเมื่อ', new Date().toLocaleString('th-TH')]);
+  summarySheet.addRow(['จำนวนหน่วยงานที่ลงทะเบียน', organizations.length]);
+
+  const sheet = workbook.addWorksheet('พอร์ตลูกค้า');
+  sheet.columns = [
+    { header: 'รหัสลูกค้า', key: 'customer_code', width: 16 },
+    { header: 'ชื่อหน่วยงาน', key: 'hospital_name', width: 30 },
+    { header: 'จังหวัด', key: 'province', width: 14 },
+    { header: 'ประเภทหน่วยงาน', key: 'org_type', width: 18 },
+    { header: 'จำนวนใบงานทั้งหมด', key: 'totalRequests', width: 18 },
+    { header: 'มูลค่ารวม (บาท)', key: 'totalValue', width: 16 },
+    { header: 'ทำรายการล่าสุด', key: 'lastRequestAt', width: 18 },
+  ];
+  styleHeaderRow(sheet.getRow(1));
+
+  organizations
+    .map((org) => ({ org, agg: byOrgId.get(org.id) ?? { totalRequests: 0, totalValue: 0, lastRequestAt: null } }))
+    .sort((a, b) => b.agg.totalValue - a.agg.totalValue)
+    .forEach(({ org, agg }) => {
+      sheet.addRow({
+        customer_code: org.customer_code,
+        hospital_name: org.hospital_name,
+        province: org.province ?? '-',
+        org_type: org.org_type ?? '-',
+        totalRequests: agg.totalRequests,
+        totalValue: agg.totalValue,
+        lastRequestAt: agg.lastRequestAt ? new Date(agg.lastRequestAt).toLocaleDateString('th-TH') : '-',
+      });
+    });
+
+  return { workbook, filenamePart: 'customer-portfolio' };
+}
+
 export async function GET(request: NextRequest) {
   try {
     await getManagerSession();
@@ -208,6 +358,8 @@ export async function GET(request: NextRequest) {
   try {
     const { workbook, filenamePart } = mode === 'request'
       ? await buildSingleRequestWorkbook(request.nextUrl.searchParams.get('requestId'))
+      : mode === 'customer-portfolio'
+      ? await buildCustomerPortfolioWorkbook()
       : await buildRangeWorkbook(request);
 
     const buffer = await workbook.xlsx.writeBuffer();
