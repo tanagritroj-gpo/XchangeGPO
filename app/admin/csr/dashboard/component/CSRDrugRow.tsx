@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle2, AlertTriangle, Loader2, Check, X, Receipt, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
@@ -240,8 +241,11 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         </div>
       </div>
 
-      {/* ══ Confirm Modal: อนุมัติ/ปฏิเสธรายการยา พร้อมหมายเหตุ ══ */}
-      {actionModal && (
+      {/* ══ Confirm Modal: อนุมัติ/ปฏิเสธรายการยา พร้อมหมายเหตุ — render ผ่าน portal ตรงไปที่
+          document.body (ไม่ใช่ลูกของแถวในลิสต์) กัน fixed inset-0 โดนบีบกรอบ ถ้าแถวอยู่ในสาย
+          ancestor ที่มี transform (เช่น hover:-translate-y-* บนการ์ดแม่) ซึ่งจะเปลี่ยน containing
+          block ของ position:fixed จาก viewport เป็นกรอบนั้นแทน ทำให้ modal เพี้ยนตำแหน่ง/ขนาด ══ */}
+      {actionModal && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
             <div
@@ -264,10 +268,10 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                     : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base font-bold text-slate-800">
+                  <h3 className="text-base font-bold text-foreground">
                     {actionModal === 'approve' ? 'ยืนยันการอนุมัติรายการยา' : 'ยืนยันการปฏิเสธรายการยา'}
                   </h3>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{item.drug_name}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.drug_name}</p>
                 </div>
               </div>
 
@@ -282,7 +286,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                 />
               ) : (
                 <>
-                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-1.5">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
                     หมายเหตุ
                   </label>
                   <textarea
@@ -291,7 +295,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                     onChange={(e) => setRemark(e.target.value)}
                     placeholder="ระบุหมายเหตุ (ถ้ามี)..."
                     maxLength={500}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
                   />
                 </>
               )}
@@ -301,7 +305,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                   type="button"
                   onClick={() => { setActionModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-slate-500 bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -327,7 +331,8 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
