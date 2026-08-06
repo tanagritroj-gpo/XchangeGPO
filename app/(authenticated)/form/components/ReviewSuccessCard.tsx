@@ -7,6 +7,8 @@ import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action';
 type PdfState = 'preparing' | 'ready' | 'error';
 export type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
 export type EmailActionResult = { success: boolean; message?: string; error?: string };
+export type OrgContact = { id: number; contact_name: string | null; email: string };
+export type OrgContactsResult = { success: boolean; data?: OrgContact[]; error?: string };
 
 // ลำดับสถานะงานตาม enum จริงใน requests.current_status
 const STATUS_STEPS: { key: string; label: string }[] = [
@@ -27,6 +29,7 @@ export function ReviewSuccessCard({
   homeHref = '/welcome',
   generatePdfActionFn = generatePdfAction,
   sendEmailActionFn = sendPdfEmailAction,
+  getEmailRecipientsFn,
 }: {
   requestId: number;
   refId: string;
@@ -39,7 +42,13 @@ export function ReviewSuccessCard({
   //   generateStaffPdfAction / sendStaffPdfEmailAction เพราะตัว default เรียก getCustomerSession()
   //   ข้างในตรงๆ ถ้าไม่ override จะ error "กรุณาเข้าสู่ระบบ" ทันทีเมื่อ staff เป็นคนกด
   generatePdfActionFn?: (requestId: number) => Promise<PdfActionResult>;
-  sendEmailActionFn?: (requestId: number) => Promise<EmailActionResult>;
+  // recipientEmails พารามิเตอร์ที่ 2 เป็น optional เสมอ — ฝั่งลูกค้า (sendPdfEmailAction เดิม)
+  // ไม่รับ/ไม่ใช้พารามิเตอร์นี้เลยก็ยัง assignable กับ type นี้ได้ปกติ
+  sendEmailActionFn?: (requestId: number, recipientEmails?: string[]) => Promise<EmailActionResult>;
+  // ★ เฉพาะฝั่ง CSR กรอกแทนเท่านั้น (staff-form-actions.ts: getOrgContactsForRequest) — ไม่ส่ง
+  // prop นี้มา = ฝั่งลูกค้าเดิมทุกประการ (ปุ่มส่งอีเมลเดี่ยวแบบเก่า ไม่มี picker ผู้รับ) เพราะ
+  // ลูกค้าส่งหาตัวเองคนเดียวอยู่แล้ว ไม่มีแนวคิด "เลือกผู้รับหลายคน" ในฝั่งนั้น
+  getEmailRecipientsFn?: (requestId: number) => Promise<OrgContactsResult>;
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -48,6 +57,9 @@ export function ReviewSuccessCard({
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [downloading, setDownloading] = useState(false);
   const [docModalUrl, setDocModalUrl] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<OrgContact[]>([]);
+  const [recipientsLoaded, setRecipientsLoaded] = useState(false);
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
 
   // 1. เตรียมเอกสารอัตโนมัติทันทีที่โหลดหน้าจอ
   useEffect(() => {
@@ -70,6 +82,33 @@ export function ReviewSuccessCard({
       cancelled = true;
     };
   }, [requestId]);
+
+  // 1b. โหลดรายชื่อผู้รับอีเมลของหน่วยงาน (เฉพาะเมื่อมี getEmailRecipientsFn ส่งมา — ฝั่ง CSR
+  // เท่านั้น) พร้อมกับเตรียมเอกสารด้านบน — default เลือกทุกคนไว้ก่อน (พฤติกรรมใกล้เคียงเดิมที่
+  // ส่งหาอีเมลเดียวโดยอัตโนมัติ) ให้ CSR ติ๊กออกเองถ้าต้องการส่งเฉพาะบางคน
+  useEffect(() => {
+    if (!getEmailRecipientsFn) return;
+    let cancelled = false;
+
+    (async () => {
+      const res = await getEmailRecipientsFn(requestId);
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setRecipients(res.data);
+        setSelectedEmails(res.data.map((r) => r.email));
+      }
+      setRecipientsLoaded(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestId]);
+
+  const toggleRecipient = (email: string) => {
+    setSelectedEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
+  };
+  const selectAllRecipients = () => setSelectedEmails(recipients.map((r) => r.email));
 
   // 2. ฟังก์ชันลองสร้าง PDF ใหม่กรณี Error
   const retryGenerate = async () => {
@@ -112,11 +151,12 @@ export function ReviewSuccessCard({
     setTimeout(() => setCopyLabel('คัดลอกเลขอ้างอิง'), 2000);
   };
 
-  // 5. ฟังก์ชันส่งอีเมล
+  // 5. ฟังก์ชันส่งอีเมล — ฝั่ง CSR ส่งเฉพาะผู้รับที่ติ๊กเลือกไว้ (getEmailRecipientsFn ให้มา)
+  // ฝั่งลูกค้าไม่ส่ง recipientEmails เลย (undefined) ให้ sendPdfEmailAction ทำงานแบบเดิมทุกประการ
   const handleEmailCopy = async () => {
     setEmailState('sending');
-    const result = await sendEmailActionFn(requestId);
-    
+    const result = await sendEmailActionFn(requestId, getEmailRecipientsFn ? selectedEmails : undefined);
+
     if (result.success) {
       setEmailState('sent');
     } else {
@@ -207,6 +247,42 @@ export function ReviewSuccessCard({
                 {downloading ? <span className="animate-spin">⏳</span> : '📥'} ดาวน์โหลดใบรับคืน (PDF)
               </button>
 
+              {/* ── เลือกผู้รับอีเมล — เฉพาะฝั่ง CSR (getEmailRecipientsFn) เมื่อหน่วยงานนี้มี
+                  contact มากกว่า 1 คน — ฝั่งลูกค้าไม่มี prop นี้เลยจะไม่เห็นส่วนนี้เลย ── */}
+              {allowEmail && getEmailRecipientsFn && recipientsLoaded && recipients.length > 1 && emailState !== 'sent' && (
+                <div className="w-full text-left bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                  <div className="flex items-center justify-between gap-3 mb-2.5">
+                    <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">
+                      ผู้รับอีเมล ({selectedEmails.length}/{recipients.length})
+                    </p>
+                    <button
+                      type="button"
+                      onClick={selectAllRecipients}
+                      className="text-xs font-black text-teal-600 hover:text-teal-700 underline underline-offset-2 shrink-0"
+                    >
+                      เลือกทั้งหมด
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
+                    {recipients.map((r) => (
+                      <label
+                        key={r.id}
+                        className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white cursor-pointer transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedEmails.includes(r.email)}
+                          onChange={() => toggleRecipient(r.email)}
+                          className="w-4 h-4 rounded border-slate-300 accent-teal-600 shrink-0"
+                        />
+                        <span className="text-sm font-bold text-slate-700 truncate">{r.contact_name || 'ไม่ระบุชื่อ'}</span>
+                        <span className="text-xs text-muted-foreground truncate">{r.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
@@ -214,11 +290,13 @@ export function ReviewSuccessCard({
                 >
                   📋 {copyLabel}
                 </button>
-                {/* ปุ่มส่งอีเมล — ซ่อนทั้งบล็อกถ้า allowEmail=false (ฝั่ง staff ไม่ต้องส่งอีเมล) */}
+                {/* ปุ่มส่งอีเมล — ซ่อนทั้งบล็อกถ้า allowEmail=false (ฝั่ง staff ไม่ต้องส่งอีเมล)
+                    เงื่อนไข disabled แยกสองแบบ: ฝั่ง CSR (getEmailRecipientsFn) เช็คว่ามีผู้รับ
+                    ที่ติ๊กเลือกไว้ไหม ฝั่งลูกค้าเดิมเช็ค customerEmail เหมือนเดิมทุกประการ */}
                 {allowEmail && (
                   <button
                     onClick={handleEmailCopy}
-                    disabled={emailState === 'sending' || !customerEmail}
+                    disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
                     className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
                   >
                     {emailState === 'sending' && '⏳ กำลังส่ง…'}

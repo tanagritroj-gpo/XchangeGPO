@@ -35,7 +35,11 @@ async function requireCsrSession() {
   return session;
 }
 
-// ── 1. ค้นหาลูกค้าที่มีอยู่แล้วในระบบ เพื่อผูก b2b_customer_id ──
+// ── 1. ค้นหาลูกค้าที่มีอยู่แล้วในระบบ (รายคน) — ใช้โดย CustomerPicker.tsx ที่หน้า
+// "ค้นหาลูกค้าในระบบ" ของ app/admin/csr/customers/page.tsx (ต้องได้ b2b_customer id ตัวจริง
+// เพื่อดูประวัติใบงาน/เอกสารยืนยันของ contact คนนั้นๆ) — ★ ไม่ใช้กับขั้นเลือกหน่วยงานตอน
+// กรอกแบบฟอร์มแทนลูกค้าอีกต่อไป (Step1InfoStaff.tsx เปลี่ยนไปใช้ OrganizationPicker.tsx +
+// searchOrganizations() จาก csr-actions.ts แทน เพราะขั้นนั้นมองในมุม organization ล้วนๆ)
 export async function searchB2BCustomers(query: string) {
   const session = await requireCsrSession();
 
@@ -107,26 +111,23 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     throw new Error('จำกัดสูงสุด 5 รายการต่อคำร้อง');
   }
 
-  // ★ ต้องมี b2b_customer_id เสมอ — CSR ต้องค้นหา/เลือกลูกค้าจากระบบก่อน (ตามที่ตกลงกันไว้)
-  const b2bCustomerId = formData.sender?.b2b_customer_id;
-  if (!b2bCustomerId) {
-    throw new Error('กรุณาเลือกลูกค้าจากระบบก่อนสร้างคำร้อง');
+  // ★ ต้องมี organization_id เสมอ — CSR ต้องค้นหา/เลือกหน่วยงานจากระบบก่อน (มองในมุม
+  // organization ล้วนๆ ไม่ผูกกับ b2b_customer รายคนอีกต่อไป ตามที่ตกลงกันไว้)
+  const organizationId = formData.sender?.organization_id;
+  if (!organizationId) {
+    throw new Error('กรุณาเลือกหน่วยงานจากระบบก่อนสร้างคำร้อง');
   }
 
-  // ★ ยืนยันว่าลูกค้าที่เลือกมามีอยู่จริง ไม่เชื่อ id จาก client เฉยๆ
-  // hospital_name/province join ผ่าน organizations เสมอ (เจ้าของข้อมูลระดับหน่วยงานตัวจริง)
-  const { data: customerRow, error: custErr } = await supabaseAdmin
-    .from('b2b_customers')
-    .select('id, contact_name, phone, email, position, organizations!inner(hospital_name, province)')
-    .eq('id', b2bCustomerId)
+  // ★ ยืนยันว่าหน่วยงานที่เลือกมามีอยู่จริง ไม่เชื่อ id จาก client เฉยๆ
+  const { data: organization, error: orgErr } = await supabaseAdmin
+    .from('organizations')
+    .select('id, hospital_name, province, customer_code')
+    .eq('id', organizationId)
     .maybeSingle();
 
-  if (custErr || !customerRow) {
-    throw new Error('ไม่พบข้อมูลลูกค้าที่เลือก กรุณาเลือกใหม่');
+  if (orgErr || !organization) {
+    throw new Error('ไม่พบข้อมูลหน่วยงานที่เลือก กรุณาเลือกใหม่');
   }
-
-  const customerOrg = Array.isArray(customerRow.organizations) ? customerRow.organizations[0] : customerRow.organizations;
-  const customer = { ...customerRow, hospital_name: customerOrg?.hospital_name ?? null, province: customerOrg?.province ?? null };
 
   // มูลค่ารวมคำนวณจาก จำนวน × ราคาต่อหน่วย ฝั่ง server เสมอ ไม่เชื่อ item.val จาก client ตรงๆ
   const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => {
@@ -153,12 +154,12 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     // doc_number ไม่รับจาก client อีกต่อไป — create_exchange_request จอง atomic เอง
     request_type: formData.sender?.request_type,
 
-    // ★ ข้อมูลหน่วยงาน ยึดจากลูกค้าที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
-    // customer_email ยังต้องเก็บไว้ — sendStaffPdfEmailAction ใช้ค่านี้ส่งลิงก์ PDF ให้ลูกค้า
-    hospital_name: customer.hospital_name,
-    phone: customer.phone,
-    customer_email: customer.email,
-    province: customer.province,
+    // ★ ข้อมูลหน่วยงาน ยึดจาก organization ที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
+    // ไม่มี phone/customer_email ของผู้ติดต่อรายคนอีกต่อไป — sendStaffPdfEmailAction จะ
+    // ดึงรายชื่อผู้รับอีเมลของหน่วยงานนี้แยกทีหลังจาก customer_code แทน (ดู getOrgContactsForRequest)
+    hospital_name: organization.hospital_name,
+    customer_code: organization.customer_code,
+    province: organization.province,
 
     // ★ ไม่บันทึกชื่อผู้ติดต่อฝั่งลูกค้าอีกต่อไป (ข้อมูลนั้นอยู่ที่ b2b_customers อยู่แล้ว
     //   ผูกผ่าน b2b_customer_id) — ใช้ contact_name เก็บชื่อพนักงาน CSR ที่กรอกแทนแทน
@@ -183,8 +184,12 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     request_date: new Date().toISOString(),
   };
 
+  // ★ p_b2b_customer_id: null โดยตั้งใจ — เลือกแค่ระดับ organization ไม่ได้ผูกกับ b2b_customer
+  // รายคนใดรายหนึ่งเป็นการเฉพาะ (หน่วยงานอาจมีหลาย contact/login) การติดตาม/ประวัติระดับ
+  // หน่วยงานใช้ customer_code เป็นหลักอยู่แล้ว (get_org_history, tracking ฯลฯ) ไม่ต้องพึ่ง
+  // b2b_customer_id ของ CSR-manual requests เลย
   const { data, error } = await supabaseAdmin.rpc('create_exchange_request', {
-    p_b2b_customer_id: b2bCustomerId,
+    p_b2b_customer_id: null,
     p_request_data: requestData,
     p_drug_items: items,
     p_created_by_staff_id: session.id,
@@ -290,11 +295,39 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
   };
 }
 
-// ── 5. ส่งอีเมลลิงก์ PDF ให้ลูกค้า — CSR เป็นคนกด แต่ต้องส่งไปที่อีเมลลูกค้า ไม่ใช่อีเมล staff ──
+// ── 5. รายชื่อผู้ติดต่อ (b2b_customers) ของหน่วยงานที่ผูกกับคำร้องนี้ — ใช้เลือกผู้รับอีเมล
+// ในหน้าตรวจสอบ (ReviewSuccessCard) เมื่อหน่วยงานนั้นมี contact/login มากกว่า 1 คน — join
+// ผ่าน requests.customer_code (สายเดียวกับที่ยืนยันแล้วว่าถูกต้องในรายงานพอร์ตลูกค้า)
+export async function getOrgContactsForRequest(requestId: number) {
+  await requireCsrSession();
+
+  const { data: request, error: reqErr } = await supabaseAdmin
+    .from('requests')
+    .select('customer_code')
+    .eq('id', requestId)
+    .maybeSingle();
+
+  if (reqErr || !request?.customer_code) {
+    return { success: false, error: 'ไม่พบรหัสลูกค้าของคำร้องนี้' };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('b2b_customers')
+    .select('id, contact_name, email')
+    .eq('customer_code', request.customer_code)
+    .order('contact_name', { ascending: true });
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, data: data ?? [] };
+}
+
+// ── 6. ส่งอีเมลลิงก์ PDF ให้ลูกค้า — CSR เป็นคนกด แต่ต้องส่งไปที่อีเมลลูกค้า ไม่ใช่อีเมล staff ──
 // ต่างจาก sendPdfEmailAction เดิม (ฝั่งลูกค้า) ตรงที่: gate ด้วย CSR session แทน customer session,
-// และส่งไปที่ requests.customer_email ที่บันทึกไว้ตอนสร้างคำร้อง แทน session.email
-// (เพราะฝั่งนี้ไม่มี customer session ให้อ้างอิงเลย)
-export async function sendStaffPdfEmailAction(requestId: number) {
+// และรับ recipientEmails ให้ CSR เลือกได้ว่าจะส่งหา contact คนไหนของหน่วยงาน (หรือทั้งหมด) —
+// เพราะขั้นเลือกลูกค้าตอนนี้เลือกแค่ระดับ organization ไม่ได้ผูกกับ contact คนเดียวแล้ว
+// (recipientEmails ว่าง/undefined = fallback ไปใช้ requests.customer_email เดิม เผื่อคำร้อง
+// เก่าก่อนเปลี่ยน flow นี้ที่ยังมีค่านั้นติดอยู่)
+export async function sendStaffPdfEmailAction(requestId: number, recipientEmails?: string[]) {
   try {
     const session = await requireCsrSession();
 
@@ -313,8 +346,14 @@ export async function sendStaffPdfEmailAction(requestId: number) {
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
 
-    if (!requestData.customer_email) {
-      return { success: false, error: 'คำร้องนี้ไม่มีอีเมลลูกค้าบันทึกไว้ ส่งอีเมลไม่ได้' };
+    const recipients = recipientEmails && recipientEmails.length > 0
+      ? recipientEmails
+      : requestData.customer_email
+        ? [requestData.customer_email]
+        : [];
+
+    if (recipients.length === 0) {
+      return { success: false, error: 'ไม่มีอีเมลผู้รับ กรุณาเลือกผู้รับก่อนส่ง' };
     }
 
     const { data: docData, error: docErr } = await supabaseAdmin
@@ -335,11 +374,7 @@ export async function sendStaffPdfEmailAction(requestId: number) {
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
-    const { error: emailErr } = await resend.emails.send({
-      from: 'Xchange Portal <onboarding@resend.dev>',
-      to: [requestData.customer_email],
-      subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
-      html: `
+    const emailHtml = `
         <h2>สวัสดีครับ, ตัวแทนจาก ${requestData.hospital_name}</h2>
         <p>เจ้าหน้าที่ CSR ได้ทำการสร้างเอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้าให้เรียบร้อยแล้ว</p>
         <p>เลขอ้างอิงของคุณคือ: <strong>${requestData.ref_id}</strong></p>
@@ -349,11 +384,23 @@ export async function sendStaffPdfEmailAction(requestId: number) {
           </a>
         </p>
         <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
-      `,
-    });
+      `;
 
-    if (emailErr) {
-      console.error('Resend API Error (staff):', emailErr);
+    // ★ ส่งแยกทีละฉบับต่อผู้รับ (ไม่ยัดทุกคนรวมกันใน to[] เดียว) กันผู้รับเห็นอีเมลกันเอง
+    const results = await Promise.all(
+      recipients.map((email) =>
+        resend.emails.send({
+          from: 'Xchange Portal <onboarding@resend.dev>',
+          to: [email],
+          subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
+          html: emailHtml,
+        }).then((r) => ({ email, ok: !r.error }))
+      )
+    );
+
+    const sentEmails = results.filter((r) => r.ok).map((r) => r.email);
+    if (sentEmails.length === 0) {
+      console.error('Resend API Error (staff, all recipients failed):', results);
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
     }
 
@@ -361,7 +408,7 @@ export async function sendStaffPdfEmailAction(requestId: number) {
       request_id: requestId,
       department: 'system',
       status_name: 'email_sent',
-      staff_remark: `เจ้าหน้าที่ CSR ส่งเอกสารไปยังอีเมลลูกค้า ${requestData.customer_email} เรียบร้อยแล้ว`,
+      staff_remark: `เจ้าหน้าที่ CSR ส่งเอกสารไปยังอีเมล ${sentEmails.join(', ')} เรียบร้อยแล้ว`,
       actor_type: 'system',
     });
 
@@ -372,7 +419,12 @@ export async function sendStaffPdfEmailAction(requestId: number) {
       request_id: requestId,
     });
 
-    return { success: true, message: 'ส่งอีเมลสำเร็จแล้ว' };
+    return {
+      success: true,
+      message: sentEmails.length < results.length
+        ? `ส่งอีเมลสำเร็จ ${sentEmails.length}/${results.length} ฉบับ`
+        : 'ส่งอีเมลสำเร็จแล้ว',
+    };
   } catch (err: unknown) {
     console.error('Send Staff Email Catch Error:', err);
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' };

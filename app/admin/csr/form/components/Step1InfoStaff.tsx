@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
 import { getStaffNextDocNumber } from '@/app/actions/staff-form-actions';
-import CustomerPicker from './CustomerPicker';
+import OrganizationPicker from './OrganizationPicker';
 import type { ReturnFormData } from '../../../../(authenticated)/form/form-types';
 
 interface Step1StaffProps {
@@ -11,14 +11,12 @@ interface Step1StaffProps {
   updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
 }
 
-interface Customer {
+interface OrgOption {
   id: number;
   hospital_name: string;
-  contact_name: string | null;
-  position: string | null;
-  phone: string | null;
-  email: string;
   customer_code: string | null;
+  province: string | null;
+  org_type: string | null;
 }
 
 const TYPES = [
@@ -46,7 +44,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
   const [docNumber, setDocNumber] = useState('กำลังโหลด...');
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<OrgOption | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -64,12 +62,14 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
   }, []);
 
   const handleNext = async () => {
-    if (!selectedCustomer) return alert('กรุณาค้นหาและเลือกลูกค้าก่อนครับ');
+    if (!selectedCustomer) return alert('กรุณาค้นหาและเลือกหน่วยงานก่อนครับ');
     if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
     if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
 
     // doc_number ไม่ต้องพกไปกับ formData อีกต่อไป — เลขจริงถูกจองแบบ atomic ตอน submit จริง
     // ใน create_exchange_request เอง (ค่าที่โชว์ด้านบนเป็นแค่ตัวอย่าง ไม่ผูกมัด)
+    // ★ เลือกแค่ระดับ organization — ไม่มี contact_name/phone/email ของผู้ติดต่อรายคนอีกต่อไป
+    // (เลือกผู้รับอีเมลแยกทีหลังตอนขั้น "ส่งเข้าอีเมล" ถ้าหน่วยงานนี้มีหลาย contact)
     updateData((prev) => ({
       ...prev,
       sender: {
@@ -77,12 +77,9 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         request_type: selectedType,
         return_reason: selectedType === 'อื่นๆ' ? otherDetail : selectedType,
         hospital_name: selectedCustomer.hospital_name,
-        contact_name: selectedCustomer.contact_name,
-        position: selectedCustomer.position,
-        phone: selectedCustomer.phone,
-        email: selectedCustomer.email,
-        customer_email: selectedCustomer.email,
-        b2b_customer_id: selectedCustomer.id,
+        province: selectedCustomer.province ?? undefined,
+        customer_code: selectedCustomer.customer_code ?? undefined,
+        organization_id: selectedCustomer.id,
       },
     }));
     next();
@@ -102,11 +99,11 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-3xl" style={{ background: 'linear-gradient(90deg,#1a5c96,#1a7a45,#0f5132)' }} />
 
         <h2 className="text-base font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
-          ลูกค้าที่ยื่นคำร้อง
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>🏥</div>
+          หน่วยงานที่ยื่นคำร้อง
         </h2>
 
-        <CustomerPicker
+        <OrganizationPicker
           selected={selectedCustomer}
           onSelect={setSelectedCustomer}
           onClear={() => setSelectedCustomer(null)}
