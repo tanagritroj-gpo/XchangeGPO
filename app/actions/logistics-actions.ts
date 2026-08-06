@@ -58,17 +58,31 @@ export async function updateLogisticsStatus(
 
     const { data: items } = await supabaseAdmin
       .from('drug_items')
-      .select('id')
+      .select('id, current_status')
       .eq('request_id', requestId);
 
-    const logs = items?.map(item => ({
+    const activeItems = items?.filter(i => i.current_status !== 'rejected') ?? [];
+
+    // ★ รายการยาถูกปฏิเสธไปหมดแล้วทุกตัว ไม่มีอะไรเหลือให้ขนส่งต่อ — ปิดใบงานเป็น rejected
+    // แทนที่จะส่งต่อ in_transit/at_warehouse (pattern เดียวกับฝั่ง CSR ใน csr-actions.ts)
+    if (activeItems.length === 0) {
+      await supabaseAdmin.from('status_logs').insert({
+        request_id: requestId, staff_id: session.id, department: 'logistics', status_name: 'rejected',
+        staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
+      });
+      await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+      revalidatePath('/admin/logistics/dashboard');
+      return { success: true };
+    }
+
+    const logs = activeItems.map(item => ({
       request_id: requestId,
       staff_id: session.id,
       department: 'logistics',
       status_name: newStatus,
       staff_remark: remark,
       drug_item_id: item.id
-    })) || [];
+    }));
 
     if (logs.length > 0) {
       await supabaseAdmin.from('status_logs').insert(logs);
@@ -79,19 +93,11 @@ export async function updateLogisticsStatus(
       .update({ current_status: newStatus, updated_at: new Date().toISOString() })
       .eq('id', requestId);
 
-    if (newStatus === 'at_warehouse') {
-      await supabaseAdmin
-        .from('drug_items')
-        .update({ current_status: 'at_warehouse' })
-        .eq('request_id', requestId)
-        .neq('current_status', 'rejected');
-    } else {
-      await supabaseAdmin
-        .from('drug_items')
-        .update({ current_status: newStatus })
-        .eq('request_id', requestId)
-        .neq('current_status', 'rejected');
-    }
+    await supabaseAdmin
+      .from('drug_items')
+      .update({ current_status: newStatus })
+      .eq('request_id', requestId)
+      .neq('current_status', 'rejected');
 
     revalidatePath('/admin/logistics/dashboard');
     return { success: true };

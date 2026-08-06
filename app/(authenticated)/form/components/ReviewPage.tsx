@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult } from './ReviewSuccessCard';
+import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult, type OrgContactsResult } from './ReviewSuccessCard';
 import type { ReturnFormData } from '../form-types';
 import { getErrorMessage } from '@/lib/error-message';
 
@@ -21,7 +21,8 @@ interface StepProps {
   showTrackingLink?: boolean; // ส่งต่อไป ReviewSuccessCard ควบคุมลิงก์ "ติดตามสถานะคำร้องนี้" แยกจาก allowEmail
   homeHref?: string;     // ส่งต่อไป ReviewSuccessCard ควบคุมปุ่ม "กลับหน้าหลัก"
   generatePdfActionFn?: (requestId: number) => Promise<PdfActionResult>; // override เป็น generateStaffPdfAction ฝั่ง staff
-  sendEmailActionFn?: (requestId: number) => Promise<EmailActionResult>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
+  sendEmailActionFn?: (requestId: number, recipientEmails?: string[]) => Promise<EmailActionResult>;   // override เป็น sendStaffPdfEmailAction ฝั่ง staff
+  getEmailRecipientsFn?: (requestId: number) => Promise<OrgContactsResult>; // เฉพาะฝั่ง CSR — getOrgContactsForRequest
 }
 
 // ── Helper สำหรับแสดงผลรายการยา ──
@@ -78,6 +79,7 @@ export default function ReviewPage({
   homeHref = '/welcome',
   generatePdfActionFn,
   sendEmailActionFn,
+  getEmailRecipientsFn,
 }: StepProps) {
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
@@ -132,6 +134,7 @@ if (status === 'success') {
         homeHref={homeHref}
         generatePdfActionFn={generatePdfActionFn}
         sendEmailActionFn={sendEmailActionFn}
+        getEmailRecipientsFn={getEmailRecipientsFn}
       />
     );
   }

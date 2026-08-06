@@ -19,8 +19,13 @@ import {
   CalendarRange,
   Search,
   FileText,
+  LogOut,
+  Briefcase,
+  Building2,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { getPendingStaff, approveStaff } from '@/app/actions/auth-staff';
+import { getPendingStaff, approveStaff, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs, getUnansweredChatbotQuestions, getManagerRequestDetail } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
@@ -31,24 +36,40 @@ import { filterCsrRequests } from '@/lib/csr-report-filters';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
-// ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard ──
-function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accentColor }: {
+// ── โทนสีต่อหัวข้อ sidebar — รวมไว้จุดเดียวแทนที่จะส่ง bg/text แยกทีละ prop ต่อการเรียก
+// ให้ TabButton คำนวณ shadow แสงเรืองต่างๆ ต่อโทนเองได้ (เดิมส่งแค่ accentBg/accentColor
+// ทำให้เพิ่มเอฟเฟกต์ยาก เพราะต้องคำนวณสี rgba ซ้ำในหน้าเรียกทุกจุด) ──
+const TAB_ACCENTS = {
+  indigo: { bg: 'bg-[#ECEAF6]', text: 'text-[#2E2B7A]', shadow: 'shadow-[0_10px_24px_-10px_rgba(46,43,122,0.4)]', bar: 'from-[#4A46B0] to-[#2E2B7A]', barGlow: 'shadow-[0_0_8px_rgba(74,70,176,0.7)]' },
+  violet: { bg: 'bg-violet-100', text: 'text-violet-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(124,58,237,0.4)]', bar: 'from-violet-400 to-violet-600', barGlow: 'shadow-[0_0_8px_rgba(139,92,246,0.7)]' },
+  gold: { bg: 'bg-[#FBF0C8]', text: 'text-[#8A7420]', shadow: 'shadow-[0_10px_24px_-10px_rgba(138,116,32,0.35)]', bar: 'from-[#F4E27E] to-[#EAD94C]', barGlow: 'shadow-[0_0_8px_rgba(234,217,76,0.7)]' },
+  teal: { bg: 'bg-teal-100', text: 'text-teal-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(13,148,136,0.4)]', bar: 'from-teal-400 to-teal-600', barGlow: 'shadow-[0_0_8px_rgba(45,212,191,0.7)]' },
+  slate: { bg: 'bg-slate-100', text: 'text-slate-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(71,85,105,0.35)]', bar: 'from-slate-400 to-slate-600', barGlow: 'shadow-[0_0_8px_rgba(100,116,139,0.6)]' },
+} as const;
+
+// ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard
+// active state มีแท่งไล่สีเรืองแสงด้านซ้าย + เงาสีตามโทนของหัวข้อนั้น (เดิมมีแค่ bg ขาว + shadow-sm เรียบๆ) ──
+function TabButton({ icon: Icon, label, count, active, onClick, accent }: {
   icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
-  accentBg: string; accentColor: string;
+  accent: keyof typeof TAB_ACCENTS;
 }) {
+  const a = TAB_ACCENTS[accent];
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
+      className={`relative overflow-hidden flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
         ${active
-          ? 'bg-white shadow-sm border-border text-foreground'
+          ? `bg-white ${a.shadow} border-border text-foreground`
           : 'bg-transparent border-transparent text-muted-foreground hover:bg-white/70 hover:text-slate-700'}`}
     >
-      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-slate-100'}`}>
-        <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
+      {active && (
+        <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-gradient-to-b ${a.bar} ${a.barGlow}`} />
+      )}
+      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ring-1 ${active ? `${a.bg} ring-white/60 shadow-sm` : 'bg-slate-100 ring-transparent'}`}>
+        <Icon size={15} className={active ? a.text : 'text-muted-foreground'} strokeWidth={2.5} />
       </span>
       <span className="whitespace-nowrap md:whitespace-normal md:flex-1">{label}</span>
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-slate-100 text-muted-foreground'}`}>
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${active ? `${a.bg} ${a.text}` : 'bg-slate-100 text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -88,6 +109,7 @@ function StaffApprovalPageInner() {
   const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
   const [unansweredQuestions, setUnansweredQuestions] = useState<UnansweredQuestionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ManagerTab>(initialTab);
@@ -98,10 +120,13 @@ function StaffApprovalPageInner() {
   const [requestTypeFilter, setRequestTypeFilter] = useState<'รับคืนลดหนี้' | 'รับคืนแลกเปลี่ยน' | null>(null);
 
   // ── Download Center (แท็บ downloads) — sub-tab + ตัวกรองช่วงวันที่ + คำค้นหาใบงานเดี่ยว ──
-  const [downloadSubTab, setDownloadSubTab] = useState<'range' | 'single'>('range');
+  const [downloadSubTab, setDownloadSubTab] = useState<'reports' | 'single'>('reports');
   const [downloadDateFrom, setDownloadDateFrom] = useState('');
   const [downloadDateTo, setDownloadDateTo] = useState('');
   const [downloadSearch, setDownloadSearch] = useState('');
+  // แบ่งหน้าสำหรับแท็บ "ตามใบงานเดี่ยว" — 10 รายการต่อหน้า
+  const [singlePage, setSinglePage] = useState(1);
+  const SINGLE_PAGE_SIZE = 10;
 
   useEffect(() => {
     fetchData();
@@ -166,6 +191,12 @@ function StaffApprovalPageInner() {
     router.replace('/admin/manager');
   };
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    await logoutStaffAction();
+    router.push('/');
+  };
+
   // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย ทุกลูกค้า ไม่จำกัดขอบเขต (ต่างจาก sale ที่ scope ตามลูกค้าที่ดูแล)
   const allRequests = requests;
 
@@ -176,7 +207,8 @@ function StaffApprovalPageInner() {
   const rangePreviewRequestIds = new Set(rangePreviewRequests.map((r) => r.id));
   const rangePreviewLogCount = statusLogs.filter((l) => rangePreviewRequestIds.has(l.request_id)).length;
 
-  // ── Download Center: ค้นหาใบงานเดี่ยว (ref id หรือชื่อหน่วยงาน) เรียงใหม่สุดก่อน จำกัด 30 แถวกันลิสต์ยาวเกิน ──
+  // ── Download Center: ค้นหาใบงานเดี่ยว (ref id หรือชื่อหน่วยงาน) เรียงใหม่สุดก่อน — แบ่งหน้าละ
+  // SINGLE_PAGE_SIZE รายการแทนการตัด 30 แถวแรกทิ้งแบบเดิม เพื่อให้เข้าถึงใบงานเก่าๆ ได้ครบ ──
   const downloadSearchTrimmed = downloadSearch.trim().toLowerCase();
   const singleRequestResults = [...allRequests]
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
@@ -184,8 +216,13 @@ function StaffApprovalPageInner() {
       if (!downloadSearchTrimmed) return true;
       const haystack = `${r.ref_id ?? ''} ${r.hospital_name ?? ''}`.toLowerCase();
       return haystack.includes(downloadSearchTrimmed);
-    })
-    .slice(0, 30);
+    });
+  const singleTotalPages = Math.max(1, Math.ceil(singleRequestResults.length / SINGLE_PAGE_SIZE));
+  const singlePageClamped = Math.min(singlePage, singleTotalPages);
+  const singleRequestPageItems = singleRequestResults.slice(
+    (singlePageClamped - 1) * SINGLE_PAGE_SIZE,
+    singlePageClamped * SINGLE_PAGE_SIZE,
+  );
 
   // แปลงเป็น HistorySummaryRow[] เพื่อป้อนให้ RequestHistoryList แบบเดียวกับหน้า sale/history —
   // ข้อมูลตัวเต็ม (drug_items ฯลฯ) โหลดแยกต่างหากตอนขยายแถวผ่าน getManagerRequestDetail
@@ -255,10 +292,20 @@ function StaffApprovalPageInner() {
               <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
-          <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-[#ECEAF6] border-[#D8D5E8] text-[#2E2B7A] text-[11px] md:text-xs font-semibold shrink-0">
-            <ShieldCheck size={13} strokeWidth={2.5} />
-            <span>Manager</span>
-          </span>
+          <div className="flex items-center gap-2 md:gap-3 shrink-0">
+            <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-[#ECEAF6] border-[#D8D5E8] text-[#2E2B7A] text-[11px] md:text-xs font-semibold shrink-0">
+              <ShieldCheck size={13} strokeWidth={2.5} />
+              <span>Manager</span>
+            </span>
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -271,27 +318,27 @@ function StaffApprovalPageInner() {
               <TabButton
                 icon={Users} label="จัดการสิทธิ์พนักงาน" count={pendingStaff.length}
                 active={activeTab === 'staff'} onClick={() => setActiveTab('staff')}
-                accentBg="bg-[#ECEAF6]" accentColor="text-[#2E2B7A]"
+                accent="indigo"
               />
               <TabButton
                 icon={ClipboardList} label="ใบงานทั้งหมด" count={allRequests.length}
                 active={activeTab === 'all'} onClick={() => setActiveTab('all')}
-                accentBg="bg-violet-100" accentColor="text-violet-600"
+                accent="violet"
               />
               <TabButton
                 icon={BarChart3} label="ภาพรวม & สถิติ" count={allRequests.length}
                 active={activeTab === 'insights'} onClick={() => setActiveTab('insights')}
-                accentBg="bg-[#FBF0C8]" accentColor="text-[#8A7420]"
+                accent="gold"
               />
               <TabButton
-                icon={FileSpreadsheet} label="Download Center" count={allRequests.length}
+                icon={FileSpreadsheet} label="รายงานผู้บริหาร" count={allRequests.length}
                 active={activeTab === 'downloads'} onClick={() => setActiveTab('downloads')}
-                accentBg="bg-teal-100" accentColor="text-teal-600"
+                accent="teal"
               />
               <TabButton
                 icon={HelpCircle} label="คำถามที่บอทตอบไม่ได้" count={unansweredQuestions.length}
                 active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')}
-                accentBg="bg-slate-100" accentColor="text-slate-600"
+                accent="slate"
               />
             </nav>
           </aside>
@@ -432,7 +479,7 @@ function StaffApprovalPageInner() {
               <ManagerInsights requests={requests} statusLogs={statusLogs} />
             )}
 
-            {/* ── Tab: Download Center — export audit trail (status_logs) เป็นไฟล์ Excel
+            {/* ── Tab: รายงานผู้บริหาร — export audit trail + รายงานสรุปต่างๆ เป็นไฟล์ Excel
                  ให้ manager โหลดเก็บไว้ตรวจสอบย้อนหลังได้ (ดู downloads-export/route.ts) ── */}
             {activeTab === 'downloads' && (
               <section className="space-y-4">
@@ -441,61 +488,23 @@ function StaffApprovalPageInner() {
                     <FileSpreadsheet size={16} className="text-teal-600" strokeWidth={2.5} />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-foreground">Download Center</h2>
+                    <h2 className="text-sm font-bold text-foreground">รายงานผู้บริหาร</h2>
                     <p className="text-[11px] text-muted-foreground">
-                      ดาวน์โหลดประวัติการเปลี่ยนสถานะ (audit trail) พร้อมรายละเอียดใบงาน เป็นไฟล์ Excel ไว้เก็บ/ตรวจสอบย้อนหลัง
+                      ดาวน์โหลด audit trail และรายงานสรุปสำหรับผู้บริหาร เป็นไฟล์ Excel ไว้เก็บ/ตรวจสอบย้อนหลัง
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 w-fit">
                   <DownloadSubTabButton
-                    icon={CalendarRange} label="ตามช่วงเวลา"
-                    active={downloadSubTab === 'range'} onClick={() => setDownloadSubTab('range')}
+                    icon={Briefcase} label="รายงานผู้บริหาร"
+                    active={downloadSubTab === 'reports'} onClick={() => setDownloadSubTab('reports')}
                   />
                   <DownloadSubTabButton
                     icon={FileText} label="ตามใบงานเดี่ยว"
                     active={downloadSubTab === 'single'} onClick={() => setDownloadSubTab('single')}
                   />
                 </div>
-
-                {downloadSubTab === 'range' && (
-                  <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      เลือกช่วงวันที่สร้างใบงาน ระบบจะรวม status_logs (ทุกจุดเปลี่ยนสถานะ พร้อมผู้ดำเนินการและหมายเหตุ) ของใบงานทั้งหมดในช่วงนั้นไว้ในไฟล์เดียว — ไม่เลือกวันที่ = ดาวน์โหลดทุกใบงาน
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-muted-foreground uppercase">จากวันที่</label>
-                        <input
-                          type="date" value={downloadDateFrom}
-                          onChange={(e) => setDownloadDateFrom(e.target.value)}
-                          className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-bold text-muted-foreground uppercase">ถึงวันที่</label>
-                        <input
-                          type="date" value={downloadDateTo}
-                          onChange={(e) => setDownloadDateTo(e.target.value)}
-                          className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-teal-50 border border-teal-100 rounded-xl px-4 py-3.5">
-                      <p className="text-xs text-teal-800 font-semibold">
-                        พบ {rangePreviewRequests.length} ใบงาน · {rangePreviewLogCount} รายการ log ในช่วงที่เลือก
-                      </p>
-                      <a
-                        href={`/admin/manager/downloads-export?mode=range${downloadDateFrom ? `&dateFrom=${downloadDateFrom}` : ''}${downloadDateTo ? `&dateTo=${downloadDateTo}` : ''}`}
-                        className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
-                      >
-                        <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
-                      </a>
-                    </div>
-                  </div>
-                )}
 
                 {downloadSubTab === 'single' && (
                   <div className="bg-white rounded-2xl border border-border overflow-hidden">
@@ -504,20 +513,20 @@ function StaffApprovalPageInner() {
                         <Search size={14} strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input
                           type="text" value={downloadSearch}
-                          onChange={(e) => setDownloadSearch(e.target.value)}
+                          onChange={(e) => { setDownloadSearch(e.target.value); setSinglePage(1); }}
                           placeholder="ค้นหา ref id หรือชื่อหน่วยงาน..."
                           className="w-full text-sm border border-border rounded-lg pl-8 pr-3 py-2"
                         />
                       </div>
                     </div>
-                    <div className="divide-y divide-slate-100 max-h-[420px] overflow-y-auto">
+                    <div className="divide-y divide-slate-100">
                       {singleRequestResults.length === 0 ? (
                         <div className="py-10 text-center">
                           <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.75} />
                           <p className="text-sm text-muted-foreground font-medium">ไม่พบใบงานที่ตรงกับคำค้นหา</p>
                         </div>
                       ) : (
-                        singleRequestResults.map((r) => (
+                        singleRequestPageItems.map((r) => (
                           <div key={r.id} className="flex items-center justify-between gap-3 px-4 md:px-6 py-3">
                             <div className="min-w-0">
                               <p className="text-sm font-bold text-foreground font-mono">{r.ref_id}</p>
@@ -534,6 +543,122 @@ function StaffApprovalPageInner() {
                           </div>
                         ))
                       )}
+                    </div>
+
+                    {/* ── ส่วนกำกับหน้า — pattern เดียวกับ components/history/RequestHistoryList.tsx
+                         ที่ใช้อยู่แล้วในแท็บ "ใบงานทั้งหมด" ของหน้านี้ (และหน้าประวัติของ CSR) ── */}
+                    {singleTotalPages > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-t border-border bg-slate-50">
+                        <p className="text-xs text-muted-foreground">
+                          แสดง {(singlePageClamped - 1) * SINGLE_PAGE_SIZE + 1}–{Math.min(singlePageClamped * SINGLE_PAGE_SIZE, singleRequestResults.length)} จาก {singleRequestResults.length} รายการ
+                        </p>
+                        <div className="flex items-center gap-1 overflow-x-auto">
+                          <button
+                            onClick={() => setSinglePage((p) => Math.max(1, p - 1))}
+                            disabled={singlePageClamped === 1}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                            aria-label="หน้าก่อนหน้า"
+                          >
+                            <ChevronLeft size={16} strokeWidth={2.5} />
+                          </button>
+                          {Array.from({ length: singleTotalPages }, (_, i) => i + 1).map((p) => (
+                            <button
+                              key={p}
+                              onClick={() => setSinglePage(p)}
+                              className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
+                                p === singlePageClamped ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-200'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                          <button
+                            onClick={() => setSinglePage((p) => Math.min(singleTotalPages, p + 1))}
+                            disabled={singlePageClamped === singleTotalPages}
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                            aria-label="หน้าถัดไป"
+                          >
+                            <ChevronRight size={16} strokeWidth={2.5} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {downloadSubTab === 'reports' && (
+                  <div className="space-y-4">
+                    {/* ── ตัวกรองช่วงวันที่ — ใช้กับ Audit Trail Report ด้านล่าง
+                         (พอร์ตลูกค้า/หน่วยงานไม่กรองตามช่วงเวลา เป็นภาพรวมสะสมทั้งพอร์ต) ── */}
+                    <div className="bg-white rounded-2xl border border-border p-5 space-y-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        เลือกช่วงวันที่ที่ต้องการสำหรับ Audit Trail Report ด้านล่าง — ไม่เลือกวันที่ = ทุกช่วงเวลา
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-muted-foreground uppercase">จากวันที่</label>
+                          <input
+                            type="date" value={downloadDateFrom}
+                            onChange={(e) => setDownloadDateFrom(e.target.value)}
+                            className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-muted-foreground uppercase">ถึงวันที่</label>
+                          <input
+                            type="date" value={downloadDateTo}
+                            onChange={(e) => setDownloadDateTo(e.target.value)}
+                            className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Audit Trail Report — เดิมคือแท็บ "ตามช่วงเวลา" ย้ายมารวมในนี้ ── */}
+                    <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
+                          <CalendarRange size={16} className="text-teal-600" strokeWidth={2.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">Audit Trail Report</h3>
+                          <p className="text-[11px] text-muted-foreground">ประวัติการเปลี่ยนสถานะ (status_logs) ทุกจุด พร้อมผู้ดำเนินการและหมายเหตุ รวมถึงเวลาที่ใช้ในแต่ละขั้นตอน (SLA) ตั้งแต่รับคำร้องจนเสร็จสิ้น ของใบงานทั้งหมดในช่วงที่เลือก</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-teal-50 border border-teal-100 rounded-xl px-4 py-3.5">
+                        <p className="text-xs text-teal-800 font-semibold">
+                          พบ {rangePreviewRequests.length} ใบงาน · {rangePreviewLogCount} รายการ log ในช่วงที่เลือก
+                        </p>
+                        <a
+                          href={`/admin/manager/downloads-export?mode=range${downloadDateFrom ? `&dateFrom=${downloadDateFrom}` : ''}${downloadDateTo ? `&dateTo=${downloadDateTo}` : ''}`}
+                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
+                        >
+                          <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* ── รายงานพอร์ตลูกค้า/หน่วยงาน — ภาพรวมสะสมทั้งหมด ไม่มีตัวกรองวันที่ ── */}
+                    <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                          <Building2 size={16} className="text-amber-600" strokeWidth={2.5} />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">พอร์ตลูกค้า/หน่วยงาน</h3>
+                          <p className="text-[11px] text-muted-foreground">รายชื่อหน่วยงานที่ลงทะเบียนทั้งหมด พร้อมยอดใบงาน/มูลค่ารวมสะสม — ภาพรวมทั้งพอร์ต ไม่กรองตามช่วงเวลา</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end">
+                        <a
+                          href="/admin/manager/downloads-export?mode=customer-portfolio"
+                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
+                        >
+                          <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
+                        </a>
+                      </div>
                     </div>
                   </div>
                 )}

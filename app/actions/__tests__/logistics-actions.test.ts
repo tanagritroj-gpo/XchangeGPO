@@ -71,6 +71,18 @@ describe('updateLogisticsStatus — bulk transition skips already-rejected items
     // Already-rejected item must not be resurrected by the bulk update.
     expect(fakeAdmin.rows('drug_items').find((i) => i.id === 2)?.current_status).toBe('rejected');
   });
+
+  it('closes the request as rejected instead of forwarding it when every item is already rejected', async () => {
+    seedRequest(1, [
+      { id: 1, current_status: 'rejected' },
+      { id: 2, current_status: 'rejected' },
+    ]);
+
+    const res = await updateLogisticsStatus(1, 'in_transit', 'picked up');
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+  });
 });
 
 describe('updateItemStatus — per-item arrival cascades to the request', () => {

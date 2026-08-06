@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, PackageCheck, Loader2, Check, Tag, X } from 'lucide-react';
 import { stampCheckedIn, stampReceiving, rejectWHItem } from '@/app/actions/wh-actions';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
@@ -145,21 +146,23 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
           </div>
         ) : (
           <>
-            {/* ปุ่มอนุมัติ: แสดงในขั้นตอน at_warehouse เท่านั้น — เรียงก่อนปฏิเสธ */}
+            {/* ปุ่มอนุมัติ/ปฏิเสธ (รอตรวจรับ) — มาตรฐานเดียวกับ CSRDrugRow.tsx: สีทึบตัน,
+                text-xs, ไอคอนจริง (ไม่ใช่ตัวอักษร "X" ลอยๆ แบบเดิม), flex-1 md:flex-none
+                ให้ปุ่มเท่ากันทั้งสอง ไม่ใช้ hover lift/gradient แยกสไตล์จากปุ่มอื่นในระบบ —
+                คงโทนสีเดิมของ WH (teal=checked_in, rose=rejected) ให้ตรงกับ WH_STATUS ด้านบน */}
             {item.current_status === 'at_warehouse' && (
               <button
                 onClick={() => openActionModal('checked_in')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                style={{ background: 'linear-gradient(135deg,#0f766e,#14b8a6)' }}
-              ><Check size={11} strokeWidth={3} /> อนุมัติ</button>
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-teal-700 transition-all"
+              ><Check size={13} strokeWidth={3} /> อนุมัติ</button>
             )}
 
             {/* ปุ่มปฏิเสธ: แสดงในขั้นตอน at_warehouse และ checked_in (ที่ยังไม่ผ่านจัดเก็บ) */}
             {item.current_status === 'at_warehouse' && (
               <button
                 onClick={() => openActionModal('rejected')}
-                className="px-2 py-1.5 rounded-lg text-[9px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-all"
-              >X ปฏิเสธ</button>
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700 transition-all"
+              ><X size={13} strokeWidth={3} /> ปฏิเสธ</button>
             )}
 
             {/* สถานะตรวจรับแล้ว (รอ confirm ทั้งใบ) */}
@@ -189,9 +192,11 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
         )}
       </div>
 
-      {/* ══ Confirm Modal: ตรวจรับ/จัดเก็บ/ปฏิเสธรายการยา พร้อมหมายเหตุ ══ */}
-      {actionModal && meta && ModalIcon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200 col-span-12">
+      {/* ══ Confirm Modal: ตรวจรับ/จัดเก็บ/ปฏิเสธรายการยา พร้อมหมายเหตุ — render ผ่าน portal
+          ตรงไปที่ document.body มาตรฐานเดียวกับ CSRDrugRow.tsx กัน fixed inset-0 โดนบีบกรอบ
+          ถ้าแถวอยู่ในสาย ancestor ที่มี transform (เช่น hover:-translate-y-* บนการ์ดแม่) ══ */}
+      {actionModal && meta && ModalIcon && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
             <div className="h-1.5" style={{ background: meta.gradient }} />
 
@@ -238,7 +243,8 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

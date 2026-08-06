@@ -96,6 +96,23 @@ describe('approveRequest — blocked while any item is still unreviewed', () => 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('approved');
   });
+
+  // Live bug: a request whose every item got rejected one-by-one (rejectDrugItem)
+  // still ended up with current_status='approved' when the CSR closed out the
+  // review step, because this function only checked for pending_review items —
+  // it never checked whether anything actually survived to be approved. That
+  // left fully-rejected requests stuck showing as active/in-progress work.
+  it('closes the request as rejected (not approved) when every item ended up rejected', async () => {
+    seedRequest(1, [
+      { id: 1, current_status: 'rejected' },
+      { id: 2, current_status: 'rejected' },
+    ]);
+
+    const res = await approveRequest(1);
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+  });
 });
 
 describe('rejectRequest — cascades to every item regardless of current status', () => {
@@ -163,6 +180,27 @@ describe('startExchangeProcess / completeRequest — spare already-rejected item
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('completed');
     expect(fakeAdmin.rows('drug_items').find((i) => i.id === 1)?.current_status).toBe('completed');
     expect(fakeAdmin.rows('drug_items').find((i) => i.id === 2)?.current_status).toBe('rejected');
+  });
+
+  it('closes the request as rejected instead of moving to exchanging when every item is rejected', async () => {
+    seedRequest(1, [
+      { id: 1, current_status: 'rejected' },
+      { id: 2, current_status: 'rejected' },
+    ], 'approved', 'รับคืนแลกเปลี่ยน');
+
+    const res = await startExchangeProcess(1);
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+  });
+
+  it('closes the request as rejected instead of completing when every item is rejected', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'rejected' }], 'exchanging');
+
+    const res = await completeRequest(1);
+
+    expect(res.success).toBe(true);
+    expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
   });
 });
 

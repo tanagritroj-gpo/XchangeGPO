@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { createStaffReturnRequest, generateStaffPdfAction, sendStaffPdfEmailAction } from '@/app/actions/staff-form-actions';
+import { createStaffReturnRequest, generateStaffPdfAction, sendStaffPdfEmailAction, getOrgContactsForRequest } from '@/app/actions/staff-form-actions';
 import FormStepper from '@/components/FormStepper';
 import Step1InfoStaff from './components/Step1InfoStaff';
 import Step2Items from '../../../(authenticated)/form/components/Step2Items';
@@ -98,6 +98,7 @@ export default function FormWizardPageStaff() {
             homeHref="/admin/csr/dashboard"
             generatePdfActionFn={generateStaffPdfAction}
             sendEmailActionFn={sendStaffPdfEmailAction}
+            getEmailRecipientsFn={getOrgContactsForRequest}
           />
         )}
       </div>

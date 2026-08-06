@@ -53,11 +53,14 @@ export function pctChange(curr: number, prev: number) {
   return Math.round(((curr - prev) / prev) * 100);
 }
 
-const STAGE_ORDER = [
+// export ออกมาให้ downloads-export/route.ts ใช้คำนวณ "เวลาต่อขั้นตอน" แบบรายใบงานใน
+// Audit Trail Report ได้ด้วย (ลำดับ/label ของ stage ต้องตรงกับที่ใช้คำนวณ stageDurations
+// ด้านล่างนี้เป๊ะๆ ไม่งั้นตัวเลขสรุปกับตัวเลขรายใบงานจะไม่ตรงกัน)
+export const STAGE_ORDER = [
   'pending_review', 'approved', 'in_transit', 'at_warehouse',
   'checked_in', 'receiving', 'exchanging', 'credit_note', 'completed',
 ];
-const STAGE_LABEL: Record<string, string> = {
+export const STAGE_LABEL: Record<string, string> = {
   pending_review: 'รอตรวจสอบ',
   approved: 'อนุมัติ',
   in_transit: 'ขนส่ง',

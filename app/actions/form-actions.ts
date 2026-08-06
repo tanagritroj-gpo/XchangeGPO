@@ -113,6 +113,7 @@ export async function createReturnRequest(formData: ReturnFormData) {
 
     // ★ 4. ใช้ email จาก session ที่ verify แล้ว ไม่ใช่จาก formData
     customer_email: session.email,
+    customer_code: session.customer_code,
     province: session.province,
 
     // ★ 5. ใช้ b2b_customer_id จาก session เท่านั้น ไม่รับจาก client

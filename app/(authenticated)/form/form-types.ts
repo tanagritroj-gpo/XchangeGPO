@@ -23,6 +23,9 @@ export interface ReturnFormSender extends Partial<CustomerSessionInfo> {
   return_reason?: string;
   customer_email?: string;
   b2b_customer_id?: number;
+  // ★ ฝั่ง CSR กรอกแทนเท่านั้น — ขั้นเลือกลูกค้ามองในมุม organization (hospital_name)
+  // ล้วนๆ ไม่ผูกกับ b2b_customer รายคนอีกต่อไป (ดู Step1InfoStaff.tsx/CustomerPicker.tsx)
+  organization_id?: number;
 }
 
 export interface ReturnFormData {
