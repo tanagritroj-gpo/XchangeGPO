@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import * as React from 'react';
@@ -17,6 +17,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
 const EmailSchema = z.string().trim().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง');
+
+function getClientIp(headerList: Headers): string {
+  // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
+  const forwarded = headerList.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  const realIp = headerList.get('x-real-ip');
+  if (realIp) return realIp;
+  return 'unknown';
+}
 
 function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
@@ -195,6 +204,9 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
     if (updateErr) return { success: false, error: 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ กรุณาลองใหม่' };
 
     await supabaseAdmin.from('sessions').delete().eq('customer_id', customer.id).eq('actor_type', 'customer');
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('customer_password_reset_logs').insert({ customer_id: customer.id, ip });
 
     return { success: true };
   } catch (error: unknown) {
