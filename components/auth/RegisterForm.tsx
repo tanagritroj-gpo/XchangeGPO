@@ -34,6 +34,8 @@ const registerSchema = z.object({
   position_other: z.string().optional(),
   phone: z.string().min(9, "เบอร์โทรศัพท์ไม่ถูกต้อง"),
   email: z.string().email("อีเมลไม่ถูกต้อง"),
+  // ★ login ลูกค้าใช้ email เป็น username (ไม่มีช่องตั้ง username แยก) คู่กับรหัสผ่านนี้
+  password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"),
   pdpa_consent: z.boolean().refine((val) => val === true, {
     message: "กรุณากดยินยอม PDPA เพื่อดำเนินการต่อ",
   }),
@@ -159,9 +161,14 @@ export function RegisterForm() {
               </div>
             )}
             <div className="mt-4">
-              <label className={labelStyle}>อีเมล</label>
+              <label className={labelStyle}>อีเมล (ใช้เป็น Username สำหรับเข้าสู่ระบบ)</label>
               <input {...register("email")} placeholder="example@email.com" className={inputStyle} />
               {errors.email && <p className={errorStyle}>⚠ {errors.email.message as string}</p>}
+            </div>
+            <div className="mt-4">
+              <label className={labelStyle}>ตั้งรหัสผ่าน</label>
+              <input type="password" {...register("password")} placeholder="อย่างน้อย 6 ตัวอักษร" className={inputStyle} />
+              {errors.password && <p className={errorStyle}>⚠ {errors.password.message as string}</p>}
             </div>
             <div className="mt-4">
               <label className={labelStyle}>เบอร์โทรศัพท์</label>

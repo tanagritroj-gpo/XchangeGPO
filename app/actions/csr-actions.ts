@@ -38,9 +38,11 @@ export async function getCSRDashboardData() {
   try {
     await getCSRSession();
 
+    // ★ allowlist คอลัมน์แทน select('*') — เพราะ clients มี password_hash แล้ว (ใช้ login
+    // ด้วย email+password) ผลลัพธ์นี้ถูกส่งกลับไปเรนเดอร์ที่หน้า client ตรงๆ ห้ามหลุดไปด้วย
     const { data: clients, error: clientErr } = await supabaseAdmin
       .from('clients')
-      .select('*')
+      .select('id, created_at, hospital_name, province, contact_name, position, phone, email, signature_url, pdpa_consented_at, status, b2b_customer_id, auth_user_id, org_type')
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
@@ -223,6 +225,9 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
             province: organization.province,
             org_type: organization.org_type,
             organization_id: organization.id,
+            // ★ ลูกค้า login ด้วย email+password (แทน OTP เดิม) — ต้องคัดลอก hash มาด้วย
+            // ไม่งั้นบัญชีที่เพิ่งอนุมัติจะ login ไม่ได้เพราะ b2b_customers.password_hash เป็น null
+            password_hash: client.password_hash,
           })
           .select('id')
           .single();

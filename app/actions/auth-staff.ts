@@ -229,7 +229,7 @@ function hashOtp(otp: string) {
 }
 
 // 1. ขอ OTP สำหรับตั้งรหัสผ่านใหม่ — ตอบผลเหมือนกันเสมอไม่ว่าจะเจอ username/มีอีเมล/
-// approved หรือไม่ กัน username enumeration (pattern เดียวกับ sendOTP ฝั่งลูกค้า)
+// approved หรือไม่ กัน username enumeration (pattern เดียวกับ requestCustomerPasswordReset ฝั่งลูกค้า)
 export async function requestStaffPasswordReset(username: string) {
   const cleanUsername = username?.trim();
   if (!cleanUsername) return { success: false, error: 'กรุณากรอก Username' };

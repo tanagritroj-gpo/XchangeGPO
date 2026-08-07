@@ -5,12 +5,12 @@ import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight } from 'lu
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
-import { sendOTP, verifyOTP } from '@/app/actions/auth-actions';
+import { loginCustomerAction } from '@/app/actions/auth-actions';
 
 const GOOGLE_LOGIN_ERRORS: Record<string, string> = {
   'auth-failed': 'เชื่อมต่อกับ Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
   'google-not-registered':
-    'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมล Google นี้ กรุณาเข้าสู่ระบบด้วย OTP หรือลงทะเบียนก่อน',
+    'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมล Google นี้ กรุณาเข้าสู่ระบบด้วยรหัสผ่านหรือลงทะเบียนก่อน',
 };
 
 export default function HomePage() {
@@ -36,10 +36,9 @@ function HomePageContent() {
 
   const [activeTab, setActiveTab] = useState<'customer' | 'staff'>('customer');
   const [loadingLogin, setLoadingLogin] = useState(false);
-  const [isOtpStep, setIsOtpStep] = useState(false);
 
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
+  const [customerPassword, setCustomerPassword] = useState('');
   const [empId, setEmpId] = useState('');
   const [password, setPassword] = useState('');
 
@@ -86,22 +85,11 @@ function HomePageContent() {
     setLoadingLogin(true);
     try {
       if (isCustomer) {
-        if (!isOtpStep) {
-          const res = await sendOTP(email);
-          if (res.success) {
-            setIsOtpStep(true);
-            alert("ส่งรหัสยืนยันไปยังอีเมลของท่านแล้วครับ");
-          } else {
-            alert(res.error || "เกิดข้อผิดพลาดในการส่ง OTP");
-          }
+        const res = await loginCustomerAction({ email, password: customerPassword });
+        if (res.success) {
+          router.push('/welcome');
         } else {
-          const res = await verifyOTP(email, otp);
-          if (res.success) {
-            alert("ยืนยันตัวตนสำเร็จ!");
-            router.push('/welcome');
-          } else {
-            alert("รหัส OTP ไม่ถูกต้องหรือหมดอายุ");
-          }
+          alert(res.error || "เข้าสู่ระบบไม่สำเร็จ");
         }
         return;
       }
@@ -212,7 +200,7 @@ function HomePageContent() {
               {(['customer', 'staff'] as const).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => { setActiveTab(tab); setIsOtpStep(false); }}
+                  onClick={() => setActiveTab(tab)}
                   className={`py-3.5 text-sm font-bold transition-all border-b-2 flex flex-col items-center justify-center ${
                     activeTab === tab
                       ? (tab === 'customer' ? 'text-teal-700 border-teal-500 bg-white' : 'text-blue-700 border-blue-500 bg-white')
@@ -228,13 +216,13 @@ function HomePageContent() {
             </div>
 
             <div className="p-6 space-y-6">
-              {/* ทั้ง 3 สถานะ (ลูกค้า-กรอกอีเมล / ลูกค้า-ยืนยัน OTP / พนักงาน) mount พร้อมกันเสมอ
-                  ซ้อนกันในเซลล์ grid เดียว (col-start-1 row-start-1) — grid จะปรับความสูงตาม
-                  เนื้อหาที่ "สูงที่สุด" อัตโนมัติ ไม่ต้องเดา/ตั้งค่า min-height เป็นตัวเลขตายตัว
-                  (แบบเดิมทำให้เผื่อพื้นที่เกินจริงจนเห็นเป็นช่องว่าง) ตัวที่ไม่ active ใช้ invisible
-                  (ไม่ใช่ hidden) เพื่อให้ยังกินพื้นที่แต่กดไม่ได้/มองไม่เห็น */}
+              {/* ทั้ง 2 สถานะ (ลูกค้า / พนักงาน) mount พร้อมกันเสมอ ซ้อนกันในเซลล์ grid เดียว
+                  (col-start-1 row-start-1) — grid จะปรับความสูงตามเนื้อหาที่ "สูงที่สุด"
+                  อัตโนมัติ ไม่ต้องเดา/ตั้งค่า min-height เป็นตัวเลขตายตัว (แบบเดิมทำให้เผื่อ
+                  พื้นที่เกินจริงจนเห็นเป็นช่องว่าง) ตัวที่ไม่ active ใช้ invisible (ไม่ใช่ hidden)
+                  เพื่อให้ยังกินพื้นที่แต่กดไม่ได้/มองไม่เห็น */}
               <div className="grid">
-                <div className={`col-start-1 row-start-1 space-y-4 ${isCustomer && !isOtpStep ? '' : 'invisible pointer-events-none'}`} aria-hidden={!(isCustomer && !isOtpStep)}>
+                <div className={`col-start-1 row-start-1 space-y-4 ${isCustomer ? '' : 'invisible pointer-events-none'}`} aria-hidden={!isCustomer}>
                   <h2 className="text-sm font-black text-foreground flex items-center gap-2">
                     <div className="w-1 h-4 rounded-full bg-teal-500" />
                     เข้าสู่ระบบ
@@ -244,10 +232,25 @@ function HomePageContent() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
                     placeholder="📧  อีเมล"
-                    tabIndex={isCustomer && !isOtpStep ? undefined : -1}
+                    tabIndex={isCustomer ? undefined : -1}
+                  />
+                  <input
+                    type="password"
+                    value={customerPassword}
+                    onChange={(e) => setCustomerPassword(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
+                    placeholder="🔑  รหัสผ่าน"
+                    tabIndex={isCustomer ? undefined : -1}
                   />
                   <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition">
                     {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => router.push('/auth/customer-forgot-password')}
+                    className="w-full py-2.5 rounded-xl font-bold text-teal-700 text-xs border border-teal-200 bg-teal-50 hover:bg-teal-100 transition"
+                  >
+                    ลืมรหัสผ่าน?
                   </button>
                   <div className="space-y-3">
                     <div className="relative flex items-center">
@@ -273,25 +276,6 @@ function HomePageContent() {
                       />
                     </button>
                   </div>
-                </div>
-
-                <div className={`col-start-1 row-start-1 space-y-4 ${isCustomer && isOtpStep ? '' : 'invisible pointer-events-none'}`} aria-hidden={!(isCustomer && isOtpStep)}>
-                  <h2 className="text-sm font-black text-foreground flex items-center gap-2">
-                    <div className="w-1 h-4 rounded-full bg-teal-500" />
-                    ยืนยันรหัส OTP (ลูกค้า)
-                  </h2>
-                  <input
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                    maxLength={6}
-                    className="w-full px-4 py-3 text-center tracking-[0.5em] text-lg rounded-xl border-2 border-teal-400 bg-teal-50 focus:outline-none"
-                    placeholder="0 0 0 0 0 0"
-                    tabIndex={isCustomer && isOtpStep ? undefined : -1}
-                  />
-                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition">
-                    ยืนยันรหัสเข้าสู่ระบบ
-                  </button>
-                  <button onClick={() => setIsOtpStep(false)} className="w-full text-xs text-muted-foreground hover:text-foreground underline">ยกเลิก</button>
                 </div>
 
                 <div className={`col-start-1 row-start-1 space-y-4 ${!isCustomer ? '' : 'invisible pointer-events-none'}`} aria-hidden={isCustomer}>

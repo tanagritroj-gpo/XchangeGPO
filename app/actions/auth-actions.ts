@@ -1,27 +1,29 @@
 'use server';
 
-import crypto from 'crypto';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
 import * as React from 'react';
-import OTPEmail from '@/lib/emails/OTPEmail';
+import CustomerPasswordResetEmail from '@/lib/emails/CustomerPasswordResetEmail';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getErrorMessage } from '@/lib/error-message';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
 const EmailSchema = z.string().trim().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง');
-const OtpSchema = z.string().trim().regex(/^\d{6}$/, 'รหัส OTP ต้องเป็นตัวเลข 6 หลัก');
 
 function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
 }
 
 // สร้าง session จริงของแอป (ตาราง `sessions` + cookie httpOnly) ให้ลูกค้าที่ยืนยันตัวตนแล้ว
-// ใช้ร่วมกันทั้ง verifyOTP และ loginCustomerByVerifiedEmail (Google OAuth) เพื่อให้มี
+// ใช้ร่วมกันทั้ง loginCustomerAction และ loginCustomerByVerifiedEmail (Google OAuth) เพื่อให้มี
 // จุดเดียวที่ออก session จริงของระบบ ไม่กระจายลอจิกซ้ำ
 async function createCustomerSession(customerId: number) {
   const { data: session, error } = await supabaseAdmin
@@ -50,7 +52,8 @@ async function createCustomerSession(customerId: number) {
 // ล็อกอินลูกค้าด้วยอีเมลที่ยืนยันตัวตนแล้วจากภายนอก (เช่น Google OAuth ผ่าน Supabase Auth)
 // เจตนา: ผูก "identity ที่ verify แล้ว" เข้ากับ session จริงของแอปทันที ไม่ปล่อยให้ Supabase
 // Auth session ค้างอยู่คู่ขนาน — ต้องเป็นอีเมลที่ตรงกับ b2b_customers ที่ CSR อนุมัติแล้วเท่านั้น
-// (สอดคล้องกับโมเดล approval-gated เดียวกับ flow OTP ปกติ ไม่เปิดให้สมัครอัตโนมัติผ่าน Google)
+// (สอดคล้องกับโมเดล approval-gated เดียวกัน ไม่เปิดให้สมัครอัตโนมัติผ่าน Google) — ทางเลือก
+// เดิมที่ยังคงไว้คู่กับ login ด้วย email+password ด้านล่าง
 export async function loginCustomerByVerifiedEmail(email: string) {
   const parsedEmail = EmailSchema.safeParse(email);
   if (!parsedEmail.success) {
@@ -62,7 +65,7 @@ export async function loginCustomerByVerifiedEmail(email: string) {
     .from('b2b_customers').select('id').eq('email', cleanEmail).maybeSingle();
 
   if (!customer) {
-    return { success: false, error: 'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมลนี้ กรุณาลงทะเบียนหรือเข้าสู่ระบบด้วย OTP ก่อน' };
+    return { success: false, error: 'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมลนี้ กรุณาลงทะเบียนหรือเข้าสู่ระบบด้วยรหัสผ่านก่อน' };
   }
 
   const created = await createCustomerSession(customer.id);
@@ -71,30 +74,56 @@ export async function loginCustomerByVerifiedEmail(email: string) {
   return { success: true };
 }
 
-// 1. ส่ง OTP
-export async function sendOTP(email: string) {
-  // ★ เช็ค format ก่อนทุกอย่าง — ไม่เกี่ยวกับ enumeration เพราะยังไม่ได้ query ว่ามี/ไม่มีในระบบ
-  const parsedEmail = EmailSchema.safeParse(email);
-  if (!parsedEmail.success) {
-    return { 
-  success: false, 
-  error: parsedEmail.error.flatten().formErrors[0] || 'กรุณากรอกอีเมลให้ถูกต้อง' 
-};
+// ล็อกอินลูกค้าด้วย email (ใช้เป็น username) + รหัสผ่าน — แทนที่ flow OTP เดิม ใช้ pattern
+// เดียวกับ loginStaffAction (bcrypt.compare กับ DUMMY_HASH ตอนไม่เจอบัญชี กัน timing attack,
+// ข้อความ error กลางๆ เดียวกันไม่ว่าจะ email หรือ password ผิด กัน enumeration)
+export async function loginCustomerAction(payload: { email: string; password: string }) {
+  const parsedEmail = EmailSchema.safeParse(payload.email);
+  if (!parsedEmail.success || !payload.password) {
+    return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
   }
   const cleanEmail = parsedEmail.data;
 
-  // แก้แล้ว: (1) สลับ param ให้ตรง signature จริง (key, limit, windowSeconds)
-  // เดิมเขียน (key, 300, 3) = ตีความว่า limit 300 ครั้ง/3 วิ ผิดจากที่ตั้งใจ
-  // (2) เข้าถึง .allowed จาก object ผลลัพธ์ — เดิมเช็ค `if (!allowed)` ทั้งที่
-  // allowed เป็น object ทั้งก้อน (truthy เสมอ) ทำให้ไม่เคยบล็อกอะไรเลย
-  const rateLimit = await checkRateLimit(`otp-request:${cleanEmail}`, 3, 300);
-  if (!rateLimit.allowed) return { success: false, error: 'ขอ OTP ถี่เกินไป กรุณารอสักครู่' };
+  const { data: customer, error } = await supabaseAdmin
+    .from('b2b_customers')
+    .select('id, password_hash')
+    .eq('email', cleanEmail)
+    .maybeSingle();
+
+  if (error || !customer || !customer.password_hash) {
+    await bcrypt.compare(payload.password, DUMMY_HASH); // กัน timing attack
+    return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+  }
+
+  const isMatch = await bcrypt.compare(payload.password, customer.password_hash);
+  if (!isMatch) return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+
+  const created = await createCustomerSession(customer.id);
+  if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
+
+  return { success: true };
+}
+
+// ══ ลืมรหัสผ่าน (ลูกค้า) — ใช้ otp_logs ตารางเดียวกับ staff (auth-staff.ts) แต่ระบุตัวด้วย
+// email ตรงๆ (ไม่ต้องมี username→email lookup เหมือน staff เพราะลูกค้า login ด้วย email
+// โดยตรงอยู่แล้ว) ══
+
+// 1. ขอ OTP สำหรับตั้งรหัสผ่านใหม่ — ตอบผลเหมือนกันเสมอไม่ว่าจะเจอบัญชีที่ผูกกับอีเมลนี้
+// หรือไม่ กัน email enumeration
+export async function requestCustomerPasswordReset(email: string) {
+  const parsedEmail = EmailSchema.safeParse(email);
+  if (!parsedEmail.success) return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+  const cleanEmail = parsedEmail.data;
+
+  const rateLimit = await checkRateLimit(`customer-pwreset-request:${cleanEmail}`, 3, 300);
+  if (!rateLimit.allowed) return { success: false, error: 'ขอรหัสถี่เกินไป กรุณารอสักครู่' };
 
   const { data: customer } = await supabaseAdmin
-    .from('b2b_customers').select('id').eq('email', cleanEmail).maybeSingle();
+    .from('b2b_customers')
+    .select('id')
+    .eq('email', cleanEmail)
+    .maybeSingle();
 
-  // ★ ทำงานเหมือนกันไม่ว่าจะเจอ customer หรือไม่ กัน email enumeration
-  //   (จุดนี้เท่านั้นที่ตั้งใจตอบกำกวม เพราะ format ผ่านการเช็คไปแล้วข้างต้น)
   if (customer) {
     const otp = crypto.randomInt(100000, 999999).toString();
     await supabaseAdmin.from('otp_logs').insert({
@@ -104,11 +133,11 @@ export async function sendOTP(email: string) {
       used: false,
     });
 
-    const emailHtml = await render(React.createElement(OTPEmail, { otp }));
+    const emailHtml = await render(React.createElement(CustomerPasswordResetEmail, { otp }));
     await resend.emails.send({
       from: 'GPO Xchange <onboarding@resend.dev>',
       to: cleanEmail,
-      subject: 'รหัส OTP ยืนยันการเข้าใช้งานระบบ Xchange',
+      subject: 'รหัส OTP สำหรับตั้งรหัสผ่านใหม่ — GPO Xchange Portal',
       html: emailHtml,
     });
   }
@@ -116,51 +145,65 @@ export async function sendOTP(email: string) {
   return { success: true };
 }
 
-// 2. ยืนยัน OTP
-export async function verifyOTP(email: string, otp: string) {
-  const parsedEmail = EmailSchema.safeParse(email);
-  if (!parsedEmail.success) {
-    return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+// 2. ยืนยัน OTP + ตั้งรหัสผ่านใหม่ — สำเร็จแล้วเพิกถอน session ลูกค้าเดิมทั้งหมดของบัญชีนี้
+export async function resetCustomerPassword(email: string, otp: string, newPassword: string) {
+  try {
+    const parsedEmail = EmailSchema.safeParse(email);
+    if (!parsedEmail.success) return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+    const cleanEmail = parsedEmail.data;
+    if (!/^\d{6}$/.test(otp?.trim() ?? '')) return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
+    if (!newPassword || newPassword.length < 6) return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
+    const cleanOtp = otp.trim();
+
+    const rateLimit = await checkRateLimit(`customer-pwreset-verify:${cleanEmail}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ลองยืนยันถี่เกินไป กรุณารอสักครู่' };
+
+    const { data: customer } = await supabaseAdmin
+      .from('b2b_customers')
+      .select('id')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    // ข้อความกลางๆ เดียวกับตอน OTP ผิด กันเดาว่า email นี้มีบัญชีลูกค้าอยู่ไหม
+    if (!customer) return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
+
+    const { data: log } = await supabaseAdmin
+      .from('otp_logs')
+      .select('id, otp_hash, expires_at, used')
+      .eq('email', cleanEmail)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!log || log.used || new Date(log.expires_at) < new Date()) {
+      return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
+    }
+    if (hashOtp(cleanOtp) !== log.otp_hash) {
+      return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
+    }
+
+    await supabaseAdmin.from('otp_logs').update({ used: true }).eq('id', log.id);
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const { error: updateErr } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ password_hash: hashedPassword })
+      .eq('id', customer.id);
+
+    if (updateErr) return { success: false, error: 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ กรุณาลองใหม่' };
+
+    await supabaseAdmin.from('sessions').delete().eq('customer_id', customer.id).eq('actor_type', 'customer');
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Customer Password Reset Error:', error);
+    return { success: false, error: getErrorMessage(error) };
   }
-  const cleanEmail = parsedEmail.data;
-
-  const parsedOtp = OtpSchema.safeParse(otp);
-  if (!parsedOtp.success) {
-    return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' }; // ข้อความกลางๆ กันเดา format
-  }
-  const cleanOtp = parsedOtp.data;
-
-  // แก้แล้วเหมือนกับ sendOTP ด้านบน — สลับ param + เข้าถึง .allowed จริงๆ
-  const rateLimit = await checkRateLimit(`otp-verify:${cleanEmail}`, 5, 300);
-  if (!rateLimit.allowed) return { success: false, error: 'ลองยืนยันถี่เกินไป กรุณารอสักครู่' };
-
-  const { data: log } = await supabaseAdmin
-    .from('otp_logs')
-    .select('id, otp_hash, expires_at, used')
-    .eq('email', cleanEmail)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!log || log.used || new Date(log.expires_at) < new Date()) {
-    return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
-  }
-  if (hashOtp(cleanOtp) !== log.otp_hash) {
-    return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
-  }
-
-  await supabaseAdmin.from('otp_logs').update({ used: true }).eq('id', log.id);
-
-  const { data: customer } = await supabaseAdmin
-    .from('b2b_customers').select('id').eq('email', cleanEmail).single();
-
-  const created = await createCustomerSession(customer!.id);
-  if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-
-  return { success: true };
 }
 
-// 3. ดึง Session — verify ผ่าน DB จริง ไม่ parse cookie ตรง
+// ดึง Session — verify ผ่าน DB จริง ไม่ parse cookie ตรง
 export async function getCustomerSession() {
   const token = (await cookies()).get('customer_session')?.value;
   if (!token || !UUID_RE.test(token)) return null;
@@ -210,7 +253,7 @@ export async function getCustomerSession() {
   };
 }
 
-// 4. Logout — ลบ session ออกจาก DB จริง ไม่ใช่แค่ลบ cookie ฝั่งเดียว
+// Logout — ลบ session ออกจาก DB จริง ไม่ใช่แค่ลบ cookie ฝั่งเดียว
 export async function logoutCustomer() {
   const cookieStore = await cookies();
   const token = cookieStore.get('customer_session')?.value;
