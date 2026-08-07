@@ -93,6 +93,7 @@ export interface StaffSessionInfo {
   department: string;
   sale_customer_types: string[] | null;
   sale_provinces: string[] | null;
+  email: string | null;
 }
 
 export interface ClientRow {

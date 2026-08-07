@@ -7,7 +7,9 @@ import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action';
 type PdfState = 'preparing' | 'ready' | 'error';
 export type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
 export type EmailActionResult = { success: boolean; message?: string; error?: string };
-export type OrgContact = { id: number; contact_name: string | null; email: string };
+// id เป็น number | string เพราะแหล่งข้อมูลต่างกันตามฝั่งที่เรียก: ฝั่ง CSR ใช้
+// b2b_customers.id (bigint) ส่วนฝั่งลูกค้าเองใช้ 'self' + staff_users.id (uuid) สำหรับ sale rep
+export type OrgContact = { id: number | string; contact_name: string | null; email: string };
 export type OrgContactsResult = { success: boolean; data?: OrgContact[]; error?: string };
 
 // ลำดับสถานะงานตาม enum จริงใน requests.current_status

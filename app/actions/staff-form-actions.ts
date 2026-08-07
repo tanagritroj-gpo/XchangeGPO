@@ -4,6 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
+import { bucketForOrgType } from '@/lib/sale-coverage';
 import { Resend } from 'resend';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 
@@ -311,14 +312,45 @@ export async function getOrgContactsForRequest(requestId: number) {
     return { success: false, error: 'ไม่พบรหัสลูกค้าของคำร้องนี้' };
   }
 
-  const { data, error } = await supabaseAdmin
+  const { data: contacts, error } = await supabaseAdmin
     .from('b2b_customers')
     .select('id, contact_name, email')
     .eq('customer_code', request.customer_code)
     .order('contact_name', { ascending: true });
 
   if (error) return { success: false, error: error.message };
-  return { success: true, data: data ?? [] };
+
+  const recipients: { id: number | string; contact_name: string | null; email: string }[] = [...(contacts ?? [])];
+
+  // ★ เพิ่ม sale rep ที่ดูแลเขต/ประเภทหน่วยงานนี้ (ถ้ามี) ให้ CSR เลือกแจ้งพร้อมกันตอนส่งอีเมล —
+  // จับคู่จาก organizations.org_type/province กับ staff_users.sale_customer_types/
+  // sale_provinces ของ sale แต่ละคน — เป็น many-to-many ไม่ใช่ assign ตรง 1 หน่วยงานต่อ 1
+  // sale คน (ดู lib/sale-coverage.ts) จึงอาจได้ 0/1/หลายคนก็ได้ ไม่มีใครดูแลก็แค่ไม่โผล่ในลิสต์
+  const { data: org } = await supabaseAdmin
+    .from('organizations')
+    .select('org_type, province')
+    .eq('customer_code', request.customer_code)
+    .maybeSingle();
+
+  const bucket = bucketForOrgType(org?.org_type);
+  if (bucket && org?.province) {
+    const { data: saleReps } = await supabaseAdmin
+      .from('staff_users')
+      .select('id, full_name, email, sale_customer_types, sale_provinces')
+      .eq('department', 'sale')
+      .eq('is_approved', true)
+      .not('email', 'is', null);
+
+    (saleReps ?? []).forEach((s) => {
+      const types = (s.sale_customer_types as string[] | null) ?? [];
+      const provinces = (s.sale_provinces as string[] | null) ?? [];
+      if (s.email && types.includes(bucket) && provinces.includes(org.province!)) {
+        recipients.push({ id: s.id, contact_name: `ฝ่ายขาย — ${s.full_name ?? 'ไม่ระบุชื่อ'}`, email: s.email });
+      }
+    });
+  }
+
+  return { success: true, data: recipients };
 }
 
 // ── 6. ส่งอีเมลลิงก์ PDF ให้ลูกค้า — CSR เป็นคนกด แต่ต้องส่งไปที่อีเมลลูกค้า ไม่ใช่อีเมล staff ──
