@@ -19,9 +19,9 @@ function formatMMSS(totalSeconds: number) {
 // auth-actions.ts) จึงพาไปขั้น 2 ต่อได้เลยทุกครั้ง
 //
 // Layout/สี คุมโทนเดียวกับหน้าลงทะเบียนลูกค้า (app/auth/customer-register/page.tsx) — เขียว
-// teal แทนน้ำเงินของฝั่งพนักงาน ปุ่มนำทางมีปุ่มเดียว "กลับสู่หน้าหลัก" (ไม่มีปุ่ม "กลับไปเข้าสู่
-// ระบบ" แยก เพราะหน้า login ของลูกค้าคือหน้าแรก "/" อยู่แล้ว ต่างจากพนักงานที่มี /admin/login
-// แยกจากหน้าแรก)
+// teal แทนน้ำเงินของฝั่งพนักงาน ปุ่มนำทางมีปุ่มเดียว "กลับสู่หน้าหลัก" เพราะหน้า login ของทั้ง
+// ลูกค้าและพนักงานคือหน้าแรก "/" เดียวกัน (หน้า /admin/login เดิมถูกลบแล้ว — ไม่มีที่ไหน link
+// มาหาอีกต่อไปหลังย้าย login พนักงานไปอยู่หน้าแรก)
 export default function CustomerForgotPasswordPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);

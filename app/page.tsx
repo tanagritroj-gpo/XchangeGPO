@@ -302,7 +302,7 @@ function HomePageContent() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => router.push('/admin/login/forgot-password')}
+                    onClick={() => router.push('/auth/staff-forgot-password')}
                     className="w-full py-2.5 rounded-xl font-bold text-blue-800 text-xs border border-blue-200 bg-blue-50 hover:bg-blue-100 transition"
                   >
                     ลืมรหัสผ่าน?
