@@ -95,6 +95,15 @@ describe('loginCustomerAction', () => {
     expect(sessions).toHaveLength(1);
     expect(sessions[0]).toMatchObject({ actor_type: 'customer', customer_id: 1 });
   });
+
+  it('is blocked by the login-side rate limiter before touching the DB', async () => {
+    mockCheckRateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seed({ b2b_customers: [{ id: 1, email: 'cust@example.com', password_hash: hash }] });
+    const res = await loginCustomerAction({ email: 'cust@example.com', password: 'correctpass' });
+    expect(res).toEqual({ success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' });
+    expect(fakeAdmin.rows('sessions')).toHaveLength(0);
+  });
 });
 
 describe('loginCustomerByVerifiedEmail (Google OAuth)', () => {

@@ -16,10 +16,18 @@ vi.mock('resend', () => ({
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 99 }),
 }));
-vi.mock('next/headers', () => ({
-  headers: vi.fn().mockResolvedValue(new Headers({ 'x-forwarded-for': '203.0.113.5' })),
-  cookies: vi.fn(),
-}));
+vi.mock('next/headers', () => {
+  const store = new Map<string, string>();
+  const cookieStore = {
+    get: (name: string) => (store.has(name) ? { value: store.get(name)! } : undefined),
+    set: (name: string, value: string) => { store.set(name, value); },
+    delete: (name: string) => { store.delete(name); },
+  };
+  return {
+    cookies: vi.fn().mockResolvedValue(cookieStore),
+    headers: vi.fn().mockResolvedValue(new Headers({ 'x-forwarded-for': '203.0.113.5' })),
+  };
+});
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -28,7 +36,7 @@ adminModule.admin = fakeAdmin.client;
 const { checkRateLimit } = await import('@/lib/rate-limit');
 const mockCheckRateLimit = vi.mocked(checkRateLimit);
 
-const { requestStaffPasswordReset, resetStaffPassword } = await import('../auth-staff');
+const { requestStaffPasswordReset, resetStaffPassword, loginStaffAction } = await import('../auth-staff');
 
 function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
@@ -214,5 +222,25 @@ describe('resetStaffPassword', () => {
     expect(resetLogs).toHaveLength(1);
     expect(resetLogs[0].staff_id).toBe('s1');
     expect(resetLogs[0].ip).toBe('203.0.113.5');
+  });
+});
+
+describe('loginStaffAction', () => {
+  it('is blocked by the login-side rate limiter before touching the DB', async () => {
+    mockCheckRateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+    seed({ staff_users: [{ id: 's1', username: 'dofcoffee', password_hash: 'hash', role: 'staff', is_approved: true, department: 'csr' }] });
+    const res = await loginStaffAction({ username: 'dofcoffee', password: 'whatever' });
+    expect(res).toEqual({ success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' });
+  });
+
+  it('logs in successfully and creates a session when the rate limiter allows it', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seed({ staff_users: [{ id: 's1', username: 'dofcoffee', password_hash: hash, role: 'staff', is_approved: true, department: 'csr' }] });
+    const res = await loginStaffAction({ username: 'dofcoffee', password: 'correctpass' });
+    expect(res).toEqual({ success: true, role: 'staff', department: 'csr' });
+
+    const sessions = fakeAdmin.rows('sessions');
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]).toMatchObject({ actor_type: 'staff', staff_id: 's1' });
   });
 });

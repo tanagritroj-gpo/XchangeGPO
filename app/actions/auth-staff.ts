@@ -97,6 +97,11 @@ export async function loginStaffAction(payload: { username: string; password: st
   const { username, password } = payload;
 
   try {
+    // ★ กันเดารหัสผ่านรัว — เดิมมีแค่ bcrypt กับ DUMMY_HASH (กัน timing attack) แต่ไม่มี cap
+    // จำนวนครั้งเลย ต่างจากทุกจุด auth อื่นในระบบ (พบระหว่าง security audit 7 ส.ค. 2569)
+    const rateLimit = await checkRateLimit(`login-staff:${username}`, 10, 300);
+    if (!rateLimit.allowed) return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+
     const { data: user, error } = await supabaseAdmin
       .from('staff_users')
       .select('id, username, password_hash, role, is_approved, department')

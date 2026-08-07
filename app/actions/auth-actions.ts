@@ -93,6 +93,11 @@ export async function loginCustomerAction(payload: { email: string; password: st
   }
   const cleanEmail = parsedEmail.data;
 
+  // ★ กันเดารหัสผ่านรัว — เดิมมีแค่ bcrypt กับ DUMMY_HASH (กัน timing attack) แต่ไม่มี cap
+  // จำนวนครั้งเลย ต่างจากทุกจุด auth อื่นในระบบ (พบระหว่าง security audit 7 ส.ค. 2569)
+  const rateLimit = await checkRateLimit(`login-customer:${cleanEmail}`, 10, 300);
+  if (!rateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+
   const { data: customer, error } = await supabaseAdmin
     .from('b2b_customers')
     .select('id, password_hash')
