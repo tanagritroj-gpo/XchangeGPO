@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { loginStaffAction } from '@/app/actions/auth-staff';
 
 export default function LoginPage() {
@@ -43,7 +44,12 @@ export default function LoginPage() {
         <h1 className="text-2xl font-black text-foreground mb-6">LOGIN</h1>
         {error && <p className="text-red-500 text-xs mb-4 font-bold">{error}</p>}
         <input type="text" placeholder="Username" className="w-full p-4 mb-4 rounded-xl border border-border" value={username} onChange={(e) => setUsername(e.target.value)} required />
-        <input type="password" placeholder="Password" className="w-full p-4 mb-6 rounded-xl border border-border" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <input type="password" placeholder="Password" className="w-full p-4 mb-3 rounded-xl border border-border" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <div className="text-right mb-6">
+          <Link href="/admin/login/forgot-password" className="text-xs font-semibold text-muted-foreground hover:text-teal-700 transition-colors">
+            ลืมรหัสผ่าน?
+          </Link>
+        </div>
         <button type="submit" className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-slate-800" disabled={isLoading}>
           {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
         </button>
