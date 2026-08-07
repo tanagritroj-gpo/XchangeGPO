@@ -1,6 +1,7 @@
 'use server'
 
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
@@ -15,6 +16,8 @@ const RegisterSchema = z.object({
   position: z.string().min(1).max(100),
   phone: z.string().regex(/^[0-9+\-\s]{9,15}$/, 'รูปแบบเบอร์โทรไม่ถูกต้อง'),
   email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง'),
+  // ★ login ลูกค้าใช้ email เป็น username (ไม่มีคอลัมน์ username แยก) คู่กับรหัสผ่านนี้
+  password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร').max(100),
   // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL —
   // ตรวจ + upload ฝั่ง server เอง แทนการเชื่อ URL ที่ client อ้างว่าเป็นไฟล์ของเรา
   signature_url: z.string().startsWith('data:image/png;base64,'),
@@ -51,6 +54,11 @@ export async function registerCustomer(payload: unknown) {
       return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(data.password, salt);
+
+    // ★ select('id') เท่านั้น — ไม่ใช่ select() เฉยๆ (คืนทุกคอลัมน์รวม password_hash)
+    // เพราะ inserted ถูกส่งกลับไปฝั่ง client ต่อใน response นี้
     const { data: inserted, error } = await supabaseAdmin
       .from('clients')
       .insert([
@@ -62,13 +70,14 @@ export async function registerCustomer(payload: unknown) {
           position: data.position,
           phone: data.phone,
           email: data.email,
+          password_hash: passwordHash,
           // เก็บ path ภายใน bucket ไม่ใช่ public URL — bucket นี้เป็น private แล้ว
           signature_url: signaturePath,
           pdpa_consented_at: new Date().toISOString(),
           status: 'pending',
         }
       ])
-      .select();
+      .select('id');
 
     if (error) throw error;
 

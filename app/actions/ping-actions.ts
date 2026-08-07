@@ -66,7 +66,7 @@ export async function pingRequestAttention(requestId: number) {
     if (!sameOrg) {
       // ข้อความเดียวกับกรณี "ไม่พบ" โดยตั้งใจ — กันบอกใบ้ว่า request_id นี้
       // มีอยู่จริงแค่ไม่ใช่ของลูกค้าคนนี้ (แนวทางเดียวกับที่ auth-actions.ts
-      // ใช้กัน enumeration ตอน sendOTP)
+      // ใช้กัน enumeration ตอน login/ลืมรหัสผ่าน)
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
     if (FINISHED_STATUSES.includes(request.current_status)) {

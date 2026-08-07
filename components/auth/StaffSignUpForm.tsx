@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
 import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { PasswordInput } from '@/components/ui/password-input';
 
 interface StaffSignUpFormValues {
   employee_id: string;
@@ -14,6 +15,9 @@ interface StaffSignUpFormValues {
   department: string;
   sale_customer_types?: string | string[];
   sale_provinces?: string | string[];
+  // ★ ทุกแผนกต้องกรอก — ใช้ทั้งสำหรับ "ลืมรหัสผ่าน" (ส่ง OTP) และแจ้งเตือน sale
+  // เมื่อลูกค้าในเขตที่ดูแลส่งใบงานเข้ามา
+  email: string;
 }
 
 export function StaffSignUpForm() {
@@ -68,7 +72,7 @@ export function StaffSignUpForm() {
         {/* PASSWORD */}
         <div>
           <label className={labelStyle}>PASSWORD</label>
-          <input {...register("password", { required: "กรุณากำหนดรหัสผ่าน" })} type="password" className={inputStyle} placeholder="••••••••" />
+          <PasswordInput {...register("password", { required: "กรุณากำหนดรหัสผ่าน" })} className={inputStyle} placeholder="••••••••" />
           {errors.password && <p className={errorStyle}>{errors.password.message as string}</p>}
         </div>
 
@@ -77,6 +81,21 @@ export function StaffSignUpForm() {
           <label className={labelStyle}>ชื่อ-นามสกุล</label>
           <input {...register("full_name", { required: "กรุณากรอกชื่อ-นามสกุล" })} className={inputStyle} placeholder="ระบุชื่อ-นามสกุลจริง" />
           {errors.full_name && <p className={errorStyle}>{errors.full_name.message as string}</p>}
+        </div>
+
+        {/* อีเมล — ทุกแผนกต้องกรอก ใช้ทั้งส่ง OTP ตอน "ลืมรหัสผ่าน" และแจ้งเตือน sale */}
+        <div>
+          <label className={labelStyle}>อีเมล</label>
+          <input
+            type="email"
+            {...register('email', {
+              required: 'กรุณากรอกอีเมล',
+              pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'รูปแบบอีเมลไม่ถูกต้อง' },
+            })}
+            className={inputStyle}
+            placeholder="name@example.com"
+          />
+          {errors.email && <p className={errorStyle}>{errors.email.message as string}</p>}
         </div>
 
         {/* ฝ่ายงาน */}

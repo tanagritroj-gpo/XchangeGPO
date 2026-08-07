@@ -93,6 +93,7 @@ export interface StaffSessionInfo {
   department: string;
   sale_customer_types: string[] | null;
   sale_provinces: string[] | null;
+  email: string | null;
 }
 
 export interface ClientRow {
@@ -110,6 +111,9 @@ export interface ClientRow {
   b2b_customer_id: number | null;
   auth_user_id: string | null;
   org_type: string | null;
+  // ★ ใช้ server-side เท่านั้น (copy ไป b2b_customers ตอนอนุมัติ) — ห้าม select('*') แล้วส่ง
+  // ClientRow กลับไปหน้า client ตรงๆ โดยไม่กรองคอลัมน์นี้ออกก่อน (ดู getCSRDashboardData)
+  password_hash?: string | null;
 }
 
 // เท่ากับสิ่งที่ getPendingStaff() คืนจริง — select() เฉพาะคอลัมน์ที่หน้า

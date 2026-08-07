@@ -25,3 +25,10 @@ export const SALE_CUSTOMER_TYPE_OPTIONS = [
 export function expandToOrgTypes(buckets: string[]): string[] {
   return ORG_TYPE_OPTIONS.filter((o) => buckets.includes(o.bucket)).map((o) => o.value);
 }
+
+// ทิศทางกลับของ expandToOrgTypes — จาก org_type ดิบของหน่วยงาน (เช่น 'clinic') หา bucket
+// ('private'/'government') เพื่อจับคู่กับ sale_customer_types ของพนักงาน sale แต่ละคน
+// ใช้ตอนหา sale rep ที่ดูแลลูกค้ารายหนึ่งๆ (เช่น เลือกผู้รับอีเมลแจ้งเตือนตอนลูกค้าส่งใบงาน)
+export function bucketForOrgType(orgType: string | null | undefined): CustomerBucket | undefined {
+  return ORG_TYPE_OPTIONS.find((o) => o.value === orgType)?.bucket;
+}
