@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
 import { loginCustomerAction } from '@/app/actions/auth-actions';
+import { PasswordInput } from '@/components/ui/password-input';
 
 const GOOGLE_LOGIN_ERRORS: Record<string, string> = {
   'auth-failed': 'เชื่อมต่อกับ Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
@@ -234,8 +235,7 @@ function HomePageContent() {
                     placeholder="📧  อีเมล"
                     tabIndex={isCustomer ? undefined : -1}
                   />
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={customerPassword}
                     onChange={(e) => setCustomerPassword(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
@@ -290,8 +290,7 @@ function HomePageContent() {
                     placeholder="🪪  รหัสพนักงาน"
                     tabIndex={!isCustomer ? undefined : -1}
                   />
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { loginStaffAction } from '@/app/actions/auth-staff';
+import { PasswordInput } from '@/components/ui/password-input';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -44,7 +45,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-black text-foreground mb-6">LOGIN</h1>
         {error && <p className="text-red-500 text-xs mb-4 font-bold">{error}</p>}
         <input type="text" placeholder="Username" className="w-full p-4 mb-4 rounded-xl border border-border" value={username} onChange={(e) => setUsername(e.target.value)} required />
-        <input type="password" placeholder="Password" className="w-full p-4 mb-3 rounded-xl border border-border" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <PasswordInput placeholder="Password" className="w-full p-4 mb-3 rounded-xl border border-border" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <div className="text-right mb-6">
           <Link href="/admin/login/forgot-password" className="text-xs font-semibold text-muted-foreground hover:text-teal-700 transition-colors">
             ลืมรหัสผ่าน?

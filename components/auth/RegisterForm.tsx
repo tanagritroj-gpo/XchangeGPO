@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
+import { PasswordInput } from '@/components/ui/password-input';
 import { SOUTHERN_PROVINCES, ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 
 // หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
@@ -167,7 +168,7 @@ export function RegisterForm() {
             </div>
             <div className="mt-4">
               <label className={labelStyle}>ตั้งรหัสผ่าน</label>
-              <input type="password" {...register("password")} placeholder="อย่างน้อย 6 ตัวอักษร" className={inputStyle} />
+              <PasswordInput {...register("password")} placeholder="อย่างน้อย 6 ตัวอักษร" className={inputStyle} />
               {errors.password && <p className={errorStyle}>⚠ {errors.password.message as string}</p>}
             </div>
             <div className="mt-4">

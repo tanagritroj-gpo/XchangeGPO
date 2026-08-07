@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { IdCard, Mail, KeyRound, CheckCircle2, Home, Loader2, Clock } from 'lucide-react';
 import { requestStaffPasswordReset, resetStaffPassword } from '@/app/actions/auth-staff';
+import { PasswordInput } from '@/components/ui/password-input';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const OTP_VALIDITY_SECONDS = 5 * 60;
@@ -211,8 +212,7 @@ export default function ForgotPasswordPage() {
                     </div>
                     <div className="relative">
                       <KeyRound size={18} strokeWidth={2.25} className={iconStyle} />
-                      <input
-                        type="password"
+                      <PasswordInput
                         placeholder="รหัสผ่านใหม่"
                         className={inputStyle}
                         value={newPassword}
@@ -222,8 +222,7 @@ export default function ForgotPasswordPage() {
                     </div>
                     <div className="relative">
                       <KeyRound size={18} strokeWidth={2.25} className={iconStyle} />
-                      <input
-                        type="password"
+                      <PasswordInput
                         placeholder="ยืนยันรหัสผ่านใหม่"
                         className={inputStyle}
                         value={confirmPassword}

@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
 import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { PasswordInput } from '@/components/ui/password-input';
 
 interface StaffSignUpFormValues {
   employee_id: string;
@@ -71,7 +72,7 @@ export function StaffSignUpForm() {
         {/* PASSWORD */}
         <div>
           <label className={labelStyle}>PASSWORD</label>
-          <input {...register("password", { required: "กรุณากำหนดรหัสผ่าน" })} type="password" className={inputStyle} placeholder="••••••••" />
+          <PasswordInput {...register("password", { required: "กรุณากำหนดรหัสผ่าน" })} className={inputStyle} placeholder="••••••••" />
           {errors.password && <p className={errorStyle}>{errors.password.message as string}</p>}
         </div>
 
