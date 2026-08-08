@@ -76,7 +76,7 @@ function HomePageContent() {
         alert(res.error);
         setLoadingLogin(false);
       }
-    } catch (err) {
+    } catch {
       alert('เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่');
       setLoadingLogin(false);
     }
@@ -110,7 +110,7 @@ function HomePageContent() {
       } else {
         alert(result.error || "เข้าสู่ระบบไม่สำเร็จ");
       }
-    } catch (err) {
+    } catch {
       alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
       setLoadingLogin(false);

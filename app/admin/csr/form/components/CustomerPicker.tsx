@@ -151,7 +151,7 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
 
       {showResults && !loading && query.trim().length >= 2 && results.length === 0 && !error && (
         <div className="absolute z-20 mt-2 w-full bg-white rounded-2xl border border-slate-100 shadow-xl p-4 text-center">
-          <p className="text-sm text-muted-foreground font-medium">ไม่พบลูกค้าที่ตรงกับ "{query}"</p>
+          <p className="text-sm text-muted-foreground font-medium">ไม่พบลูกค้าที่ตรงกับ &quot;{query}&quot;</p>
         </div>
       )}
     </div>

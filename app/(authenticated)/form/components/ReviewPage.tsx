@@ -35,17 +35,6 @@ const renderExchangeList = (listStr: string) => {
   }
 };
 
-function SectionTitle({ icon, children }: { icon?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2.5 mb-5">
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
-        {icon ?? '📋'}
-      </div>
-      <span className="text-base font-black text-slate-800">{children}</span>
-    </div>
-  );
-}
-
 function ReviewRow({ label, value }: { label: string; value?: string | number }) {
   if (!value) return null;
   return (
@@ -215,6 +204,10 @@ if (status === 'success') {
           </div>
           <div className="px-6 py-6 flex flex-col items-center gap-2">
             <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
+              {/* eslint-disable-next-line @next/next/no-img-element -- signature_url คือ
+                  base64 data URI จาก canvas.toDataURL() (Step4Sign.tsx) ไม่ใช่ network fetch
+                  next/image ไม่มีประโยชน์ตรงนี้ (ไม่มี request ให้ optimize) แถมต้องบังคับ
+                  width/height ทั้งที่ลายเซ็นแต่ละคนสัดส่วนไม่เท่ากัน */}
               <img src={signature_url} alt="ลายเซ็น" className="max-h-20" />
             </div>
             <div className="text-center mt-2 border-t border-slate-100 pt-3 w-full">

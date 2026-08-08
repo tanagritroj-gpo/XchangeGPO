@@ -75,16 +75,19 @@ interface HomeLinkTarget {
   text: string;
 }
 
-// Finds <a href="...">...</a> tags whose visible text is one of the known
-// "back to home" phrases, and returns their static href target. Only
-// matches string-literal hrefs (href="/x" or href='/x') — dynamic hrefs
-// aren't the pattern this bug involved and can't be checked statically.
+// Finds <a href="...">...</a> and <Link href="...">...</Link> tags whose
+// visible text is one of the known "back to home" phrases, and returns
+// their static href target. Checks both tag names because the codebase
+// (correctly, per the no-html-link-for-pages lint rule) uses next/link's
+// <Link> for same-origin navigation like this, not a raw <a>. Only matches
+// string-literal hrefs (href="/x" or href='/x') — dynamic hrefs aren't the
+// pattern this bug involved and can't be checked statically.
 function homeLabeledLinks(source: string): HomeLinkTarget[] {
   const results: HomeLinkTarget[] = [];
-  const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/g;
+  const re = /<(a|Link)\b([^>]*)>([\s\S]*?)<\/\1>/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(source)) !== null) {
-    const [, attrs, inner] = match;
+    const [, , attrs, inner] = match;
     const isHomeLabel = HOME_LINK_PHRASES.some((phrase) => inner.includes(phrase));
     if (!isHomeLabel) continue;
     const hrefMatch = /href\s*=\s*(["'])(\/[^"'{]*)\1/.exec(attrs);

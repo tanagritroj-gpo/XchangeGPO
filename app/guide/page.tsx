@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, Fragment } from "react";
+import Link from "next/link";
 import {
   FileText,
   Mail,
@@ -251,13 +252,13 @@ export default function CustomerGuidePage() {
       {/* ================= TOP BAR (กลับสู่หน้าหลัก) ================= */}
       <div className="border-b border-border bg-white px-6 py-3">
         <div className="mx-auto max-w-5xl">
-          <a
+          <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-[#0E7C6B]"
           >
             <ArrowLeft className="h-4 w-4" />
             กลับสู่หน้าหลัก
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -619,13 +620,13 @@ export default function CustomerGuidePage() {
 
       {/* ================= ปุ่มกลับสู่หน้าหลัก (ท้ายเพจ) ================= */}
       <div className="flex justify-center pb-10">
-        <a
+        <Link
           href="/"
           className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-[#0E7C6B] hover:text-[#0E7C6B]"
         >
           <Home className="h-4 w-4" />
           กลับสู่หน้าหลัก
-        </a>
+        </Link>
       </div>
     </main>
   );

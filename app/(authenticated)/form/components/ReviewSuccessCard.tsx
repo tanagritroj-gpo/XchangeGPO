@@ -53,7 +53,6 @@ export function ReviewSuccessCard({
   getEmailRecipientsFn?: (requestId: number) => Promise<OrgContactsResult>;
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [copyLabel, setCopyLabel] = useState('คัดลอกเลขอ้างอิง');
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -72,7 +71,6 @@ export function ReviewSuccessCard({
       if (cancelled) return;
 
       if (result.success) {
-        setDownloadUrl(result.url);
         setPdfState('ready');
       } else {
         setErrorMsg(result.error);
@@ -83,7 +81,7 @@ export function ReviewSuccessCard({
     return () => {
       cancelled = true;
     };
-  }, [requestId]);
+  }, [requestId, generatePdfActionFn]);
 
   // 1b. โหลดรายชื่อผู้รับอีเมลของหน่วยงาน (เฉพาะเมื่อมี getEmailRecipientsFn ส่งมา — ฝั่ง CSR
   // เท่านั้น) พร้อมกับเตรียมเอกสารด้านบน — default เลือกทุกคนไว้ก่อน (พฤติกรรมใกล้เคียงเดิมที่
@@ -105,7 +103,7 @@ export function ReviewSuccessCard({
     return () => {
       cancelled = true;
     };
-  }, [requestId]);
+  }, [requestId, getEmailRecipientsFn]);
 
   const toggleRecipient = (email: string) => {
     setSelectedEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
@@ -118,7 +116,6 @@ export function ReviewSuccessCard({
     setErrorMsg('');
     const result = await generatePdfActionFn(requestId);
     if (result.success) {
-      setDownloadUrl(result.url);
       setPdfState('ready');
     } else {
       setErrorMsg(result.error);

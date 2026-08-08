@@ -67,7 +67,8 @@ function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: {
     ctx.lineJoin = 'round';
 
     setReady(true);
-  }, []); // ← รันครั้งเดียวตอน mount เท่านั้น ป้องกัน context ถูก reset ระหว่างกรอกฟอร์ม
+  }, [canvasRef]); // ← canvasRef เป็น ref stable ข้ามการ re-render อยู่แล้ว (useRef ที่ parent),
+  // ใส่ในนี้แค่ให้ผ่าน exhaustive-deps ไม่ได้ทำให้รันซ้ำ ยังรันครั้งเดียวตอน mount เท่านั้น
 
   const getPos = (e: CanvasPointerEvent) => {
     const rect = canvasRef.current!.getBoundingClientRect();
