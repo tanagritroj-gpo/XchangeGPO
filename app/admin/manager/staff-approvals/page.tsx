@@ -13,7 +13,6 @@ import {
   Loader2,
   ShieldCheck,
   BarChart3,
-  HelpCircle,
   FileSpreadsheet,
   Download,
   CalendarRange,
@@ -27,14 +26,14 @@ import {
 } from 'lucide-react';
 import { getPendingStaff, approveStaff, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
-import { getManagerStatusLogs, getUnansweredChatbotQuestions, getManagerRequestDetail } from '@/app/actions/manager-actions';
+import { getManagerStatusLogs, getManagerRequestDetail } from '@/app/actions/manager-actions';
 import ManagerInsights from './component/ManagerInsights';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import { filterCsrRequests } from '@/lib/csr-report-filters';
 import type { LucideIcon } from 'lucide-react';
-import type { RequestRow, PendingStaffRow, UnansweredQuestionRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
+import type { RequestRow, PendingStaffRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
 // ── โทนสีต่อหัวข้อ sidebar — รวมไว้จุดเดียวแทนที่จะส่ง bg/text แยกทีละ prop ต่อการเรียก
 // ให้ TabButton คำนวณ shadow แสงเรืองต่างๆ ต่อโทนเองได้ (เดิมส่งแค่ accentBg/accentColor
@@ -44,7 +43,6 @@ const TAB_ACCENTS = {
   violet: { bg: 'bg-violet-100', text: 'text-violet-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(124,58,237,0.4)]', bar: 'from-violet-400 to-violet-600', barGlow: 'shadow-[0_0_8px_rgba(139,92,246,0.7)]' },
   gold: { bg: 'bg-[#FBF0C8]', text: 'text-[#8A7420]', shadow: 'shadow-[0_10px_24px_-10px_rgba(138,116,32,0.35)]', bar: 'from-[#F4E27E] to-[#EAD94C]', barGlow: 'shadow-[0_0_8px_rgba(234,217,76,0.7)]' },
   teal: { bg: 'bg-teal-100', text: 'text-teal-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(13,148,136,0.4)]', bar: 'from-teal-400 to-teal-600', barGlow: 'shadow-[0_0_8px_rgba(45,212,191,0.7)]' },
-  slate: { bg: 'bg-slate-100', text: 'text-slate-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(71,85,105,0.35)]', bar: 'from-slate-400 to-slate-600', barGlow: 'shadow-[0_0_8px_rgba(100,116,139,0.6)]' },
 } as const;
 
 // ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard
@@ -93,7 +91,8 @@ function DownloadSubTabButton({ icon: Icon, label, active, onClick }: {
 }
 
 // tab ที่ยอมรับได้จาก query param ?tab= (ลิงก์มาจากการ์ดในหน้า hub — app/admin/manager/page.tsx)
-const VALID_TABS = ['staff', 'all', 'insights', 'downloads', 'chatbot'] as const;
+// 'chatbot' เดิมอยู่ตรงนี้ ย้ายไปเป็นหน้าแยกที่ CSR hub แล้ว (app/admin/csr/chatbot/page.tsx)
+const VALID_TABS = ['staff', 'all', 'insights', 'downloads'] as const;
 type ManagerTab = (typeof VALID_TABS)[number];
 
 function StaffApprovalPageInner() {
@@ -107,7 +106,6 @@ function StaffApprovalPageInner() {
   const [pendingStaff, setPendingStaff] = useState<PendingStaffRow[]>([]);
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
-  const [unansweredQuestions, setUnansweredQuestions] = useState<UnansweredQuestionRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   // id พนักงานที่กำลังกดอนุมัติอยู่ — กันปุ่มค้างไม่มี feedback ระหว่างรอ server action
@@ -128,17 +126,12 @@ function StaffApprovalPageInner() {
   const [singlePage, setSinglePage] = useState(1);
   const SINGLE_PAGE_SIZE = 10;
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setIsLoading(true);
-    const [staffResult, dashboardResult, statusLogsResult, unansweredResult] = await Promise.all([
+    const [staffResult, dashboardResult, statusLogsResult] = await Promise.all([
       getPendingStaff(),
       getCSRDashboardData(), // manager มีสิทธิ์เรียกอยู่แล้ว (getCSRSession อนุญาต department 'manager')
       getManagerStatusLogs(), // manager-only — ใช้คำนวณเวลาเฉลี่ยแต่ละขั้นตอน + เหตุผลปฏิเสธ
-      getUnansweredChatbotQuestions(), // manager-only — คำถามที่บอทลูกค้าตอบ "ไม่แน่ใจ"
     ]);
 
     if (staffResult.success) {
@@ -159,14 +152,12 @@ function StaffApprovalPageInner() {
       console.error("Error fetching status logs:", statusLogsResult.error);
     }
 
-    if (unansweredResult.success) {
-      setUnansweredQuestions(unansweredResult.data || []);
-    } else {
-      console.error("Error fetching unanswered chatbot questions:", unansweredResult.error);
-    }
-
     setIsLoading(false);
   };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleApprove = async (id: string) => {
     const confirmed = confirm("ยืนยันการอนุมัติพนักงานท่านนี้?");
@@ -256,7 +247,7 @@ function StaffApprovalPageInner() {
       <SkeletonTopBar />
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-          <SkeletonSidebarTabs count={5} />
+          <SkeletonSidebarTabs count={4} />
           <div className="flex-1 min-w-0">
             <SkeletonSimpleRows rows={4} />
           </div>
@@ -334,11 +325,6 @@ function StaffApprovalPageInner() {
                 icon={FileSpreadsheet} label="รายงานผู้บริหาร" count={allRequests.length}
                 active={activeTab === 'downloads'} onClick={() => setActiveTab('downloads')}
                 accent="teal"
-              />
-              <TabButton
-                icon={HelpCircle} label="คำถามที่บอทตอบไม่ได้" count={unansweredQuestions.length}
-                active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')}
-                accent="slate"
               />
             </nav>
           </aside>
@@ -665,48 +651,6 @@ function StaffApprovalPageInner() {
               </section>
             )}
 
-            {/* ── Tab 5: คำถามที่บอทลูกค้าตอบ "ไม่แน่ใจ" — ดูว่าควรเพิ่มเข้า FAQ_ENTRIES ไหม ── */}
-            {activeTab === 'chatbot' && (
-              <section>
-                <div className="flex items-center gap-2.5 mb-3 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                    <HelpCircle size={16} className="text-slate-600" strokeWidth={2.5} />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-foreground">คำถามที่บอทตอบไม่ได้</h2>
-                    <p className="text-[11px] text-muted-foreground">
-                      {unansweredQuestions.length} คำถามล่าสุดที่บอทลูกค้าตอบว่า "ไม่แน่ใจ" — ถ้าเจอคำถามซ้ำๆ ควรเพิ่มเข้า FAQ ใน lib/chatbot-knowledge.ts
-                    </p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-border overflow-hidden">
-                  {unansweredQuestions.length === 0 ? (
-                    <div className="py-12 text-center">
-                      <HelpCircle className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
-                      <p className="text-sm text-muted-foreground font-medium">ยังไม่มีคำถามที่บอทตอบไม่ได้</p>
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-100">
-                      {unansweredQuestions.map((q) => (
-                        <div key={q.id} className="px-4 md:px-6 py-4 space-y-1.5">
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="text-sm font-semibold text-foreground">{q.question}</p>
-                            <span className="text-[10px] text-muted-foreground shrink-0 whitespace-nowrap">
-                              {new Date(q.created_at).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
-                            </span>
-                          </div>
-                          {q.answer && (
-                            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{q.answer}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
           </div>
         </div>
       </div>
@@ -721,7 +665,7 @@ export default function StaffApprovalPage() {
         <SkeletonTopBar />
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
           <div className="flex flex-col md:flex-row gap-4 md:gap-8">
-            <SkeletonSidebarTabs count={5} />
+            <SkeletonSidebarTabs count={4} />
             <div className="flex-1 min-w-0"><SkeletonSimpleRows rows={4} /></div>
           </div>
         </div>

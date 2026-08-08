@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getCSRHubCounts } from '@/app/actions/csr-actions';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, Users, ArrowRight, LogOut, Loader2, BarChart3, FileSpreadsheet, Clock } from 'lucide-react';
+import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, Users, ArrowRight, LogOut, Loader2, BarChart3, FileSpreadsheet, Clock, HelpCircle } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -18,12 +18,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 // Download Center เป็น tile ใหม่ที่เพิ่มเข้ามาตาม request — แต่ยัง "อยู่ระหว่างการพัฒนา"
 // (placeholder เท่านั้น ไม่ลิงก์ไปไหน) ทำเป็น template ไว้รอออกแบบเนื้อหาจริงภายหลัง
 // (ดู pattern เดียวกันที่ Sale hub ใช้กับการ์ด "ศูนย์รายงาน — เร็วๆ นี้")
+//
+// การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายมาจาก manager hub ตาม request ผู้ใช้ — ใช้ server action
+// เดิม (getUnansweredChatbotQuestions ใน manager-actions.ts) เปลี่ยนแค่เกตสิทธิ์ให้ CSR เรียกได้
 export default function CsrHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [counts, setCounts] = useState<{ pendingClients: number; pendingReview: number } | null>(null);
+  const [counts, setCounts] = useState<{ pendingClients: number; pendingReview: number; unanswered: number } | null>(null);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -44,8 +47,8 @@ export default function CsrHubPage() {
       const result = await getCSRHubCounts();
       setCounts(
         result.success
-          ? { pendingClients: result.pendingClients, pendingReview: result.pendingReview }
-          : { pendingClients: 0, pendingReview: 0 }
+          ? { pendingClients: result.pendingClients, pendingReview: result.pendingReview, unanswered: result.unanswered }
+          : { pendingClients: 0, pendingReview: 0, unanswered: 0 }
       );
     }
     loadCounts();
@@ -230,6 +233,26 @@ export default function CsrHubPage() {
               <div className="min-w-0 flex-1">
                 <h2 className="text-sm font-black text-[#241F5E]">ศูนย์รายงาน (Report Center)</h2>
                 <p className="text-xs text-[#6B6698] truncate">สรุปสถิติและ Visual dashboard</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+          </Link>
+
+          {/* Tile: คำถามที่บอทตอบไม่ได้ — กว้าง 2/สูง 1 หน่วย โทนเทา เน้นตัวเลขค้างทบทวน
+              (ย้ายมาจาก manager hub — ใช้ logic/ดีไซน์เดิมทุกจุด) */}
+          <Link href="/admin/csr/chatbot" className="group block md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(107,102,152,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(107,102,152,0.4)] hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
+                <HelpCircle className="w-5 h-5 text-[#6B6698]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-1.5">
+                  คำถามที่บอทตอบไม่ได้
+                  {!!counts?.unanswered && (
+                    <span className="text-[10px] font-bold text-white bg-[#6B6698] px-1.5 py-0.5 rounded-full shrink-0">{fmt(counts.unanswered)}</span>
+                  )}
+                </h2>
+                <p className="text-xs text-[#6B6698] truncate">ทบทวนคำถามที่ตอบว่า &quot;ไม่แน่ใจ&quot;</p>
               </div>
               <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
             </div>

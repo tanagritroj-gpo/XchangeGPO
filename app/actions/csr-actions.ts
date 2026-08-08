@@ -63,30 +63,34 @@ export async function getCSRDashboardData() {
   }
 }
 
-// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ CSR (ลูกค้ารออนุมัติ/ใบงานรอตรวจสอบ) —
-// ใช้ count: 'exact', head: true ทั้งสองคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย ต่างจาก
+// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ CSR (ลูกค้ารออนุมัติ/ใบงานรอตรวจสอบ/คำถามบอทค้าง) —
+// ใช้ count: 'exact', head: true ทุกคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย ต่างจาก
 // getCSRDashboardData() ที่หน้า hub เคยเรียกไปดึง clients ทั้งหมด + requests join
 // drug_items ทั้งตาราง (order by created_at ไม่มี limit) แค่เพื่อเอา .length / filter
 // ฝั่ง JS มานับ — เปลืองทั้งเวลาและ payload มากเกินความจำเป็นสำหรับแค่ตัวเลขสองตัว
+// unanswered: การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายมาจาก manager hub แล้ว (เดิมนับที่
+// getManagerHubCounts ใน manager-actions.ts)
 export async function getCSRHubCounts(): Promise<
-  | { success: true; pendingClients: number; pendingReview: number }
+  | { success: true; pendingClients: number; pendingReview: number; unanswered: number }
   | { success: false; error: string }
 > {
   try {
     await getCSRSession();
 
-    const [pendingClientsRes, pendingReviewRes] = await Promise.all([
+    const [pendingClientsRes, pendingReviewRes, unansweredRes] = await Promise.all([
       supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'pending_review'),
+      supabaseAdmin.from('chatbot_unanswered_questions').select('id', { count: 'exact', head: true }),
     ]);
 
-    const firstError = pendingClientsRes.error || pendingReviewRes.error;
+    const firstError = pendingClientsRes.error || pendingReviewRes.error || unansweredRes.error;
     if (firstError) return { success: false, error: firstError.message };
 
     return {
       success: true,
       pendingClients: pendingClientsRes.count ?? 0,
       pendingReview: pendingReviewRes.count ?? 0,
+      unanswered: unansweredRes.count ?? 0,
     };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
