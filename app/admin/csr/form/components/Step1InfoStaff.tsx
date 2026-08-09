@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal } from 'lucide-react';
+import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal, Building2, Package, Check, FileText, Calendar, ArrowRight } from 'lucide-react';
 import { getStaffNextDocNumber } from '@/app/actions/staff-form-actions';
 import OrganizationPicker from './OrganizationPicker';
 import type { ReturnFormData } from '../../../../(authenticated)/form/form-types';
@@ -99,7 +99,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         <div className="absolute top-0 left-0 right-0 h-1.5 rounded-t-3xl" style={{ background: 'linear-gradient(90deg,#1a5c96,#1a7a45,#0f5132)' }} />
 
         <h2 className="text-base font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>🏥</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}><Building2 size={16} className="text-blue-700" /></div>
           หน่วยงานที่ยื่นคำร้อง
         </h2>
 
@@ -115,7 +115,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
         <h2 className="text-base font-black text-slate-800 mb-5 sm:mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>📦</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}><Package size={16} className="text-emerald-700" /></div>
           ประเภทการส่งคืน
         </h2>
 
@@ -133,7 +133,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
                     : 'border-transparent bg-slate-50 hover:bg-slate-100 hover:-translate-y-0.5'}`}
               >
                 {active && (
-                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white text-[11px] flex items-center justify-center font-black">✓</span>
+                  <span className="absolute top-2 right-2 w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center"><Check size={11} strokeWidth={3} /></span>
                 )}
                 <span className={`transition-transform duration-200 ${active ? 'scale-110' : ''}`}>{t.icon}</span>
                 <span className={`text-sm font-black text-center leading-tight ${active ? 'text-teal-700' : 'text-muted-foreground'}`}>{t.label}</span>
@@ -158,11 +158,11 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
         <div className="grid grid-cols-2 gap-4 pt-1">
           <div>
             <FieldLabel>เลขที่เอกสาร</FieldLabel>
-            <InfoBox><span className="inline-flex items-center gap-1.5"><span className="text-teal-500">📄</span>{docNumber}</span></InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5"><FileText size={15} className="text-teal-500" />{docNumber}</span></InfoBox>
           </div>
           <div>
             <FieldLabel>วันที่ทำรายการ</FieldLabel>
-            <InfoBox><span className="inline-flex items-center gap-1.5"><span className="text-teal-500">📅</span>{today}</span></InfoBox>
+            <InfoBox><span className="inline-flex items-center gap-1.5"><Calendar size={15} className="text-teal-500" />{today}</span></InfoBox>
           </div>
         </div>
       </div>
@@ -181,7 +181,7 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
       >
         <span className="flex items-center justify-center gap-2">
           ดำเนินการต่อ
-          <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
+          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
         </span>
       </button>
     </div>

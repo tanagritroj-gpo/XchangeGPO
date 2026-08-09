@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight, Mail, KeyRound, IdCard, Sparkles, Lock, Loader2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
@@ -228,22 +228,28 @@ function HomePageContent() {
                     <div className="w-1 h-4 rounded-full bg-teal-500" />
                     เข้าสู่ระบบ
                   </h2>
-                  <input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
-                    placeholder="📧  อีเมล"
-                    tabIndex={isCustomer ? undefined : -1}
-                  />
-                  <PasswordInput
-                    value={customerPassword}
-                    onChange={(e) => setCustomerPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
-                    placeholder="🔑  รหัสผ่าน"
-                    tabIndex={isCustomer ? undefined : -1}
-                  />
-                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition">
-                    {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
+                  <div className="relative">
+                    <Mail size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+                    <input
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
+                      placeholder="อีเมล"
+                      tabIndex={isCustomer ? undefined : -1}
+                    />
+                  </div>
+                  <div className="relative">
+                    <KeyRound size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none z-10" />
+                    <PasswordInput
+                      value={customerPassword}
+                      onChange={(e) => setCustomerPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-teal-400"
+                      placeholder="รหัสผ่าน"
+                      tabIndex={isCustomer ? undefined : -1}
+                    />
+                  </div>
+                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition flex items-center justify-center gap-2">
+                    {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังดำเนินการ...</> : 'เข้าสู่ระบบ →'}
                   </button>
                   <button
                     type="button"
@@ -283,22 +289,28 @@ function HomePageContent() {
                     <div className="w-1 h-4 rounded-full bg-blue-500" />
                     เข้าสู่ระบบ
                   </h2>
-                  <input
-                    value={empId}
-                    onChange={(e) => setEmpId(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
-                    placeholder="🪪  รหัสพนักงาน"
-                    tabIndex={!isCustomer ? undefined : -1}
-                  />
-                  <PasswordInput
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
-                    placeholder="🔑  รหัสผ่าน"
-                    tabIndex={!isCustomer ? undefined : -1}
-                  />
-                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition">
-                    {loadingLogin ? '⏳ กำลังดำเนินการ...' : 'เข้าสู่ระบบ →'}
+                  <div className="relative">
+                    <IdCard size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+                    <input
+                      value={empId}
+                      onChange={(e) => setEmpId(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                      placeholder="รหัสพนักงาน"
+                      tabIndex={!isCustomer ? undefined : -1}
+                    />
+                  </div>
+                  <div className="relative">
+                    <KeyRound size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none z-10" />
+                    <PasswordInput
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                      placeholder="รหัสผ่าน"
+                      tabIndex={!isCustomer ? undefined : -1}
+                    />
+                  </div>
+                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition flex items-center justify-center gap-2">
+                    {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังดำเนินการ...</> : 'เข้าสู่ระบบ →'}
                   </button>
                   <button
                     type="button"
@@ -316,9 +328,10 @@ function HomePageContent() {
                 </h2>
                 <button
                   onClick={() => window.location.href = isCustomer ? '/auth/customer-register' : '/auth/staff-register'}
-                  className="w-full py-3 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 shadow-md transition-all active:scale-[0.98]"
+                  className="w-full py-3 rounded-xl font-bold text-white text-sm bg-gradient-to-r from-orange-400 to-orange-500 hover:from-orange-500 hover:to-orange-600 shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                 >
-                  {isCustomer ? '✨ ลงทะเบียนลูกค้า' : '✨ ลงทะเบียนพนักงาน'}
+                  <Sparkles size={16} />
+                  {isCustomer ? 'ลงทะเบียนลูกค้า' : 'ลงทะเบียนพนักงาน'}
                 </button>
               </div>
             </div>
@@ -326,8 +339,12 @@ function HomePageContent() {
         </div>
       </div>
 
-      <footer className="w-full py-5 px-6 text-center text-muted-foreground text-xs">
-        © 2026 องค์การเภสัชกรรม • สาขาภาคใต้ &nbsp;|&nbsp; 🔒 PDPA Compliant &nbsp;|&nbsp; v2.0
+      <footer className="w-full py-5 px-6 text-center text-muted-foreground text-xs flex items-center justify-center gap-1.5 flex-wrap">
+        <span>© 2026 องค์การเภสัชกรรม • สาขาภาคใต้</span>
+        <span aria-hidden="true">|</span>
+        <span className="inline-flex items-center gap-1"><Lock size={11} /> PDPA Compliant</span>
+        <span aria-hidden="true">|</span>
+        <span>v2.0</span>
       </footer>
     </div>
   );

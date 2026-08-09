@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ReturnFormData } from '../form-types';
 
 interface StepProps {
@@ -14,11 +15,11 @@ const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-wh
 const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
 const selectCls   = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%230d9488\' stroke-width=\'1.5\' stroke-linecap=\'round\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_14px_center] bg-[length:18px] pr-10';
 
-function SectionTitle({ icon, children }: { icon?: string; children: React.ReactNode }) {
+function SectionTitle({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2.5 mb-5 sm:mb-6">
-      <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm shrink-0" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
-        {icon ?? '📋'}
+      <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm shrink-0 text-emerald-700" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
+        {icon ?? <ClipboardList size={16} />}
       </div>
       <span className="text-base font-black text-slate-800">{children}</span>
     </div>
@@ -34,20 +35,20 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function BadgeBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function BadgeBtn({ label, active, onClick }: { label: React.ReactNode; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        'relative px-4 sm:px-5 py-2.5 rounded-full text-base font-bold border-2 transition-all duration-200 active:scale-95',
+        'relative px-4 sm:px-5 py-2.5 rounded-full text-base font-bold border-2 transition-all duration-200 active:scale-95 inline-flex items-center gap-1.5',
         active
           ? 'border-transparent text-white shadow-lg -translate-y-0.5'
           : 'border-slate-200 bg-white text-muted-foreground hover:border-teal-300 hover:text-teal-600 hover:-translate-y-0.5'
       ].join(' ')}
       style={active ? { background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 8px 20px -6px rgba(26,122,69,0.5)' } : {}}
     >
-      {active && <span className="mr-1">✓</span>}{label}
+      {active && <Check size={15} strokeWidth={3} />}{label}
     </button>
   );
 }
@@ -124,7 +125,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
       <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
-        <SectionTitle icon="📝">เหตุผลการส่งคืน</SectionTitle>
+        <SectionTitle icon={<NotebookPen size={16} className="text-emerald-700" />}>เหตุผลการส่งคืน</SectionTitle>
 
         <div className="flex flex-col gap-5 sm:gap-6">
           <div className="flex flex-col gap-3">
@@ -168,8 +169,8 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                             : 'border-slate-100 bg-slate-50 hover:bg-slate-100 hover:border-slate-200'
                         ].join(' ')}
                       >
-                        <div className={`w-5 h-5 rounded-md flex items-center justify-center text-white text-xs font-black transition-all shrink-0 ${checked ? 'bg-teal-600' : 'bg-white border-2 border-slate-300'}`}>
-                          {checked && '✓'}
+                        <div className={`w-5 h-5 rounded-md flex items-center justify-center text-white transition-all shrink-0 ${checked ? 'bg-teal-600' : 'bg-white border-2 border-slate-300'}`}>
+                          {checked && <Check size={13} strokeWidth={3} />}
                         </div>
                         <input type="checkbox" checked={checked} onChange={() => toggleItem(d.drugName)} className="hidden" />
                         <span className={`text-base font-semibold ${checked ? 'text-teal-800' : 'text-slate-600'}`}>{d.drugName}</span>
@@ -196,7 +197,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
       <div className="relative bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 p-5 sm:p-7 overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#1a5c96,#1a7a45,#0f5132)' }} />
 
-        <SectionTitle icon="🚚">วิธีการส่งคืนสินค้า</SectionTitle>
+        <SectionTitle icon={<Truck size={16} className="text-emerald-700" />}>วิธีการส่งคืนสินค้า</SectionTitle>
 
         <div className="flex flex-col gap-4 sm:gap-5">
           <div className="flex flex-col gap-3">
@@ -206,7 +207,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
               {(['ขนส่ง', 'ผู้แทน'] as const).map(d => (
                 <BadgeBtn
                   key={d}
-                  label={d === 'ขนส่ง' ? '🚚 โดยบริษัทขนส่ง' : '🤝 จัดส่งผ่านผู้แทน'}
+                  label={d === 'ขนส่ง' ? <><Truck size={16} /> โดยบริษัทขนส่ง</> : <><Handshake size={16} /> จัดส่งผ่านผู้แทน</>}
                   active={deliveryType === d}
                   onClick={() => setDeliveryType(d)}
                 />
@@ -216,7 +217,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
 
           {deliveryType === 'ขนส่ง' && (
             <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-              <p className="text-sm font-black text-muted-foreground flex items-center gap-1.5">📍 ที่อยู่สำหรับไปรับสินค้า</p>
+              <p className="text-sm font-black text-muted-foreground flex items-center gap-1.5"><MapPin size={15} /> ที่อยู่สำหรับไปรับสินค้า</p>
               <div className="flex flex-col gap-1.5">
                 <FieldLabel>เลขที่ / ถนน</FieldLabel>
                 <input value={addrStreet} onChange={e => setAddrStreet(e.target.value)} placeholder="เลขที่ / หมู่ / ถนน" className={inputCls} />
@@ -260,7 +261,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
           onClick={back}
           className="group py-4 rounded-2xl font-black text-base text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
-          <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform duration-200" /> ย้อนกลับ
         </button>
         <button
           type="button"
@@ -269,7 +270,7 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
           className="group py-4 rounded-2xl font-black text-white text-base transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
           style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
-          ดำเนินการต่อ <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
+          ดำเนินการต่อ <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
         </button>
       </div>
     </div>

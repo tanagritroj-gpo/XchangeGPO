@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ClipboardList, Pill, Package, Tag, Calendar, PenLine, ArrowLeft, Loader2, CheckCircle2, AlertTriangle, Check } from 'lucide-react';
 import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult, type OrgContactsResult } from './ReviewSuccessCard';
 import type { ReturnFormData } from '../form-types';
 import { getErrorMessage } from '@/lib/error-message';
@@ -47,7 +48,7 @@ function ReviewRow({ label, value }: { label: string; value?: string | number })
   );
 }
 
-function ReviewCard({ title, gradient, children }: { title: string; gradient: string; children: React.ReactNode }) {
+function ReviewCard({ title, gradient, children }: { title: React.ReactNode; gradient: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
       <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: gradient }}>
@@ -138,7 +139,7 @@ if (status === 'success') {
       </div>
 
       {/* ══ ข้อมูลหน่วยงาน ══ */}
-      <ReviewCard title="📋 ข้อมูลหน่วยงาน" gradient="linear-gradient(90deg,#0f5132,#1a7a45)">
+      <ReviewCard title={<><ClipboardList size={17} /> ข้อมูลหน่วยงาน</>} gradient="linear-gradient(90deg,#0f5132,#1a7a45)">
         <ReviewRow label="ประเภทรายการ" value={sender?.request_type} />
         <ReviewRow label="หน่วยงาน" value={sender?.hospital_name} />
         <ReviewRow label="ผู้ส่งคืน" value={displaySignerName} />
@@ -148,7 +149,7 @@ if (status === 'success') {
       {/* ══ รายการยา ══ */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
         <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#be123c,#f43f5e)' }}>
-          💊 รายการยาและเวชภัณฑ์
+          <Pill size={17} /> รายการยาและเวชภัณฑ์
           <span className="ml-auto bg-white/20 px-2.5 py-0.5 rounded-full text-xs">{items?.length ?? 0} รายการ</span>
         </div>
         <div className="px-6 py-4 flex flex-col gap-2.5">
@@ -161,9 +162,9 @@ if (status === 'success') {
               <div className="flex-1">
                 <p className="font-black text-base text-slate-900">{d.drugName}</p>
                 <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span>📦 {d.qty} {d.unit}</span>
-                  <span>🏷️ Lot: {d.lot}</span>
-                  <span>📅 Exp: {d.exp}</span>
+                  <span className="inline-flex items-center gap-1"><Package size={13} /> {d.qty} {d.unit}</span>
+                  <span className="inline-flex items-center gap-1"><Tag size={13} /> Lot: {d.lot}</span>
+                  <span className="inline-flex items-center gap-1"><Calendar size={13} /> Exp: {d.exp}</span>
                 </p>
               </div>
             </div>
@@ -176,7 +177,7 @@ if (status === 'success') {
       </div>
 
       {/* ══ เหตุผลและวิธีส่งคืน ══ */}
-      <ReviewCard title="📦 เหตุผลและวิธีส่งคืน" gradient="linear-gradient(90deg,#6d28d9,#9333ea)">
+      <ReviewCard title={<><Package size={17} /> เหตุผลและวิธีส่งคืน</>} gradient="linear-gradient(90deg,#6d28d9,#9333ea)">
         <ReviewRow label="เหตุผล" value={return_reason} />
 
         {/* เช็คถ้ามีรายการแลกเปลี่ยนถึงค่อยแสดงผล */}
@@ -200,7 +201,7 @@ if (status === 'success') {
       {signature_url && (
         <div className="bg-white rounded-3xl border border-slate-100 shadow-md shadow-slate-100/60 overflow-hidden">
           <div className="px-6 py-3.5 font-black text-base text-white flex items-center gap-2" style={{ background: 'linear-gradient(90deg,#b45309,#d97706)' }}>
-            ✍️ ลายมือชื่อผู้ส่งคืน
+            <PenLine size={17} /> ลายมือชื่อผู้ส่งคืน
           </div>
           <div className="px-6 py-6 flex flex-col items-center gap-2">
             <div className="bg-gradient-to-br from-slate-50 to-amber-50/30 rounded-2xl border-2 border-dashed border-amber-100 px-8 py-4">
@@ -226,7 +227,7 @@ if (status === 'success') {
           disabled={loading}
           className="group py-4 rounded-2xl font-black text-base text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform duration-200" /> ย้อนกลับ
         </button>
         <button
           type="button"
@@ -236,8 +237,8 @@ if (status === 'success') {
           style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: loading ? 'none' : '0 10px 25px -8px rgba(26,122,69,0.45)' }}
         >
           {loading
-            ? <><span className="animate-spin">⏳</span> กำลังบันทึก...</>
-            : <>✅ ยืนยันและส่งแบบฟอร์ม</>
+            ? <><Loader2 size={16} className="animate-spin" /> กำลังบันทึก...</>
+            : <><CheckCircle2 size={16} /> ยืนยันและส่งแบบฟอร์ม</>
           }
         </button>
       </div>
@@ -251,9 +252,9 @@ if (status === 'success') {
 
             <div className="p-7 text-center">
               <div
-                className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 shadow-md"
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md text-amber-600"
                 style={{ background: 'linear-gradient(135deg,#fef3c7,#fde68a)' }}
-              >⚠️</div>
+              ><AlertTriangle size={28} /></div>
 
               <h3 className="text-lg font-black text-slate-800 mb-2">ยืนยันการส่งแบบฟอร์ม</h3>
               <p className="text-base text-muted-foreground leading-relaxed mb-6">
@@ -265,17 +266,17 @@ if (status === 'success') {
                 <button
                   type="button"
                   onClick={() => setShowConfirm(false)}
-                  className="py-3.5 rounded-2xl font-black text-base text-muted-foreground bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98]"
+                  className="py-3.5 rounded-2xl font-black text-base text-muted-foreground bg-slate-50 border-2 border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] inline-flex items-center justify-center gap-1.5"
                 >
-                  ← ย้อนกลับ
+                  <ArrowLeft size={15} /> ย้อนกลับ
                 </button>
                 <button
                   type="button"
                   onClick={handleSubmit}
-                  className="py-3.5 rounded-2xl font-black text-base text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5"
+                  className="py-3.5 rounded-2xl font-black text-base text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 inline-flex items-center justify-center gap-1.5"
                   style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: '0 8px 20px -6px rgba(26,122,69,0.45)' }}
                 >
-                  ✓ ยืนยัน
+                  <Check size={15} strokeWidth={3} /> ยืนยัน
                 </button>
               </div>
             </div>

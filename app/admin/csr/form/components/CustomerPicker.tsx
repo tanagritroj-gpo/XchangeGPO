@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { Check, Phone } from 'lucide-react';
 import { searchB2BCustomers } from '@/app/actions/staff-form-actions';
 
 interface Customer {
@@ -89,15 +90,15 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-black text-teal-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
-              <span className="w-4 h-4 rounded-full bg-teal-500 text-white text-[11px] flex items-center justify-center">✓</span>
+              <span className="w-4 h-4 rounded-full bg-teal-500 text-white flex items-center justify-center"><Check size={10} strokeWidth={3} /></span>
               ลูกค้าที่เลือก
             </p>
             <p className="text-base font-black text-slate-800">{selected.hospital_name}</p>
             {selected.position && (
               <p className="text-sm text-muted-foreground mt-0.5">{selected.position}</p>
             )}
-            <p className="text-sm text-muted-foreground mt-0.5">
-              📞 {selected.phone || '-'}
+            <p className="text-sm text-muted-foreground mt-0.5 inline-flex items-center gap-1">
+              <Phone size={13} /> {selected.phone || '-'}
             </p>
           </div>
           <button

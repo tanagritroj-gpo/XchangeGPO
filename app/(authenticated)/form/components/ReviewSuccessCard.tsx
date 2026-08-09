@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Loader2, Download, Copy, Check, Mail, ArrowRight, X } from 'lucide-react';
 import { generatePdfAction } from '@/app/actions/generate-pdf-action';
-import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action'; 
+import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action';
 
 type PdfState = 'preparing' | 'ready' | 'error';
 export type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
@@ -54,7 +55,7 @@ export function ReviewSuccessCard({
 }) {
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
   const [errorMsg, setErrorMsg] = useState('');
-  const [copyLabel, setCopyLabel] = useState('คัดลอกเลขอ้างอิง');
+  const [copied, setCopied] = useState(false);
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [downloading, setDownloading] = useState(false);
   const [docModalUrl, setDocModalUrl] = useState<string | null>(null);
@@ -146,8 +147,8 @@ export function ReviewSuccessCard({
   // 4. ฟังก์ชันคัดลอกเลข Ref
   const handleCopyRef = async () => {
     await navigator.clipboard.writeText(refId);
-    setCopyLabel('คัดลอกแล้ว ✓');
-    setTimeout(() => setCopyLabel('คัดลอกเลขอ้างอิง'), 2000);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   // 5. ฟังก์ชันส่งอีเมล — ฝั่ง CSR ส่งเฉพาะผู้รับที่ติ๊กเลือกไว้ (getEmailRecipientsFn ให้มา)
@@ -179,10 +180,10 @@ export function ReviewSuccessCard({
 
         <div className="flex flex-col items-center gap-5 py-10 px-8 text-center">
           <div
-            className="w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-lg"
+            className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg ${pdfState === 'error' ? 'text-amber-600' : 'text-emerald-700'}`}
             style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}
           >
-            {pdfState === 'error' ? '⚠️' : '✅'}
+            {pdfState === 'error' ? <AlertTriangle size={28} /> : <CheckCircle2 size={28} />}
           </div>
 
           <div>
@@ -220,7 +221,7 @@ export function ReviewSuccessCard({
           {/* ── ส่วนแสดงสถานะ PDF ── */}
           {pdfState === 'preparing' && (
             <div className="w-full py-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center gap-2 text-base font-bold text-muted-foreground">
-              <span className="animate-spin">⏳</span> กำลังจัดเตรียมเอกสาร…
+              <Loader2 size={18} className="animate-spin" /> กำลังจัดเตรียมเอกสาร…
             </div>
           )}
 
@@ -243,7 +244,7 @@ export function ReviewSuccessCard({
                 disabled={downloading}
                 className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
               >
-                {downloading ? <span className="animate-spin">⏳</span> : '📥'} ดาวน์โหลดใบรับคืน (PDF)
+                {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} ดาวน์โหลดใบรับคืน (PDF)
               </button>
 
               {/* ── เลือกผู้รับอีเมล — เฉพาะฝั่ง CSR (getEmailRecipientsFn) เมื่อหน่วยงานนี้มี
@@ -285,9 +286,9 @@ export function ReviewSuccessCard({
               <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
-                  className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all"
+                  className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all flex items-center justify-center gap-1.5"
                 >
-                  📋 {copyLabel}
+                  {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'คัดลอกแล้ว' : 'คัดลอกเลขอ้างอิง'}
                 </button>
                 {/* ปุ่มส่งอีเมล — ซ่อนทั้งบล็อกถ้า allowEmail=false (ฝั่ง staff ไม่ต้องส่งอีเมล)
                     เงื่อนไข disabled แยกสองแบบ: ฝั่ง CSR (getEmailRecipientsFn) เช็คว่ามีผู้รับ
@@ -296,12 +297,12 @@ export function ReviewSuccessCard({
                   <button
                     onClick={handleEmailCopy}
                     disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
-                    className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50"
+                    className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
-                    {emailState === 'sending' && '⏳ กำลังส่ง…'}
-                    {emailState === 'sent' && '✓ ส่งแล้ว'}
+                    {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
+                    {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
                     {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
-                    {emailState === 'idle' && '✉️ ส่งเข้าอีเมล'}
+                    {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
                   </button>
                 )}
               </div>
@@ -311,9 +312,9 @@ export function ReviewSuccessCard({
               {showTrackingLink && (
                 <a
                   href={`/customer/tracking?ref=${refId}`}
-                  className="text-center text-sm font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1"
+                  className="text-center text-sm font-bold text-teal-600 hover:text-teal-700 underline underline-offset-2 mt-1 inline-flex items-center justify-center gap-1"
                 >
-                  ติดตามสถานะคำร้องนี้ →
+                  ติดตามสถานะคำร้องนี้ <ArrowRight size={14} />
                 </a>
               )}
             </div>
@@ -352,14 +353,14 @@ export function ReviewSuccessCard({
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
                 >
-                  📥 เปิดในแท็บใหม่ / ดาวน์โหลด
+                  <Download size={14} /> เปิดในแท็บใหม่ / ดาวน์โหลด
                 </a>
                 <button
                   onClick={() => setDocModalUrl(null)}
                   className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-slate-600 transition-all"
                   aria-label="ปิด"
                 >
-                  ✕
+                  <X size={16} />
                 </button>
               </div>
             </div>
