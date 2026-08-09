@@ -39,7 +39,7 @@ import type { RequestRow, DrugItemRow } from '@/lib/types';
 // (pingRequestAttention/generatePdfAction เช็ค getCustomerSession() ภายใน) จึงใช้ไม่ได้
 // กับ manager เลย — ควบคุมด้วย showPingButton/showPdfDownload แทนการ fork ทั้งไฟล์ ==
 
-// รูปแบบข้อมูลที่ทั้ง trackMyRequestByRefId() และ getRequestTrackingForManager()
+// รูปแบบข้อมูลที่ทั้ง trackMyRequestByRefId() และ getRequestTrackingForStaff()
 // (ทั้งคู่ private, ต้อง login) คืนจริง — request เต็มทุกคอลัมน์ + timeline พร้อม staff_remark
 export interface PrivateTrackingDetail extends RequestRow {
   timeline: { status_name: string; log_date: string | null; staff_remark: string | null; drug_item_id: number | null; drug_name: string | null }[];
@@ -77,9 +77,9 @@ function PingButton({
   pingState: {
     canPing: boolean;
     onCooldown: boolean;
-    cooldownRemainingHours: number;
+    cooldownRemainingMinutes: number;
   } | null;
-  onPinged: (result: { canPing: boolean; onCooldown: boolean; cooldownRemainingHours: number }) => void;
+  onPinged: (result: { canPing: boolean; onCooldown: boolean; cooldownRemainingMinutes: number }) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,8 +95,9 @@ function PingButton({
         setError(result.error ?? 'เกิดข้อผิดพลาด');
         return;
       }
-      // กดสำเร็จ — สลับเป็นสถานะ cooldown ทันทีโดยไม่ต้องรอ fetch ใหม่
-      onPinged({ canPing: false, onCooldown: true, cooldownRemainingHours: 6 });
+      // กดสำเร็จ — สลับเป็นสถานะ cooldown ทันทีโดยไม่ต้องรอ fetch ใหม่ (60 นาที = cooldown เต็ม
+      // เพิ่งกดไปหมาดๆ ตรงกับ PING_COOLDOWN_MS ใน ping-actions.ts)
+      onPinged({ canPing: false, onCooldown: true, cooldownRemainingMinutes: 60 });
     } catch {
       setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
@@ -112,7 +113,7 @@ function PingButton({
           แจ้งแล้ว
         </span>
         <p className="mt-1 text-[11px] text-muted-foreground">
-          แจ้งซ้ำได้ในอีกประมาณ {pingState.cooldownRemainingHours} ชม.
+          แจ้งซ้ำได้ในอีกประมาณ {pingState.cooldownRemainingMinutes} นาที
         </p>
       </div>
     );
@@ -177,7 +178,7 @@ function PdfDownloadBadge({ requestId, onOpen }: { requestId: number; onOpen: (u
 
 export interface TrackingDetailViewProps {
   /** ดึงรายละเอียดคำร้อง — trackMyRequestByRefId (ลูกค้า, scope หน่วยงานตัวเอง) หรือ
-   *  getRequestTrackingForManager (manager, เห็นได้ทุกใบงาน) */
+   *  getRequestTrackingForStaff (manager/CSR, เห็นได้ทุกใบงาน) */
   fetchFn: (refId: string) => Promise<FetchResult>;
   heading: string;
   subheading: string;
@@ -206,7 +207,7 @@ function TrackingContent({
   const [pingState, setPingState] = useState<{
     canPing: boolean;
     onCooldown: boolean;
-    cooldownRemainingHours: number;
+    cooldownRemainingMinutes: number;
   } | null>(null);
   const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null);
 
@@ -232,7 +233,7 @@ function TrackingContent({
             setPingState({
               canPing: status.canPing ?? false,
               onCooldown: status.onCooldown ?? false,
-              cooldownRemainingHours: status.cooldownRemainingHours ?? 0,
+              cooldownRemainingMinutes: status.cooldownRemainingMinutes ?? 0,
             });
           }
         }

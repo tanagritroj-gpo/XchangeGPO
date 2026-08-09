@@ -5,25 +5,51 @@ import { createPortal } from 'react-dom';
 import { Bell, X } from 'lucide-react';
 import {
   getUnreadNotificationCount,
-  getUnreadNotifications,
+  getRecentNotifications,
   markNotificationsAsRead,
+  getUnreadNotificationCountForManager,
+  getRecentNotificationsForManager,
+  markNotificationsAsReadForManager,
+  getUnreadNotificationCountForLog,
+  getRecentNotificationsForLog,
+  markNotificationsAsReadForLog,
+  getUnreadNotificationCountForWh,
+  getRecentNotificationsForWh,
+  markNotificationsAsReadForWh,
   getUnreadNotificationCountForSale,
-  getUnreadNotificationsForSale,
+  getRecentNotificationsForSale,
   markNotificationsAsReadForSale,
 } from '@/app/actions/notification-actions';
 import type { NotificationLogRow } from '@/lib/types';
 
-// สลับชุด action ตาม scope — CSR เห็นทุกแจ้งเตือน, Sale เห็นเฉพาะหน่วยงานในเขตที่ดูแล
-// (กรองที่ฝั่ง server อยู่แล้ว ดู notification-actions.ts) และมีสถานะ "อ่านแล้ว" แยกจากกัน
+// สลับชุด action ตาม scope — csr/manager/log/wh เห็นทุกแจ้งเตือนเหมือนกันหมด (ไม่กรอง),
+// sale เห็นเฉพาะหน่วยงานในเขตที่ดูแล (กรองที่ฝั่ง server อยู่แล้ว ดู notification-actions.ts)
+// ทุก scope มีสถานะ "อ่านแล้ว" เป็นอิสระจากกันเสมอ — เปิดอ่าน scope หนึ่งไม่กระทบ badge
+// ของ scope อื่นเลย
 const ACTIONS_BY_SCOPE = {
   csr: {
     getCount: getUnreadNotificationCount,
-    getList: getUnreadNotifications,
+    getList: getRecentNotifications,
     markRead: markNotificationsAsRead,
+  },
+  manager: {
+    getCount: getUnreadNotificationCountForManager,
+    getList: getRecentNotificationsForManager,
+    markRead: markNotificationsAsReadForManager,
+  },
+  log: {
+    getCount: getUnreadNotificationCountForLog,
+    getList: getRecentNotificationsForLog,
+    markRead: markNotificationsAsReadForLog,
+  },
+  wh: {
+    getCount: getUnreadNotificationCountForWh,
+    getList: getRecentNotificationsForWh,
+    markRead: markNotificationsAsReadForWh,
   },
   sale: {
     getCount: getUnreadNotificationCountForSale,
-    getList: getUnreadNotificationsForSale,
+    getList: getRecentNotificationsForSale,
     markRead: markNotificationsAsReadForSale,
   },
 } as const;
@@ -32,22 +58,21 @@ const ACTIONS_BY_SCOPE = {
 const POLL_INTERVAL_MS = 45_000;
 
 // สีจุดกำกับแต่ละประเภท — ให้กวาดตาแยกความเร่งด่วนได้ไวโดยไม่ต้องอ่านข้อความก่อน
-// (ping = แดง เร่งด่วนสุด, new_request = น้ำเงิน, new_client = เหลืองทอง)
+// (ping = แดง เร่งด่วนสุด, new_request = น้ำเงิน, new_client = เหลืองทอง) ใช้เฉพาะรายการ
+// ที่ยังไม่อ่านเท่านั้น — รายการที่อ่านแล้วลดโทนเป็นจุดเทากลางๆ ตามรูปแบบ read/unread ด้านล่าง
 const TYPE_DOT_COLOR: Record<NotificationLogRow['type'], string> = {
   ping: 'bg-red-500',
   new_request: 'bg-blue-500',
   new_client: 'bg-amber-500',
 };
 
-function formatRelativeTime(dateStr: string) {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return 'เมื่อสักครู่';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ชม. ที่แล้ว`;
-  const days = Math.floor(hours / 24);
-  return `${days} วันที่แล้ว`;
+// วันที่ + เวลาแบบเต็ม (ไม่ใช่ relative time) — รายการล่าสุด 10 อันอาจย้อนไปหลายวัน relative
+// time เพียวๆ จะเริ่มกำกวม ("3 วันที่แล้ว" ตอนไหน?) จึงโชว์วันที่/เวลาจริงเสมอ อ่านชัดเจนกว่า
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr);
+  const datePart = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+  const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart} · ${timePart} น.`;
 }
 
 // ข้อความแต่ละประเภท — เพิ่มประเภทใหม่ในอนาคตแค่เพิ่ม case ตรงนี้กับ TYPE_DOT_COLOR ด้านบน
@@ -78,6 +103,14 @@ function renderNotificationText(n: NotificationLogRow) {
  * สิทธิ์เช็คผ่าน getManagerOrCsrSession()/getSaleCoverage() ที่ฝั่ง server action ตาม
  * scope เหมือนเดิมทุกจุด ไม่มี concept "อ่านแยกตามคน" (แค่แยกระดับ role/scope) เปิด drawer
  * นี้ = mark ทุกรายการที่ค้างในขอบเขตของตัวเองเป็นอ่านแล้วทันที
+ *
+ * ── รายการที่แสดง: 10 อันล่าสุดเสมอ ไม่ใช่แค่ที่ยังไม่อ่าน ──
+ * เดิม list จะหายไปทันทีที่เปิด drawer (เพราะกรองเฉพาะ unread) เปลี่ยนเป็น feed กิจกรรม
+ * ล่าสุดแบบแอปแจ้งเตือนทั่วไป — แต่ละแถวมี n.isUnread (คำนวณฝั่ง server ตอน fetch แนบมา
+ * กับ NotificationLogRow) ใช้ไฮไลต์รายการที่ยังไม่อ่าน ณ ตอนเปิด drawer ครั้งนี้ (พื้นหลัง
+ * ติดสี + ตัวหนา + จุดสีตามประเภท + ป้าย "ใหม่") แยกจากรายการที่อ่านแล้ว (พื้นขาว + ตัว
+ * ปกติ + จุดเทา) — ค่านี้เป็น snapshot ตอน fetch เท่านั้น ไม่ re-render ให้จางลงหลัง
+ * markRead() เสร็จ กันไม่ให้กะพริบระหว่างที่ผู้ใช้กำลังอ่านอยู่ในรอบเดียวกัน
  *
  * ── Presentation: drawer เดียวกันทุกขนาดจอ ──
  * เดิมเคยแยก 2 แบบ (dropdown เล็กใต้ปุ่มบนจอกว้าง / drawer เต็มจอทางขวาบนจอแคบ) แต่ dropdown
@@ -171,7 +204,8 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
     }
   };
 
-  // ── เนื้อหารายการแจ้งเตือนภายใน drawer ──
+  // ── เนื้อหารายการแจ้งเตือนภายใน drawer ── read/unread ต่างกันชัดเจน 3 ชั้น: พื้นหลัง
+  // ติดสี, น้ำหนักตัวอักษร, สีจุดกำกับประเภท — ป้าย "ใหม่" เสริมอีกชั้นให้ชัวร์ไม่พลาด
   const notificationList = (
     <div className="max-h-full overflow-y-auto">
       {isLoadingNotifications ? (
@@ -179,16 +213,34 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
       ) : notifications.length === 0 ? (
         <div className="py-8 text-center">
           <Bell className="w-7 h-7 text-slate-300 mx-auto mb-2" strokeWidth={1.75} />
-          <p className="text-xs text-muted-foreground font-medium">ไม่มีการแจ้งเตือนใหม่</p>
+          <p className="text-xs text-muted-foreground font-medium">ยังไม่มีการแจ้งเตือน</p>
         </div>
       ) : (
         <div className="divide-y divide-slate-100">
           {notifications.map((n) => (
-            <div key={n.id} className="flex items-start gap-3 px-4 py-3">
-              <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${TYPE_DOT_COLOR[n.type]}`} />
+            <div
+              key={n.id}
+              className={`flex items-start gap-3 px-4 py-3 ${n.isUnread ? 'bg-[#ECEAF6]/50' : ''}`}
+            >
+              <span
+                className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.isUnread ? TYPE_DOT_COLOR[n.type] : 'bg-slate-300'}`}
+              />
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-foreground">{renderNotificationText(n)}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{formatRelativeTime(n.created_at)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p
+                    className={`text-xs leading-relaxed ${
+                      n.isUnread ? 'font-bold text-[#241F5E]' : 'font-medium text-[#6B6698]'
+                    }`}
+                  >
+                    {renderNotificationText(n)}
+                  </p>
+                  {n.isUnread && (
+                    <span className="shrink-0 text-[9px] font-bold text-[#2E2B7A] bg-[#ECEAF6] px-1.5 py-0.5 rounded-full">
+                      ใหม่
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-[#A7A2C4] mt-1">{formatDateTime(n.created_at)}</p>
               </div>
             </div>
           ))}
@@ -230,7 +282,10 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
             }`}
           >
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 shrink-0">
-              <p className="text-sm font-bold text-[#241F5E]">การแจ้งเตือน</p>
+              <div>
+                <p className="text-sm font-bold text-[#241F5E]">การแจ้งเตือน</p>
+                <p className="text-[10px] text-[#A7A2C4]">10 รายการล่าสุด</p>
+              </div>
               <button
                 onClick={() => setOpen(false)}
                 aria-label="ปิดการแจ้งเตือน"

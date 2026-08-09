@@ -1,43 +1,95 @@
 'use server';
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
-import { getManagerOrCsrSession } from './manager-actions';
+import { getStaffSession } from './auth-staff';
+import { getManagerSession, getManagerOrCsrSession } from './manager-actions';
 import { getSaleCoverage } from './sale-actions';
 import { getErrorMessage } from '@/lib/error-message';
+import type { NotificationLogRow } from '@/lib/types';
 
 const NOTIFICATION_COLUMNS = 'id, type, request_id, ref_id, contact_name, hospital_name, created_at';
 
+// เลือกคอลัมน์ read_by_*_at ทุกตัวแบบ static เสมอ (ไม่ประกอบ column name แบบ dynamic ใน
+// .select()) เพราะ supabase-js parse select string เป็น type ตอน compile — string ที่ไม่ใช่
+// literal ตรงๆ (เช่น READ_AT_COLUMN[scope]) จะกลาย เป็น ParserError แทน จากนั้นค่อยหยิบ
+// คอลัมน์ที่ตรงกับ scope ออกมาเองฝั่ง JS ใน toDisplayRow (index เข้า object ธรรมดา ไม่ผ่าน
+// type parser ของ supabase แล้ว จึงไม่มีปัญหาเดียวกัน)
+const ALL_READ_AT_COLUMNS = 'read_by_csr_at, read_by_manager_at, read_by_log_at, read_by_wh_at, read_by_sale_at';
+
+// จำนวนรายการล่าสุดที่แสดงใน drawer — ไม่ผูกกับสถานะอ่านแล้ว/ยังไม่อ่าน (ดูด้านล่าง)
+const RECENT_LIMIT = 10;
+
+function toDisplayRow(row: Record<string, unknown>, readAtColumn: string): NotificationLogRow {
+  const { [readAtColumn]: readAt, ...rest } = row;
+  return { ...(rest as Omit<NotificationLogRow, 'isUnread'>), isUnread: readAt == null };
+}
+
 /**
- * Server actions สำหรับ "ศูนย์แจ้งเตือน" (NotificationBell) — อ่าน/mark อ่านจาก
- * notification_log ตารางรวม ครอบคลุมทุก type (ping, new_request, new_client, ...)
+ * Server actions สำหรับ "ศูนย์แจ้งเตือน" (NotificationBell) — อ่านจาก notification_log
+ * ตารางรวม ครอบคลุมทุก type (ping, new_request, new_client, ...)
  *
- * ── CSR/Manager เห็นทุกแจ้งเตือน ไม่กรอง ──
- * getUnreadNotificationCount / getUnreadNotifications / markNotificationsAsRead —
- * สิทธิ์เช็คผ่าน getManagerOrCsrSession() เหมือนเดิม ไม่มี concept "อ่านแยกตามคน"
- * ใช้คอลัมน์ read_by_csr_at/read_by_csr_by
+ * ── รายการที่แสดง: 10 รายการล่าสุดเสมอ ไม่ใช่แค่ที่ยังไม่อ่าน ──
+ * ดึง 10 รายการล่าสุดตาม created_at เสมอ ไม่กรองด้วยสถานะอ่าน แต่ละแถวแนบ isUnread
+ * (คำนวณตอน fetch จากคอลัมน์ read_by_<scope>_at ของ scope นั้นๆ) ให้ฝั่ง UI ไฮไลต์รายการ
+ * ที่ยังไม่อ่านแยกจากที่อ่านแล้วได้ — badge ตัวเลขนับจาก "ยังไม่อ่านจริง" ทั้งหมดเสมอ
+ * (ไม่ใช่แค่ 10 รายการที่โชว์) ผ่าน getUnreadNotificationCount* ของแต่ละ scope
  *
- * ── Sale เห็นเฉพาะแจ้งเตือนของหน่วยงานในเขตที่ตัวเองดูแล ──
- * getUnreadNotificationCountForSale / getUnreadNotificationsForSale /
- * markNotificationsAsReadForSale — กรองด้วย org_type/province (denormalized ไว้ตอน
- * insert ทุก type แล้ว — ดูจุด insert ใน form-actions.ts, staff-form-actions.ts,
- * ping-actions.ts, auth.ts) เทียบกับขอบเขตของ sale คนนั้น (getSaleCoverage() ใน
- * sale-actions.ts — ตัวเดียวกับที่หน้า Sale Dashboard/History ใช้กรองข้อมูลอยู่แล้ว)
- * ใช้คอลัมน์ read_by_sale_at/read_by_sale_by แยกอิสระจากฝั่ง CSR โดยสิ้นเชิง — CSR
- * เปิดอ่านแล้วไม่กระทบ badge ฝั่ง Sale และกลับกัน (แต่ยังคง "ไม่มี concept อ่านแยกตาม
- * คน" ไว้เหมือนเดิม แค่แยกระดับ role แทนระดับ individual — sale ทุกคนที่ขอบเขตคาบเกี่ยว
- * กันยังเห็น/mark อ่านชุดเดียวกัน ไม่ใช่แยกรายคน)
+ * ── csr/manager/log/wh: เห็นทุกแจ้งเตือนเหมือนกันหมด ไม่กรอง ──
+ * ต่างกันแค่คอลัมน์ read state ของตัวเอง (read_by_<scope>_at/by) — แผนกหนึ่งเปิดอ่านไม่
+ * กระทบ badge ของอีกแผนกเลย (ไม่มี concept "อ่านแยกตามคน" แค่แยกระดับ role/แผนกแทน)
+ * สิทธิ์เช็คตาม session.department ตรงกับ layout ของแต่ละโซนเป๊ะ (log/wh ยอมรับ role
+ * manager เป็นข้อยกเว้นด้วย เหมือนที่ app/admin/logistics/layout.tsx และ app/admin/wh/
+ * layout.tsx ทำ — ส่วน manager เองใช้ getManagerSession() role='manager' ล้วนๆ)
+ * รวมกันเป็น getUnreadCount/getRecentList/markAsRead ภายในไฟล์นี้ ตัวเดียว พารามิเตอร์
+ * เป็น scope แทนการเขียนซ้ำ 4 รอบ — ฟังก์ชันที่ export ออกไปยังคงชื่อเดิมแยกตาม scope
+ * (NotificationBell.tsx import ตรงชื่อ)
+ *
+ * ── sale: เห็นเฉพาะแจ้งเตือนของหน่วยงานในเขตที่ตัวเองดูแล ──
+ * กรองด้วย org_type/province (denormalized ไว้ตอน insert ทุก type แล้ว — ดูจุด insert
+ * ใน form-actions.ts, staff-form-actions.ts, ping-actions.ts, auth.ts) เทียบกับขอบเขต
+ * ของ sale คนนั้น (getSaleCoverage() ใน sale-actions.ts — ตัวเดียวกับที่หน้า Sale
+ * Dashboard/History ใช้กรองข้อมูลอยู่แล้ว) แยกเป็นฟังก์ชันของตัวเองเพราะ logic การกรอง
+ * ต่างจากกลุ่มข้างบนจริงๆ (ไม่ใช่แค่คอลัมน์ read state ต่างกัน)
  */
 
-// ═══ CSR/Manager — ไม่กรอง เห็นทุกแจ้งเตือน ═══
+// ═══ csr/manager/log/wh — ไม่กรอง เห็นทุกแจ้งเตือนเหมือนกันหมด ═══
 
-export async function getUnreadNotificationCount() {
+type UnfilteredScope = 'csr' | 'manager' | 'log' | 'wh';
+
+const READ_AT_COLUMN: Record<UnfilteredScope, string> = {
+  csr: 'read_by_csr_at',
+  manager: 'read_by_manager_at',
+  log: 'read_by_log_at',
+  wh: 'read_by_wh_at',
+};
+const READ_BY_COLUMN: Record<UnfilteredScope, string> = {
+  csr: 'read_by_csr_by',
+  manager: 'read_by_manager_by',
+  log: 'read_by_log_by',
+  wh: 'read_by_wh_by',
+};
+
+async function getSessionForScope(scope: UnfilteredScope) {
+  if (scope === 'csr') return getManagerOrCsrSession();
+  if (scope === 'manager') return getManagerSession();
+
+  // log/wh — ตรงกับ layout ของแต่ละโซน: department ตรง หรือ role เป็น manager
+  const session = await getStaffSession();
+  if (!session) throw new Error('ไม่ได้ Login');
+  if (session.role !== 'manager' && session.department !== scope) {
+    throw new Error('คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
+  }
+  return session;
+}
+
+async function getUnreadCount(scope: UnfilteredScope) {
   try {
-    await getManagerOrCsrSession();
+    await getSessionForScope(scope);
 
     const { count, error } = await supabaseAdmin
       .from('notification_log')
       .select('id', { count: 'exact', head: true })
-      .is('read_by_csr_at', null);
+      .is(READ_AT_COLUMN[scope], null);
 
     if (error) return { success: false, error: error.message };
     return { success: true, count: count ?? 0 };
@@ -46,31 +98,31 @@ export async function getUnreadNotificationCount() {
   }
 }
 
-export async function getUnreadNotifications() {
+async function getRecentList(scope: UnfilteredScope) {
   try {
-    await getManagerOrCsrSession();
+    await getSessionForScope(scope);
 
     const { data, error } = await supabaseAdmin
       .from('notification_log')
-      .select(NOTIFICATION_COLUMNS)
-      .is('read_by_csr_at', null)
-      .order('created_at', { ascending: false });
+      .select(`${NOTIFICATION_COLUMNS}, ${ALL_READ_AT_COLUMNS}`)
+      .order('created_at', { ascending: false })
+      .limit(RECENT_LIMIT);
 
     if (error) return { success: false, error: error.message };
-    return { success: true, data: data ?? [] };
+    return { success: true, data: (data ?? []).map((row) => toDisplayRow(row, READ_AT_COLUMN[scope])) };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
   }
 }
 
-export async function markNotificationsAsRead() {
+async function markAsRead(scope: UnfilteredScope) {
   try {
-    const session = await getManagerOrCsrSession();
+    const session = await getSessionForScope(scope);
 
     const { error } = await supabaseAdmin
       .from('notification_log')
-      .update({ read_by_csr_at: new Date().toISOString(), read_by_csr_by: session.id })
-      .is('read_by_csr_at', null);
+      .update({ [READ_AT_COLUMN[scope]]: new Date().toISOString(), [READ_BY_COLUMN[scope]]: session.id })
+      .is(READ_AT_COLUMN[scope], null);
 
     if (error) return { success: false, error: error.message };
     return { success: true };
@@ -79,7 +131,47 @@ export async function markNotificationsAsRead() {
   }
 }
 
-// ═══ Sale — กรองเฉพาะหน่วยงานในเขตที่ตัวเองดูแล ═══
+export async function getUnreadNotificationCount() {
+  return getUnreadCount('csr');
+}
+export async function getRecentNotifications() {
+  return getRecentList('csr');
+}
+export async function markNotificationsAsRead() {
+  return markAsRead('csr');
+}
+
+export async function getUnreadNotificationCountForManager() {
+  return getUnreadCount('manager');
+}
+export async function getRecentNotificationsForManager() {
+  return getRecentList('manager');
+}
+export async function markNotificationsAsReadForManager() {
+  return markAsRead('manager');
+}
+
+export async function getUnreadNotificationCountForLog() {
+  return getUnreadCount('log');
+}
+export async function getRecentNotificationsForLog() {
+  return getRecentList('log');
+}
+export async function markNotificationsAsReadForLog() {
+  return markAsRead('log');
+}
+
+export async function getUnreadNotificationCountForWh() {
+  return getUnreadCount('wh');
+}
+export async function getRecentNotificationsForWh() {
+  return getRecentList('wh');
+}
+export async function markNotificationsAsReadForWh() {
+  return markAsRead('wh');
+}
+
+// ═══ sale — กรองเฉพาะหน่วยงานในเขตที่ตัวเองดูแล ═══
 
 export async function getUnreadNotificationCountForSale() {
   try {
@@ -100,21 +192,21 @@ export async function getUnreadNotificationCountForSale() {
   }
 }
 
-export async function getUnreadNotificationsForSale() {
+export async function getRecentNotificationsForSale() {
   try {
     const coverage = await getSaleCoverage();
     if (!coverage) return { success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' };
 
     const { data, error } = await supabaseAdmin
       .from('notification_log')
-      .select(NOTIFICATION_COLUMNS)
-      .is('read_by_sale_at', null)
+      .select(`${NOTIFICATION_COLUMNS}, read_by_sale_at`)
       .in('org_type', coverage.orgTypes)
       .in('province', coverage.provinces)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(RECENT_LIMIT);
 
     if (error) return { success: false, error: error.message };
-    return { success: true, data: data ?? [] };
+    return { success: true, data: (data ?? []).map((row) => toDisplayRow(row, 'read_by_sale_at')) };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
   }

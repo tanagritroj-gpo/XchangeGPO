@@ -9,8 +9,10 @@ import { getErrorMessage } from '@/lib/error-message';
 // ตาราง requests ที่เช็คไว้ผ่าน Supabase MCP แล้ว)
 const FINISHED_STATUSES = ['completed', 'rejected'];
 
-// cooldown ต่อคำร้อง — กันลูกค้ากดรัวๆ จนทีมงานโดนแจ้งเตือนถล่ม
-const PING_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 ชั่วโมง
+// cooldown ต่อคำร้อง — กันลูกค้ากดรัวๆ จนทีมงานโดนแจ้งเตือนถล่ม นับแยกอิสระต่อ request_id
+// (getLastPing กรองด้วย request_id อยู่แล้ว) ลูกค้าจึงเร่งงานหลายใบพร้อมกันได้ปกติ แค่ใบ
+// เดียวกันต้องเว้นระยะ — ปรับจาก 6 ชม. เป็น 1 ชม. ตาม request ผู้ใช้
+const PING_COOLDOWN_MS = 1 * 60 * 60 * 1000; // 1 ชั่วโมง
 
 /** หา ping ล่าสุดของคำร้องนี้ (ถ้ามี) — ใช้ร่วมกันทั้ง pingRequestAttention
  *  (เช็คก่อน insert) และ getPingStatus (โชว์สถานะตอนโหลดหน้า) ให้ตรงกันเป๊ะ
@@ -41,7 +43,7 @@ function msRemaining(lastPingCreatedAt: string) {
  * 1. session ลูกค้าต้องมีจริง
  * 2. คำร้องต้องมีอยู่จริง และเป็นของลูกค้าคนนี้เท่านั้น (กัน ping คำร้องคนอื่น)
  * 3. คำร้องต้องยังไม่จบงาน
- * 4. ต้องพ้น cooldown 6 ชม. จาก ping ล่าสุดของคำร้องนี้แล้ว
+ * 4. ต้องพ้น cooldown 1 ชม. จาก ping ล่าสุดของคำร้องนี้แล้ว (นับแยกต่อคำร้อง)
  */
 export async function pingRequestAttention(requestId: number) {
   try {
@@ -82,10 +84,12 @@ export async function pingRequestAttention(requestId: number) {
     if (lastPing) {
       const remaining = msRemaining(lastPing.created_at);
       if (remaining > 0) {
-        const remainingHours = Math.ceil(remaining / (60 * 60 * 1000));
+        // นาทีแม่นยำกว่าชั่วโมงตอน cooldown สั้นแค่ 1 ชม. — "อีกประมาณ 1 ชม." กำกวมเกินไปเมื่อ
+        // เหลือจริงแค่ 5 นาที
+        const remainingMinutes = Math.max(1, Math.ceil(remaining / (60 * 1000)));
         return {
           success: false,
-          error: `แจ้งเตือนไปแล้ว รอเจ้าหน้าที่ตรวจสอบ (แจ้งซ้ำได้ในอีกประมาณ ${remainingHours} ชม.)`,
+          error: `แจ้งเตือนไปแล้ว รอเจ้าหน้าที่ตรวจสอบ (แจ้งซ้ำได้ในอีกประมาณ ${remainingMinutes} นาที)`,
         };
       }
     }
@@ -148,7 +152,7 @@ export async function getPingStatus(requestId: number) {
       success: true,
       canPing: !isFinished && remaining <= 0,
       onCooldown: remaining > 0,
-      cooldownRemainingHours: remaining > 0 ? Math.ceil(remaining / (60 * 60 * 1000)) : 0,
+      cooldownRemainingMinutes: remaining > 0 ? Math.max(1, Math.ceil(remaining / (60 * 1000))) : 0,
     };
   } catch (e: unknown) {
     console.error('getPingStatus error:', getErrorMessage(e));

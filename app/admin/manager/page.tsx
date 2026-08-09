@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2 } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { NotificationBell } from '@/components/NotificationBell';
 
 // ── หน้า hub ของ Manager — จัดวางแบบ "bento grid" (กล่องเบนโตะ): เซลล์ขนาดต่างกันบน grid
 // เดียว ผสม hero/สถานะ/ปุ่มปฏิบัติการ/ตัวเลขสรุปไว้ในผืนเดียวกัน ต่างจาก CSR/Sale hub ที่แยก
@@ -101,14 +102,17 @@ export default function ManagerHubPage() {
               <p className="text-[10px] text-[#6B6698] leading-tight">Staff Portal · Manager</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
-          >
-            {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
-            ออกจากระบบ
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell scope="manager" />
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
 
         {/* ══ Bento Grid — hero + สถานะ + ปลายทางทั้งหมดรวมในผืนเดียว ══

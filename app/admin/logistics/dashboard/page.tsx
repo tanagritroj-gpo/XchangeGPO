@@ -8,6 +8,7 @@ import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import LOGDrugRow from './component/LOGDrugrow';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
+import { NotificationBell } from '@/components/NotificationBell';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
@@ -362,14 +363,17 @@ export default function LogisticsDashboard() {
               <p className="text-[10px] md:text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal • Logistics Dashboard</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-blue-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none shrink-0"
-          >
-            {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
-            <span className="hidden sm:inline">ออกจากระบบ</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell scope="log" />
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-red-600 bg-white hover:bg-red-50 border border-blue-100 hover:border-red-200 px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
+              <span className="hidden sm:inline">ออกจากระบบ</span>
+            </button>
+          </div>
         </div>
       </div>
 
