@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getCustomerSession } from './auth-actions';
-import { getManagerSession } from './manager-actions';
+import { getManagerOrCsrSession } from './manager-actions';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 
@@ -152,20 +152,24 @@ export async function trackMyRequestByRefId(refId: string) {
   };
 }
 
-// ── Manager: "Track & Trace" — ดู tracking แบบเดียวกับที่ลูกค้าเห็น (private, มี
+// ── Manager/CSR: "Track & Trace" — ดู tracking แบบเดียวกับที่ลูกค้าเห็น (private, มี
 // staff_remark) แต่ไม่จำกัดแค่หน่วยงานตัวเอง เห็นได้ทุกใบงานในระบบ รวมถึงคำร้องที่ CSR
 // กรอกแทนลูกค้า (submission_channel='csr_manual') เพราะไม่มีการ filter ช่องทางใน query
 // นี้เลย ต่างจาก trackMyRequestByRefId ที่ scope ด้วย customer_code ของ session ลูกค้า ==
-export async function getRequestTrackingForManager(refId: string) {
+// ★ เดิมชื่อ getRequestTrackingForManager ใช้ getManagerSession() (manager-only) — ตอนนี้
+// CSR ต้องใช้ตอบลูกค้าด้วย เปลี่ยนเป็น getManagerOrCsrSession() (pattern เดียวกับ
+// getUnansweredChatbotQuestions/getManagerStatusLogs) และเปลี่ยนชื่อฟังก์ชันให้ตรงตาม
+// สิทธิ์จริง ใช้ร่วมกันทั้ง app/admin/manager/tracking/page.tsx และ app/admin/csr/tracking/page.tsx
+export async function getRequestTrackingForStaff(refId: string) {
   try {
-    const session = await getManagerSession();
+    const session = await getManagerOrCsrSession();
 
     const cleaned = refId?.trim();
     if (!cleaned || cleaned.length > 50) return { success: false, error: 'รหัสอ้างอิงไม่ถูกต้อง' };
 
     // throttle ต่อ staff กันสแปมกดรัว — เข้มน้อยกว่า public เพราะมี login คั่นอยู่แล้ว
     // (pattern เดียวกับ trackMyRequestByRefId ฝั่งลูกค้า)
-    const limited = await checkRateLimit(`track-manager:staff:${session.id}`, 60, 5 * 60);
+    const limited = await checkRateLimit(`track-staff:staff:${session.id}`, 60, 5 * 60);
     if (!limited.allowed) {
       return { success: false, error: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่' };
     }

@@ -63,27 +63,31 @@ export async function getCSRDashboardData() {
   }
 }
 
-// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ CSR (ลูกค้ารออนุมัติ/ใบงานรอตรวจสอบ/คำถามบอทค้าง) —
-// ใช้ count: 'exact', head: true ทุกคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย ต่างจาก
-// getCSRDashboardData() ที่หน้า hub เคยเรียกไปดึง clients ทั้งหมด + requests join
-// drug_items ทั้งตาราง (order by created_at ไม่มี limit) แค่เพื่อเอา .length / filter
-// ฝั่ง JS มานับ — เปลืองทั้งเวลาและ payload มากเกินความจำเป็นสำหรับแค่ตัวเลขสองตัว
+// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ CSR (ลูกค้ารออนุมัติ/ใบงานรอตรวจสอบ/ใบงานรอลด
+// หนี้-แลกเปลี่ยน/คำถามบอทค้าง) — ใช้ count: 'exact', head: true ทุกคิวรี่ ไม่ดึงตัวข้อมูล
+// จริงมาเลย ต่างจาก getCSRDashboardData() ที่หน้า hub เคยเรียกไปดึง clients ทั้งหมด +
+// requests join drug_items ทั้งตาราง (order by created_at ไม่มี limit) แค่เพื่อเอา
+// .length / filter ฝั่ง JS มานับ — เปลืองทั้งเวลาและ payload มากเกินความจำเป็น
 // unanswered: การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายมาจาก manager hub แล้ว (เดิมนับที่
 // getManagerHubCounts ใน manager-actions.ts)
+// receiving: current_status = 'receiving' ("กำลังรับสินค้า") — ใบงานที่ผ่านการตรวจสอบ/
+// อนุมัติแล้ว กำลังอยู่ระหว่างขั้นตอนลดหนี้/แลกเปลี่ยนจริง ต่างจาก pendingReview ที่นับ
+// เฉพาะใบงานที่ยังไม่เข้าสู่ขั้นตอนนี้เลย (ดู label mapping ที่ app/admin/csr/dashboard/page.tsx)
 export async function getCSRHubCounts(): Promise<
-  | { success: true; pendingClients: number; pendingReview: number; unanswered: number }
+  | { success: true; pendingClients: number; pendingReview: number; unanswered: number; receiving: number }
   | { success: false; error: string }
 > {
   try {
     await getCSRSession();
 
-    const [pendingClientsRes, pendingReviewRes, unansweredRes] = await Promise.all([
+    const [pendingClientsRes, pendingReviewRes, unansweredRes, receivingRes] = await Promise.all([
       supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'pending_review'),
       supabaseAdmin.from('chatbot_unanswered_questions').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'receiving'),
     ]);
 
-    const firstError = pendingClientsRes.error || pendingReviewRes.error || unansweredRes.error;
+    const firstError = pendingClientsRes.error || pendingReviewRes.error || unansweredRes.error || receivingRes.error;
     if (firstError) return { success: false, error: firstError.message };
 
     return {
@@ -91,6 +95,7 @@ export async function getCSRHubCounts(): Promise<
       pendingClients: pendingClientsRes.count ?? 0,
       pendingReview: pendingReviewRes.count ?? 0,
       unanswered: unansweredRes.count ?? 0,
+      receiving: receivingRes.count ?? 0,
     };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
