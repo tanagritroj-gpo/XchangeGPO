@@ -9,17 +9,22 @@ import { getErrorMessage } from '@/lib/error-message';
 // ตาราง requests ที่เช็คไว้ผ่าน Supabase MCP แล้ว)
 const FINISHED_STATUSES = ['completed', 'rejected'];
 
-// cooldown ต่อคำร้อง — กันลูกค้ากดรัวๆ จนทีมงานโดนแจ้งเตือนถล่ม
-const PING_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 ชั่วโมง
+// cooldown ต่อคำร้อง — กันลูกค้ากดรัวๆ จนทีมงานโดนแจ้งเตือนถล่ม นับแยกอิสระต่อ request_id
+// (getLastPing กรองด้วย request_id อยู่แล้ว) ลูกค้าจึงเร่งงานหลายใบพร้อมกันได้ปกติ แค่ใบ
+// เดียวกันต้องเว้นระยะ — ปรับจาก 6 ชม. เป็น 1 ชม. ตาม request ผู้ใช้
+const PING_COOLDOWN_MS = 1 * 60 * 60 * 1000; // 1 ชั่วโมง
 
 /** หา ping ล่าสุดของคำร้องนี้ (ถ้ามี) — ใช้ร่วมกันทั้ง pingRequestAttention
  *  (เช็คก่อน insert) และ getPingStatus (โชว์สถานะตอนโหลดหน้า) ให้ตรงกันเป๊ะ
- *  ไม่มีทางเพี้ยนกันเพราะอ่านจากจุดเดียวกัน */
+ *  ไม่มีทางเพี้ยนกันเพราะอ่านจากจุดเดียวกัน
+ *  ★ อ่านจาก notification_log (type='ping') แล้ว — ย้ายมาจาก request_pings เดิม
+ *  (ตารางเดิมยังไม่ถูกลบ เก็บไว้เป็น safety net ชั่วคราวเท่านั้น ไม่มีโค้ดจุดไหนอ่าน/เขียนแล้ว) */
 async function getLastPing(requestId: number) {
   const { data } = await supabaseAdmin
-    .from('request_pings')
+    .from('notification_log')
     .select('created_at')
     .eq('request_id', requestId)
+    .eq('type', 'ping')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -38,7 +43,7 @@ function msRemaining(lastPingCreatedAt: string) {
  * 1. session ลูกค้าต้องมีจริง
  * 2. คำร้องต้องมีอยู่จริง และเป็นของลูกค้าคนนี้เท่านั้น (กัน ping คำร้องคนอื่น)
  * 3. คำร้องต้องยังไม่จบงาน
- * 4. ต้องพ้น cooldown 6 ชม. จาก ping ล่าสุดของคำร้องนี้แล้ว
+ * 4. ต้องพ้น cooldown 1 ชม. จาก ping ล่าสุดของคำร้องนี้แล้ว (นับแยกต่อคำร้อง)
  */
 export async function pingRequestAttention(requestId: number) {
   try {
@@ -52,9 +57,11 @@ export async function pingRequestAttention(requestId: number) {
     // join b2b_customers(customer_code) — เช็คสิทธิ์ระดับหน่วยงาน ไม่ใช่ exact b2b_customer_id
     // (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts — 1 หน่วยงานมี login ได้
     // หลายบัญชี ต้องให้บัญชีไหนของหน่วยงานเดียวกันก็เร่งงานได้ ไม่ใช่แค่บัญชีที่ยื่นคำร้องเป๊ะๆ)
+    // เพิ่ม organizations(org_type, province) เข้ามาด้วย — ใช้ตอน insert notification_log
+    // ให้ Sale กรองแจ้งเตือนเฉพาะหน่วยงานในเขตที่ตัวเองดูแลได้ (ดู notification-actions.ts)
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('id, ref_id, b2b_customer_id, current_status, b2b_customers(customer_code)')
+      .select('id, ref_id, b2b_customer_id, current_status, b2b_customers(customer_code, organizations(org_type, province))')
       .eq('id', requestId)
       .maybeSingle();
 
@@ -77,18 +84,25 @@ export async function pingRequestAttention(requestId: number) {
     if (lastPing) {
       const remaining = msRemaining(lastPing.created_at);
       if (remaining > 0) {
-        const remainingHours = Math.ceil(remaining / (60 * 60 * 1000));
+        // นาทีแม่นยำกว่าชั่วโมงตอน cooldown สั้นแค่ 1 ชม. — "อีกประมาณ 1 ชม." กำกวมเกินไปเมื่อ
+        // เหลือจริงแค่ 5 นาที
+        const remainingMinutes = Math.max(1, Math.ceil(remaining / (60 * 1000)));
         return {
           success: false,
-          error: `แจ้งเตือนไปแล้ว รอเจ้าหน้าที่ตรวจสอบ (แจ้งซ้ำได้ในอีกประมาณ ${remainingHours} ชม.)`,
+          error: `แจ้งเตือนไปแล้ว รอเจ้าหน้าที่ตรวจสอบ (แจ้งซ้ำได้ในอีกประมาณ ${remainingMinutes} นาที)`,
         };
       }
     }
 
-    const { error: insertErr } = await supabaseAdmin.from('request_pings').insert({
+    const ownerOrg = Array.isArray(owner?.organizations) ? owner.organizations[0] : owner?.organizations;
+
+    const { error: insertErr } = await supabaseAdmin.from('notification_log').insert({
+      type: 'ping',
       request_id: request.id,
       ref_id: request.ref_id,
       customer_id: customer.id,
+      org_type: ownerOrg?.org_type ?? null,
+      province: ownerOrg?.province ?? null,
     });
 
     if (insertErr) {
@@ -138,7 +152,7 @@ export async function getPingStatus(requestId: number) {
       success: true,
       canPing: !isFinished && remaining <= 0,
       onCooldown: remaining > 0,
-      cooldownRemainingHours: remaining > 0 ? Math.ceil(remaining / (60 * 60 * 1000)) : 0,
+      cooldownRemainingMinutes: remaining > 0 ? Math.max(1, Math.ceil(remaining / (60 * 1000))) : 0,
     };
   } catch (e: unknown) {
     console.error('getPingStatus error:', getErrorMessage(e));

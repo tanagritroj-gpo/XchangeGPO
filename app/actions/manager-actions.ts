@@ -15,8 +15,8 @@ export async function getManagerSession() {
 }
 
 // ── ใช้เฉพาะกับ action ที่ต้องเปิดให้ทั้ง manager และ csr อ่านได้
-// (getManagerStatusLogs สำหรับ staff-chat bot, และตอนนี้ staff-ping-actions.ts
-// สำหรับกระดิ่งเร่งงาน) ──
+// (getManagerStatusLogs สำหรับ staff-chat bot, และ notification-actions.ts
+// สำหรับศูนย์แจ้งเตือนรวม) ──
 // เช็คจาก session.department แทน session.role สำหรับฝั่ง CSR เพราะ staff
 // ทุกแผนกที่ไม่ใช่ manager จะมี role = 'staff' เสมอ (ดู registerStaff ใน
 // auth-staff.ts) แผนกจริงอยู่ที่ department เท่านั้น
@@ -31,32 +31,30 @@ export async function getManagerOrCsrSession() {
   return session;
 }
 
-// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ manager (รออนุมัติ/ใบงานทั้งหมด/คำถามค้าง) —
-// ใช้ count: 'exact', head: true ทั้งสามคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย เร็วกว่าเดิมมาก
+// ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ manager (รออนุมัติ/ใบงานทั้งหมด) — ใช้
+// count: 'exact', head: true ทั้งสองคิวรี่ ไม่ดึงตัวข้อมูลจริงมาเลย เร็วกว่าเดิมมาก
 // เทียบกับที่หน้า hub เคยเรียก getPendingStaff (ดึงทุกคอลัมน์ทุกแถว) + getCSRDashboardData
-// (join requests กับ drug_items ทั้งตาราง) + getUnansweredChatbotQuestions (limit 50 แล้วนับ
-// .length ซึ่งจะนิ่งที่ 50 ไม่โตต่อทั้งที่มีมากกว่านั้นจริง — เป็นบั๊กนับเพี้ยน ไม่ใช่แค่ช้า)
+// (join requests กับ drug_items ทั้งตาราง) — การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายไปอยู่ที่
+// CSR hub แล้ว (getCSRHubCounts ใน csr-actions.ts) จึงตัด unanswered ออกจากที่นี่
 export async function getManagerHubCounts(): Promise<
-  | { success: true; pendingStaff: number; totalRequests: number; unanswered: number }
+  | { success: true; pendingStaff: number; totalRequests: number }
   | { success: false; error: string }
 > {
   try {
     await getManagerSession();
 
-    const [pendingStaffRes, totalRequestsRes, unansweredRes] = await Promise.all([
+    const [pendingStaffRes, totalRequestsRes] = await Promise.all([
       supabaseAdmin.from('staff_users').select('id', { count: 'exact', head: true }).eq('is_approved', false),
       supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }),
-      supabaseAdmin.from('chatbot_unanswered_questions').select('id', { count: 'exact', head: true }),
     ]);
 
-    const firstError = pendingStaffRes.error || totalRequestsRes.error || unansweredRes.error;
+    const firstError = pendingStaffRes.error || totalRequestsRes.error;
     if (firstError) return { success: false, error: firstError.message };
 
     return {
       success: true,
       pendingStaff: pendingStaffRes.count ?? 0,
       totalRequests: totalRequestsRes.count ?? 0,
-      unanswered: unansweredRes.count ?? 0,
     };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
@@ -101,11 +99,14 @@ export async function getB2BCustomerOrgLinks() {
   }
 }
 
-// คำถามที่บอทลูกค้า (app/api/chat) ตอบว่า "ไม่แน่ใจ" — เก็บไว้ให้ manager ทบทวน
+// คำถามที่บอทลูกค้า (app/api/chat) ตอบว่า "ไม่แน่ใจ" — เก็บไว้ให้ CSR ทบทวน
 // ว่าควรเพิ่มเข้า FAQ_ENTRIES (lib/chatbot-knowledge.ts) ไหม ดู app/api/chat/route.ts
+// ★ ย้ายการ์ดนี้จาก manager hub ไป CSR hub แล้ว (ตาม request ผู้ใช้) แต่ตัวฟังก์ชันยังอยู่
+// ไฟล์นี้เหมือนเดิม — เปลี่ยนแค่เกตสิทธิ์เป็น getManagerOrCsrSession() ให้ CSR เรียกได้ด้วย
+// (pattern เดียวกับ getManagerStatusLogs ด้านล่าง ที่ CSR เรียกใช้อยู่แล้ว)
 export async function getUnansweredChatbotQuestions(limit: number = 50) {
   try {
-    await getManagerSession();
+    await getManagerOrCsrSession();
 
     const { data, error } = await supabaseAdmin
       .from('chatbot_unanswered_questions')

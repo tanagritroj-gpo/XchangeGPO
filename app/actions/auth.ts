@@ -81,6 +81,24 @@ export async function registerCustomer(payload: unknown) {
 
     if (error) throw error;
 
+    // แจ้งเตือน Manager/CSR ว่ามีลูกค้าลงทะเบียนใหม่รออนุมัติ — เงียบๆ ถ้าพลาด ไม่ให้กระทบ
+    // การลงทะเบียนจริงของลูกค้า (แจ้งเตือนเป็นแค่ side effect รอง ไม่ใช่ core flow)
+    try {
+      await supabaseAdmin.from('notification_log').insert({
+        type: 'new_client',
+        client_id: inserted?.[0]?.id,
+        contact_name: data.contact_name,
+        hospital_name: data.hospital_name,
+        // org_type/province กรอกมาตรงจากฟอร์มลงทะเบียนอยู่แล้ว (ยังไม่มี organizations
+        // row จริงตอนนี้ เพราะลูกค้ายัง pending รอ CSR อนุมัติ) ใช้กรองให้ Sale เห็นเฉพาะ
+        // ลูกค้าใหม่ในเขตที่ตัวเองดูแลได้เหมือนแจ้งเตือนประเภทอื่น
+        org_type: data.org_type,
+        province: data.province,
+      });
+    } catch (notifyErr) {
+      console.error('registerCustomer: failed to log notification', notifyErr);
+    }
+
     return { success: true, data: inserted };
 
   } catch (error: unknown) {

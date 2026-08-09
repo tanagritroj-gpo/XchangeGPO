@@ -9,6 +9,7 @@ import { getWHData, confirmCheckedInBatch } from '@/app/actions/wh-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import WHDrugRow from './component/WHDrugrow';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
+import { NotificationBell } from '@/components/NotificationBell';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
@@ -343,6 +344,7 @@ export default function WHDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell scope="wh" />
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { getTrackingTimeline } from '@/app/actions/tracking-actions';
 import {
   ArrowLeft,
@@ -56,7 +57,7 @@ function TrackingContent() {
       } else {
         setError(result.error ?? 'เกิดข้อผิดพลาด');
       }
-    } catch (err) {
+    } catch {
       setError('เกิดข้อผิดพลาดในการเชื่อมต่อกับฐานข้อมูล');
     } finally {
       setLoading(false);
@@ -66,7 +67,7 @@ function TrackingContent() {
   useEffect(() => {
     const refFromUrl = searchParams.get('ref');
     if (refFromUrl) handleSearch(refFromUrl);
-  }, []);
+  }, [searchParams]);
 
   const handleCopy = async () => {
     if (!data?.request?.ref_id) return;
@@ -92,21 +93,21 @@ function TrackingContent() {
     <div className="max-w-4xl mx-auto py-10 px-6 print:py-0 print:px-0">
       {/* ปุ่มกลับหน้าหลัก */}
       <div className="mb-6 print:hidden">
-        <a
+        <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-teal-700 px-2.5 py-1.5 -ml-2.5 rounded-lg hover:bg-slate-100 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           กลับหน้าหลัก
-        </a>
+        </Link>
       </div>
 
       <h1 className="text-2xl font-black text-foreground mb-1">ตรวจสอบสถานะคำร้อง</h1>
       <p className="text-sm text-muted-foreground font-medium mb-6 print:hidden">
         กรอกเลขอ้างอิงที่ได้รับทางอีเมลเพื่อดูสถานะล่าสุด หากต้องการข้อมูลในรายละเอียดโปรด{' '}
-        <a href="/" className="text-teal-700 font-semibold hover:underline">
+        <Link href="/" className="text-teal-700 font-semibold hover:underline">
           เข้าสู่ระบบ
-        </a>
+        </Link>
       </p>
 
       <form

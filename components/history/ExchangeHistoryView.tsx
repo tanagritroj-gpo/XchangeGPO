@@ -281,7 +281,6 @@ export function ExchangeHistoryView({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetcher]);
 
   const tabs = GROUP_ORDER.map((group) => ({

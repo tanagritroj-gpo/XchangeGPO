@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getManagerHubCounts } from '@/app/actions/manager-actions';
 import Link from 'next/link';
-import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, HelpCircle, FileSpreadsheet, ArrowRight, LogOut, Loader2 } from 'lucide-react';
+import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2 } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { NotificationBell } from '@/components/NotificationBell';
 
 // ── หน้า hub ของ Manager — จัดวางแบบ "bento grid" (กล่องเบนโตะ): เซลล์ขนาดต่างกันบน grid
 // เดียว ผสม hero/สถานะ/ปุ่มปฏิบัติการ/ตัวเลขสรุปไว้ในผืนเดียวกัน ต่างจาก CSR/Sale hub ที่แยก
@@ -19,15 +20,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 //                                                    [จัดการสิทธิ์พนักงาน 2 คอลัมน์ สูง 1 แถว]
 //   แถบล่าง: [ใบงานทั้งหมด 2 คอลัมน์ สูง 2 แถว] [ภาพรวม&สถิติ 2 คอลัมน์ สูง 2 แถว]
 //            [Download Center 2 คอลัมน์ สูง 1 แถว]
-//            [คำถามบอทตอบไม่ได้ 2 คอลัมน์ สูง 1 แถว]
-// ตัวเลข (พนักงานรออนุมัติ/ใบงานทั้งหมด/คำถามค้าง) ดึงจริงจาก server action เดิมที่หน้า
+//            [Track & Trace 2 คอลัมน์ สูง 1 แถว]
+// ตัวเลข (พนักงานรออนุมัติ/ใบงานทั้งหมด) ดึงจริงจาก server action เดิมที่หน้า
 // staff-approvals ใช้อยู่แล้ว ไม่ได้เพิ่ม endpoint ใหม่ — โหลดแบบ non-blocking แยกจาก session
+// (การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายไปอยู่ที่ CSR hub แล้ว — app/admin/csr/page.tsx —
+// Track & Trace เข้ามาแทนที่ตำแหน่งเดิมของการ์ดนั้นในผังนี้)
 export default function ManagerHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [counts, setCounts] = useState<{ pendingStaff: number; totalRequests: number; unanswered: number } | null>(null);
+  const [counts, setCounts] = useState<{ pendingStaff: number; totalRequests: number } | null>(null);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -48,8 +51,8 @@ export default function ManagerHubPage() {
       const result = await getManagerHubCounts();
       setCounts(
         result.success
-          ? { pendingStaff: result.pendingStaff, totalRequests: result.totalRequests, unanswered: result.unanswered }
-          : { pendingStaff: 0, totalRequests: 0, unanswered: 0 }
+          ? { pendingStaff: result.pendingStaff, totalRequests: result.totalRequests }
+          : { pendingStaff: 0, totalRequests: 0 }
       );
     }
     loadCounts();
@@ -99,14 +102,17 @@ export default function ManagerHubPage() {
               <p className="text-[10px] text-[#6B6698] leading-tight">Staff Portal · Manager</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
-          >
-            {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
-            ออกจากระบบ
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell scope="manager" />
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
 
         {/* ══ Bento Grid — hero + สถานะ + ปลายทางทั้งหมดรวมในผืนเดียว ══
@@ -217,22 +223,19 @@ export default function ManagerHubPage() {
             </div>
           </Link>
 
-          {/* Tile: คำถามที่บอทตอบไม่ได้ — กว้าง 2/สูง 1 หน่วย โทนเทา เน้นตัวเลขค้างทบทวน */}
-          <Link href="/admin/manager/staff-approvals?tab=chatbot" className="group block md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(107,102,152,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(107,102,152,0.4)] hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
-                <HelpCircle className="w-5 h-5 text-[#6B6698]" />
+          {/* Tile: Track & Trace — กว้าง 2/สูง 1 หน่วย โทนทีล เข้าชุดกับหน้าติดตามสถานะฝั่งลูกค้า
+              (เดียวกับ Download Center — ไม่มีตัวเลขสรุปเพราะเป็นเครื่องมือค้นหา ไม่ใช่รายการค้าง)
+              เข้ามาแทนที่ตำแหน่งเดิมของการ์ด "คำถามที่บอทตอบไม่ได้" ซึ่งย้ายไป CSR hub แล้ว */}
+          <Link href="/admin/manager/tracking" className="group block md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(13,148,136,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(13,148,136,0.4)] hover:border-teal-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-400 to-teal-600 shadow-md shadow-teal-600/30 ring-1 ring-white/30 shrink-0">
+                <Search className="w-5 h-5 text-white" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-1.5">
-                  คำถามที่บอทตอบไม่ได้
-                  {!!counts?.unanswered && (
-                    <span className="text-[10px] font-bold text-white bg-[#6B6698] px-1.5 py-0.5 rounded-full shrink-0">{fmt(counts.unanswered)}</span>
-                  )}
-                </h2>
-                <p className="text-xs text-[#6B6698] truncate">ทบทวนคำถามที่ตอบว่า &quot;ไม่แน่ใจ&quot;</p>
+                <h2 className="text-sm font-black text-[#241F5E]">Track & Trace</h2>
+                <p className="text-xs text-[#6B6698] truncate">ติดตามสถานะคำร้องของลูกค้าได้ทุกราย</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-4 h-4 text-teal-600 group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </Link>
         </div>

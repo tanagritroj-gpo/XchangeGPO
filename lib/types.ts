@@ -133,6 +133,21 @@ export interface UnansweredQuestionRow {
   created_at: string;
 }
 
+// แถวจาก notification_log — ศูนย์แจ้งเตือนรวมของ Manager/CSR/Sale (NotificationBell)
+// type ขยายเพิ่มได้ในอนาคต คอลัมน์ที่ไม่เกี่ยวกับ type นั้นๆ จะเป็น null เสมอ
+// isUnread คำนวณฝั่ง server ตอน fetch (จาก read_by_csr_at/read_by_sale_at แล้วแต่ scope
+// เรียก) ไม่ใช่คอลัมน์จริงในตาราง — กันไม่ให้ raw timestamp หลุดออกมาฝั่ง client โดยไม่จำเป็น
+export interface NotificationLogRow {
+  id: string;
+  type: 'ping' | 'new_request' | 'new_client';
+  request_id: number | null;
+  ref_id: string | null;
+  contact_name: string | null;
+  hospital_name: string | null;
+  created_at: string;
+  isUnread: boolean;
+}
+
 export interface StatusLogRow {
   id: number;
   request_id: number;

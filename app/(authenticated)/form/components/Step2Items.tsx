@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { X, Package, Calendar, Tag, Banknote, Pill, ClipboardList, PackageOpen, ChevronDown, Plus, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ReturnFormData, DrugItemEntry } from '../form-types';
 
 interface StepProps {
@@ -32,7 +33,7 @@ function SelectField({ value, onChange, children }: {
       <select value={value} onChange={e => onChange(e.target.value)} className={`${selectStyle} ${!value ? 'text-muted-foreground' : ''}`}>
         {children}
       </select>
-      <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">▾</span>
+      <ChevronDown size={15} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
     </div>
   );
 }
@@ -56,13 +57,13 @@ function DrugCard({ item, index, onRemove }: { item: DrugItemEntry; index: numbe
             type="button"
             onClick={onRemove}
             className="w-6 h-6 rounded-lg flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 transition-all duration-150 active:scale-90"
-          >✕</button>
+          ><X size={14} /></button>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1"><span className="text-muted-foreground">📦</span><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
-          <div className="flex items-center gap-1"><span className="text-muted-foreground">📅</span><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
-          <div className="flex items-center gap-1"><span className="text-muted-foreground">🏷️</span><span className="font-bold text-slate-700">Lot:</span> {item.lot}</div>
-          <div className="flex items-center gap-1 font-black text-teal-600">💵 {parseFloat(item.val || '0').toLocaleString()} ฿</div>
+          <div className="flex items-center gap-1"><Package size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
+          <div className="flex items-center gap-1"><Calendar size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
+          <div className="flex items-center gap-1"><Tag size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">Lot:</span> {item.lot}</div>
+          <div className="flex items-center gap-1 font-black text-teal-600"><Banknote size={14} /> {parseFloat(item.val || '0').toLocaleString()} ฿</div>
         </div>
       </div>
     </div>
@@ -122,7 +123,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
         <div className="absolute top-0 left-0 right-0 h-1.5" style={{ background: 'linear-gradient(90deg,#0f5132,#1a7a45,#2dd4bf)' }} />
 
         <h2 className="text-base font-black text-slate-800 mb-6 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>💊</div>
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}><Pill size={16} className="text-emerald-700" /></div>
           รายการยาและเวชภัณฑ์
         </h2>
 
@@ -201,7 +202,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
               cursor: canAddItem ? 'pointer' : 'not-allowed',
             }}
           >
-            <span className="text-lg">＋</span> เพิ่มรายการลงตาราง
+            <Plus size={18} strokeWidth={2.75} /> เพิ่มรายการลงตาราง
           </button>
           {!canAddItem && (
             <p className="text-xs font-bold text-red-500 text-center -mt-1">
@@ -216,7 +217,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <p className="text-sm font-black text-muted-foreground flex items-center gap-1.5">
-              <span className="text-teal-500">📋</span> รายการที่เพิ่มแล้ว
+              <ClipboardList size={15} className="text-teal-500" /> รายการที่เพิ่มแล้ว
             </p>
             <p className="text-sm font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
               รวม {totalValuePreview.toLocaleString()} ฿
@@ -238,7 +239,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
       {/* Empty state */}
       {items.length === 0 && (
         <div className="text-center py-8 px-6 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-          <p className="text-2xl mb-2 opacity-50">📭</p>
+          <PackageOpen className="w-7 h-7 mx-auto mb-2 text-slate-300" strokeWidth={1.75} />
           <p className="text-sm text-muted-foreground font-medium">ยังไม่มีรายการยา กรุณาเพิ่มอย่างน้อย 1 รายการ</p>
         </div>
       )}
@@ -249,7 +250,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           onClick={back}
           className="group py-4 rounded-2xl font-black text-muted-foreground bg-white border-2 border-slate-200 hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
         >
-          <span className="group-hover:-translate-x-1 transition-transform duration-200">←</span> ย้อนกลับ
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform duration-200" /> ย้อนกลับ
         </button>
         <button
           onClick={handleNext}
@@ -257,7 +258,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           className="group py-4 rounded-2xl font-black text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 flex items-center justify-center gap-2"
           style={{ background: 'linear-gradient(135deg,#0f5132,#1a7a45)', boxShadow: canProceed ? '0 10px 25px -8px rgba(26,122,69,0.45)' : 'none', opacity: canProceed ? 1 : 0.5, cursor: canProceed ? 'pointer' : 'not-allowed' }}
         >
-          ดำเนินการต่อ <span className="group-hover:translate-x-1 transition-transform duration-200">→</span>
+          ดำเนินการต่อ <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform duration-200" />
         </button>
       </div>
     </div>

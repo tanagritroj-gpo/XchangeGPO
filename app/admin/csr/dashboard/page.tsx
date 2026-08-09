@@ -630,11 +630,13 @@ export default function CSRDashboard() {
     const init = async () => {
       setIsLoading(true);
       const session = await getStaffSession();
-      if (!session?.id) { router.replace('/login'); return; }
+      // ★ แก้ redirect เดิมที่ชี้ไป '/login' ซึ่งไม่มี route นี้อยู่จริงในระบบ (404) —
+      // หน้า login พนักงานตัวจริงคือหน้าแรก '/' (แท็บ "พนักงาน GPO")
+      if (!session?.id) { router.replace('/'); return; }
       await fetchData();
     };
     init();
-  }, []);
+  }, [router]);
 
   const handleLogout = async () => {
     setIsLoggingOut(true);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createReturnRequest } from '@/app/actions/form-actions';
 import FormStepper from '@/components/FormStepper';
 import Step1Info from './components/Step1Info';
@@ -27,7 +27,6 @@ const REQUEST_TYPE_MAP: Record<string, string> = {
 };
 
 export default function FormWizardPage({ session }: { session?: CustomerSessionInfo }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const initialRequestType = REQUEST_TYPE_MAP[searchParams.get('type') || ''] || '';
 
