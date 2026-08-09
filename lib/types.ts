@@ -133,6 +133,18 @@ export interface UnansweredQuestionRow {
   created_at: string;
 }
 
+// แถวจาก notification_log — ศูนย์แจ้งเตือนรวมของ Manager/CSR (NotificationBell)
+// type ขยายเพิ่มได้ในอนาคต คอลัมน์ที่ไม่เกี่ยวกับ type นั้นๆ จะเป็น null เสมอ
+export interface NotificationLogRow {
+  id: string;
+  type: 'ping' | 'new_request' | 'new_client';
+  request_id: number | null;
+  ref_id: string | null;
+  contact_name: string | null;
+  hospital_name: string | null;
+  created_at: string;
+}
+
 export interface StatusLogRow {
   id: number;
   request_id: number;

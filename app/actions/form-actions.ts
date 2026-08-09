@@ -147,5 +147,28 @@ export async function createReturnRequest(formData: ReturnFormData) {
 
   if (error) throw error;
 
+  // แจ้งเตือน Manager/CSR/Sale ว่ามีคำร้องใหม่เข้าระบบ — เงียบๆ ถ้าพลาด ไม่ให้กระทบการส่งคำร้อง
+  // จริงของลูกค้า (แจ้งเตือนเป็นแค่ side effect รอง ไม่ใช่ core flow)
+  // org_type/province ต้อง query แยกจาก organizations เพราะ customer session (getCustomerSession)
+  // ไม่ได้ join org_type มาด้วย — ใช้ requestData.customer_code (มาจาก session.customer_code
+  // อยู่แล้ว) หา org_type ให้ Sale กรองแจ้งเตือนเฉพาะหน่วยงานในเขตที่ตัวเองดูแลได้
+  try {
+    const { data: orgInfo } = await supabaseAdmin
+      .from('organizations')
+      .select('org_type, province')
+      .eq('customer_code', requestData.customer_code)
+      .maybeSingle();
+
+    await supabaseAdmin.from('notification_log').insert({
+      type: 'new_request',
+      request_id: data[0].request_id,
+      ref_id: data[0].ref_id,
+      org_type: orgInfo?.org_type ?? null,
+      province: orgInfo?.province ?? null,
+    });
+  } catch (notifyErr) {
+    console.error('createReturnRequest: failed to log notification', notifyErr);
+  }
+
   return { id: data[0].request_id, refId: data[0].ref_id };
 }

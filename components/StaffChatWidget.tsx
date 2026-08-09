@@ -2,37 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { MessageCircle, X, Send, Loader2, BarChart3 } from 'lucide-react';
-import {
-  getUnreadPingCount,
-  getUnreadPings,
-  markPingsAsRead,
-} from '@/app/actions/staff-ping-actions';
 import { getErrorMessage } from '@/lib/error-message';
 
 type ChatMessage = { role: 'user' | 'assistant'; text: string };
 
 const GREETING =
   'สวัสดีครับ 👋 ผมเป็นผู้ช่วยสรุปสถิติของระบบ GPO Xchange ถามได้เลยครับ เช่น "เดือนนี้มีใบงานกี่ใบ", "ลูกค้ารายไหนส่งเรื่องมากที่สุด", "เหตุผลปฏิเสธที่พบบ่อยคืออะไร"';
-
-// poll badge ทุก 45 วิ (อยู่ในช่วง 30-60 วิที่ตกลงกันไว้ — ไม่ต้อง real-time
-// เป๊ะ polling ก็พอสำหรับ use case นี้)
-const POLL_INTERVAL_MS = 45_000;
-
-function formatRelativeTime(dateStr: string) {
-  const diffMs = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return 'เมื่อสักครู่';
-  if (mins < 60) return `${mins} นาทีที่แล้ว`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours} ชม. ที่แล้ว`;
-  const days = Math.floor(hours / 24);
-  return `${days} วันที่แล้ว`;
-}
-
-function buildPingSummary(pings: { ref_id: string; created_at: string }[]) {
-  const lines = pings.map((p) => `- ${p.ref_id} (${formatRelativeTime(p.created_at)})`);
-  return `🔔 มี ${pings.length} คำร้องที่ลูกค้ากดขอให้ตรวจสอบ:\n${lines.join('\n')}`;
-}
 
 /**
  * StaffChatWidget — ปุ่มแชทลอยสำหรับ Manager และ CSR (สิทธิ์เท่ากัน)
@@ -48,15 +23,11 @@ function buildPingSummary(pings: { ref_id: string; created_at: string }[]) {
  * ใช้ component เดียวกันสำหรับทั้ง Manager (mount ที่ app/admin/manager/
  * layout.tsx) และ CSR (mount ที่ layout โซน CSR) เพราะสิทธิ์เข้าถึงข้อมูล
  * เท่ากันแล้วตามที่ตัดสินใจไว้ — การเช็คสิทธิ์จริงอยู่ที่ฝั่ง server
- * (/api/staff-chat, staff-ping-actions.ts) เท่านั้น component นี้ไม่ต้องรู้
- * ว่าคนเปิดเป็น role ไหน
+ * (/api/staff-chat) เท่านั้น component นี้ไม่ต้องรู้ว่าคนเปิดเป็น role ไหน
  *
- * ── ฟีเจอร์กระดิ่งเร่งงาน (เพิ่มใหม่) ──
- * - Badge ตัวเลขมุมขวาบนของปุ่มลอย: poll getUnreadPingCount() ทุก 45 วิ
- * - ตอนเปิดแชท: ดึง getUnreadPings() มาสรุปเป็นข้อความ inject เข้า
- *   conversation ก่อน (ทำ local ไม่ผ่าน Gemini เลย — เร็วกว่าและไม่เสีย
- *   โควต้า AI สำหรับแค่การแสดงข้อมูลดิบที่มีอยู่แล้ว) แล้ว markPingsAsRead()
- *   ทันที เพราะไม่มี concept "อ่านแยกตามคน" (ดูเหตุผลใน staff-ping-actions.ts)
+ * "กระดิ่งเร่งงาน" (request_pings) ที่เคยสรุปเป็นข้อความแทรกในแชทตอนเปิดหน้าต่าง
+ * ย้ายออกไปเป็น components/NotificationBell.tsx แล้ว (เฉพาะหน้า CSR hub) —
+ * แยกออกจากผู้ช่วยสถิติให้ชัดเจน ไม่ปนกันอีกต่อไป
  *
  * ตำแหน่ง/offset ใช้ค่าเดียวกับ ChatWidget ของลูกค้า (ดูเหตุผลที่นั่น) —
  * แต่หน้า manager/CSR เป็น desktop-first เป็นหลัก ไม่มี BottomNav จึงตัด
@@ -68,48 +39,14 @@ export function StaffChatWidget() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  // poll badge จำนวน ping ที่ยังไม่อ่าน
-  useEffect(() => {
-    let cancelled = false;
-
-    const poll = async () => {
-      const res = await getUnreadPingCount();
-      if (!cancelled && res.success) setUnreadCount(res.count ?? 0);
-    };
-
-    poll();
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, open]);
 
-  const handleToggle = async () => {
-    const willOpen = !open;
-    setOpen(willOpen);
-    if (!willOpen) return;
-
-    // เปิดแชท — ถ้ามี ping ค้างอยู่ ดึงมาสรุปเป็นข้อความแทรกเข้า conversation
-    // ก่อน แล้ว mark อ่านทันที (เงียบๆ ถ้าพลาด ไม่ให้กระทบการเปิดแชทปกติ)
-    try {
-      const pingsRes = await getUnreadPings();
-      if (pingsRes.success && pingsRes.data && pingsRes.data.length > 0) {
-        const summary = buildPingSummary(pingsRes.data);
-        setMessages((prev) => [...prev, { role: 'assistant', text: summary }]);
-        await markPingsAsRead();
-        setUnreadCount(0);
-      }
-    } catch {
-      // เงียบไว้ — ไม่ให้ error ตรงนี้บล็อกการเปิดแชทปกติ
-    }
+  const handleToggle = () => {
+    setOpen((prev) => !prev);
   };
 
   const handleSend = async () => {
@@ -239,14 +176,6 @@ export function StaffChatWidget() {
           <X className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         ) : (
           <MessageCircle className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
-        )}
-
-        {/* Badge จำนวน ping ที่ยังไม่อ่าน — โชว์เฉพาะตอนปิดอยู่ (เปิดแชทแล้ว
-            unreadCount จะถูกเคลียร์เป็น 0 จาก handleToggle อยู่แล้ว) */}
-        {!open && unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
         )}
       </button>
     </>

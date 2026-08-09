@@ -8,7 +8,9 @@ import type { DrugItemRow } from '@/lib/types';
 
 // ตรวจ session + ขยายขอบเขตดูแลของ sale เป็น org_type ดิบ — ใช้ร่วมกันทั้งดึงรายการ
 // และดึงรายละเอียดใบงานเดี่ยว คืน null ถ้าไม่ใช่ sale หรือยังไม่ได้กำหนดขอบเขต
-async function getSaleCoverage() {
+// export ออกมาแล้ว (เดิมเป็น private function) เพื่อให้ notification-actions.ts เรียกใช้
+// กรองศูนย์แจ้งเตือนของ Sale ด้วยขอบเขตเดียวกันเป๊ะ ไม่ต้องเขียน logic ซ้ำ
+export async function getSaleCoverage() {
   const session = await getStaffSession();
   if (!session || session.department !== 'sale') return null;
 
@@ -16,7 +18,7 @@ async function getSaleCoverage() {
   const provinces = session.sale_provinces ?? [];
   if (orgTypes.length === 0 || provinces.length === 0) return null;
 
-  return { orgTypes, provinces };
+  return { orgTypes, provinces, staffId: session.id };
 }
 
 // ประวัติการแลกเปลี่ยนของลูกค้าในขอบเขตที่ sale คนนี้ดูแล — กรองด้วย org_type

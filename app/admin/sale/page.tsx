@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { TrendingUp, User, MapPin, Users, History, ArrowRight, LogOut, Loader2, BarChart3 } from 'lucide-react';
 import { SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import type { StaffSessionInfo } from '@/lib/types';
+import { NotificationBell } from '@/components/NotificationBell';
 
 export default function SaleHubPage() {
   const router = useRouter();
@@ -77,14 +78,17 @@ export default function SaleHubPage() {
               <p className="text-[10px] text-[#6B6698] leading-tight">Staff Portal · Sale</p>
             </div>
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#E1592A] bg-white/70 hover:bg-[#FBEFE6] border border-white/60 hover:border-[#F0C6AA] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
-          >
-            {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
-            ออกจากระบบ
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell scope="sale" />
+            <button
+              onClick={handleLogout}
+              disabled={isLoggingOut}
+              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#E1592A] bg-white/70 hover:bg-[#FBEFE6] border border-white/60 hover:border-[#F0C6AA] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+            >
+              {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
 
         {/* ── Welcome Header ── */}

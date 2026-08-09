@@ -14,12 +14,15 @@ const PING_COOLDOWN_MS = 6 * 60 * 60 * 1000; // 6 ชั่วโมง
 
 /** หา ping ล่าสุดของคำร้องนี้ (ถ้ามี) — ใช้ร่วมกันทั้ง pingRequestAttention
  *  (เช็คก่อน insert) และ getPingStatus (โชว์สถานะตอนโหลดหน้า) ให้ตรงกันเป๊ะ
- *  ไม่มีทางเพี้ยนกันเพราะอ่านจากจุดเดียวกัน */
+ *  ไม่มีทางเพี้ยนกันเพราะอ่านจากจุดเดียวกัน
+ *  ★ อ่านจาก notification_log (type='ping') แล้ว — ย้ายมาจาก request_pings เดิม
+ *  (ตารางเดิมยังไม่ถูกลบ เก็บไว้เป็น safety net ชั่วคราวเท่านั้น ไม่มีโค้ดจุดไหนอ่าน/เขียนแล้ว) */
 async function getLastPing(requestId: number) {
   const { data } = await supabaseAdmin
-    .from('request_pings')
+    .from('notification_log')
     .select('created_at')
     .eq('request_id', requestId)
+    .eq('type', 'ping')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -52,9 +55,11 @@ export async function pingRequestAttention(requestId: number) {
     // join b2b_customers(customer_code) — เช็คสิทธิ์ระดับหน่วยงาน ไม่ใช่ exact b2b_customer_id
     // (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts — 1 หน่วยงานมี login ได้
     // หลายบัญชี ต้องให้บัญชีไหนของหน่วยงานเดียวกันก็เร่งงานได้ ไม่ใช่แค่บัญชีที่ยื่นคำร้องเป๊ะๆ)
+    // เพิ่ม organizations(org_type, province) เข้ามาด้วย — ใช้ตอน insert notification_log
+    // ให้ Sale กรองแจ้งเตือนเฉพาะหน่วยงานในเขตที่ตัวเองดูแลได้ (ดู notification-actions.ts)
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('id, ref_id, b2b_customer_id, current_status, b2b_customers(customer_code)')
+      .select('id, ref_id, b2b_customer_id, current_status, b2b_customers(customer_code, organizations(org_type, province))')
       .eq('id', requestId)
       .maybeSingle();
 
@@ -85,10 +90,15 @@ export async function pingRequestAttention(requestId: number) {
       }
     }
 
-    const { error: insertErr } = await supabaseAdmin.from('request_pings').insert({
+    const ownerOrg = Array.isArray(owner?.organizations) ? owner.organizations[0] : owner?.organizations;
+
+    const { error: insertErr } = await supabaseAdmin.from('notification_log').insert({
+      type: 'ping',
       request_id: request.id,
       ref_id: request.ref_id,
       customer_id: customer.id,
+      org_type: ownerOrg?.org_type ?? null,
+      province: ownerOrg?.province ?? null,
     });
 
     if (insertErr) {

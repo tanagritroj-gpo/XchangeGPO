@@ -15,8 +15,8 @@ export async function getManagerSession() {
 }
 
 // ── ใช้เฉพาะกับ action ที่ต้องเปิดให้ทั้ง manager และ csr อ่านได้
-// (getManagerStatusLogs สำหรับ staff-chat bot, และตอนนี้ staff-ping-actions.ts
-// สำหรับกระดิ่งเร่งงาน) ──
+// (getManagerStatusLogs สำหรับ staff-chat bot, และ notification-actions.ts
+// สำหรับศูนย์แจ้งเตือนรวม) ──
 // เช็คจาก session.department แทน session.role สำหรับฝั่ง CSR เพราะ staff
 // ทุกแผนกที่ไม่ใช่ manager จะมี role = 'staff' เสมอ (ดู registerStaff ใน
 // auth-staff.ts) แผนกจริงอยู่ที่ department เท่านั้น

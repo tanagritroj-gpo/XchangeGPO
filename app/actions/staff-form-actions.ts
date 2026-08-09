@@ -122,7 +122,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
   // ★ ยืนยันว่าหน่วยงานที่เลือกมามีอยู่จริง ไม่เชื่อ id จาก client เฉยๆ
   const { data: organization, error: orgErr } = await supabaseAdmin
     .from('organizations')
-    .select('id, hospital_name, province, customer_code')
+    .select('id, hospital_name, province, customer_code, org_type')
     .eq('id', organizationId)
     .maybeSingle();
 
@@ -207,6 +207,23 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     status_name: 'สร้างคำร้องแทนลูกค้าโดยเจ้าหน้าที่ CSR',
     actor_type: 'staff',
   });
+
+  // แจ้งเตือน Manager/CSR ว่ามีคำร้องใหม่เข้าระบบ เหมือนกับ path ของลูกค้าเอง — ให้ครบทุก
+  // ช่องทาง (submission_channel) ไม่ตกหล่นแค่เพราะเป็นใบที่ CSR กรอกแทน — เงียบๆ ถ้าพลาด
+  // ไม่ให้กระทบการสร้างคำร้องจริง
+  try {
+    await supabaseAdmin.from('notification_log').insert({
+      type: 'new_request',
+      request_id: data[0].request_id,
+      ref_id: data[0].ref_id,
+      // org_type/province มาจาก organization ที่ยืนยันแล้วด้านบน (ไม่ใช่ query ใหม่) — ใช้
+      // กรองให้ Sale เห็นเฉพาะแจ้งเตือนของหน่วยงานในเขตที่ตัวเองดูแล (ดู notification-actions.ts)
+      org_type: organization.org_type,
+      province: organization.province,
+    });
+  } catch (notifyErr) {
+    console.error('createStaffReturnRequest: failed to log notification', notifyErr);
+  }
 
   return { id: data[0].request_id, refId: data[0].ref_id };
 }
