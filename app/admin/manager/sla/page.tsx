@@ -77,7 +77,9 @@ const DEPARTMENT_LABEL: Record<SlaQueueRow['department'], string> = {
 function formatDateTime(dateStr: string) {
   const d = new Date(dateStr);
   const datePart = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
-  const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  // hour12: false ระบุตรงๆ กันพฤติกรรม default ของ locale ไม่แน่นอนตามเครื่อง/เบราว์เซอร์
+  // ผู้ใช้ — บังคับให้เป็นเวลา 24 ชม. เสมอ (00:00-23:59)
+  const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
   return `${datePart} · ${timePart} น.`;
 }
 
