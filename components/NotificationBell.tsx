@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X } from 'lucide-react';
+import { Bell, X, Clock, AlertTriangle } from 'lucide-react';
 import {
   getUnreadNotificationCount,
   getRecentNotifications,
@@ -20,7 +20,19 @@ import {
   getRecentNotificationsForSale,
   markNotificationsAsReadForSale,
 } from '@/app/actions/notification-actions';
-import type { NotificationLogRow } from '@/lib/types';
+import {
+  getUnreadSlaCountForCsr,
+  getSlaQueueForCsr,
+  markSlaNotificationsAsReadForCsr,
+  getUnreadSlaCountForLog,
+  getSlaQueueForLog,
+  markSlaNotificationsAsReadForLog,
+  getUnreadSlaCountForWh,
+  getSlaQueueForWh,
+  markSlaNotificationsAsReadForWh,
+} from '@/app/actions/sla-actions';
+import { getStatusLabel } from '@/lib/tracking-status';
+import type { NotificationLogRow, SlaQueueRow } from '@/lib/types';
 
 // สลับชุด action ตาม scope — csr/manager/log/wh เห็นทุกแจ้งเตือนเหมือนกันหมด (ไม่กรอง),
 // sale เห็นเฉพาะหน่วยงานในเขตที่ดูแล (กรองที่ฝั่ง server อยู่แล้ว ดู notification-actions.ts)
@@ -54,6 +66,33 @@ const ACTIONS_BY_SCOPE = {
   },
 } as const;
 
+// แท็บ "SLA Monitoring" — มีเฉพาะ scope csr/log/wh (แผนกที่ถือใบงานจริง) manager/sale ไม่มี
+// แท็บนี้เพราะ manager มีหน้าเต็มแยกต่างหาก (/admin/manager/sla) และ sale ไม่เกี่ยวกับ SLA
+// ใบงานคืน/แลกเปลี่ยน — ดู 06-sla-monitoring-design.md หัวข้อ 6
+const SLA_ACTIONS_BY_SCOPE = {
+  csr: {
+    getCount: getUnreadSlaCountForCsr,
+    getQueue: getSlaQueueForCsr,
+    markRead: markSlaNotificationsAsReadForCsr,
+  },
+  log: {
+    getCount: getUnreadSlaCountForLog,
+    getQueue: getSlaQueueForLog,
+    markRead: markSlaNotificationsAsReadForLog,
+  },
+  wh: {
+    getCount: getUnreadSlaCountForWh,
+    getQueue: getSlaQueueForWh,
+    markRead: markSlaNotificationsAsReadForWh,
+  },
+} as const;
+
+type SlaScope = keyof typeof SLA_ACTIONS_BY_SCOPE;
+
+function hasSlaTab(scope: keyof typeof ACTIONS_BY_SCOPE): scope is SlaScope {
+  return scope in SLA_ACTIONS_BY_SCOPE;
+}
+
 // poll badge ทุก 45 วิ — ค่าเดียวกับที่ StaffChatWidget เคยใช้ตอน ping ยังอยู่ในแชท
 const POLL_INTERVAL_MS = 45_000;
 
@@ -64,6 +103,9 @@ const TYPE_DOT_COLOR: Record<NotificationLogRow['type'], string> = {
   ping: 'bg-red-500',
   new_request: 'bg-blue-500',
   new_client: 'bg-amber-500',
+  // โทนเดียวกับ getCardTone ใน components/history/ExchangeHistoryView.tsx — อำพัน=เตือน, แดง=เกินกำหนด
+  sla_warning: 'bg-amber-500',
+  sla_breach: 'bg-red-500',
 };
 
 // วันที่ + เวลาแบบเต็ม (ไม่ใช่ relative time) — รายการล่าสุด 10 อันอาจย้อนไปหลายวัน relative
@@ -71,7 +113,9 @@ const TYPE_DOT_COLOR: Record<NotificationLogRow['type'], string> = {
 function formatDateTime(dateStr: string) {
   const d = new Date(dateStr);
   const datePart = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
-  const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  // hour12: false ระบุตรงๆ กันพฤติกรรม default ของ locale ไม่แน่นอนตามเครื่อง/เบราว์เซอร์
+  // ผู้ใช้ — บังคับให้เป็นเวลา 24 ชม. เสมอ (00:00-23:59)
+  const timePart = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', hour12: false });
   return `${datePart} · ${timePart} น.`;
 }
 
@@ -84,6 +128,10 @@ function renderNotificationText(n: NotificationLogRow) {
       return <>มีคำร้องใหม่เข้าระบบ <span className="font-mono">{n.ref_id}</span></>;
     case 'new_client':
       return <>{n.contact_name} จาก {n.hospital_name} ลงทะเบียนขอเข้าใช้งานระบบ</>;
+    case 'sla_warning':
+      return <>ใบงาน <span className="font-mono">{n.ref_id}</span> ใกล้ครบกำหนด SLA</>;
+    case 'sla_breach':
+      return <>ใบงาน <span className="font-mono">{n.ref_id}</span> เกินกำหนด SLA แล้ว</>;
   }
 }
 
@@ -132,10 +180,15 @@ interface NotificationBellProps {
 
 export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
   const actions = ACTIONS_BY_SCOPE[scope];
+  const slaActions = hasSlaTab(scope) ? SLA_ACTIONS_BY_SCOPE[scope] : null;
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'feed' | 'sla'>('feed');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [slaUnreadCount, setSlaUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<NotificationLogRow[]>([]);
+  const [slaQueue, setSlaQueue] = useState<SlaQueueRow[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [isLoadingSlaQueue, setIsLoadingSlaQueue] = useState(false);
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +212,24 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
       clearInterval(interval);
     };
   }, [actions]);
+
+  // ยอดค้างของแท็บ SLA แยก poll ต่างหาก — เฉพาะ scope csr/log/wh ที่มีแท็บนี้
+  useEffect(() => {
+    if (!slaActions) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      const res = await slaActions.getCount();
+      if (!cancelled && res.success) setSlaUnreadCount(res.count ?? 0);
+    };
+
+    poll();
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [slaActions]);
 
   // ปิด panel เมื่อคลิกนอกกรอบ หรือกด Escape — เช็คทั้ง containerRef (ปุ่มกระดิ่ง) และ
   // drawerRef (เนื้อหา drawer ที่ portal ออกไปที่ document.body แล้ว ไม่ได้อยู่ใต้
@@ -201,6 +272,17 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
       }
     } finally {
       setIsLoadingNotifications(false);
+    }
+
+    if (!slaActions) return;
+    setIsLoadingSlaQueue(true);
+    try {
+      const res = await slaActions.getQueue();
+      if (res.success) setSlaQueue(res.data ?? []);
+      await slaActions.markRead();
+      setSlaUnreadCount(0);
+    } finally {
+      setIsLoadingSlaQueue(false);
     }
   };
 
@@ -249,6 +331,78 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
     </div>
   );
 
+  // ── แท็บ "SLA Monitoring" — live queue ของแผนกตัวเอง ต่างจาก notificationList ตรงที่ไม่มี
+  // concept read/unread ต่อแถว (badge บนกระดิ่งมาจาก notification_log แยกต่างหาก ดูหัวไฟล์)
+  // การ์ดย่อยแยกรายการชัดเจน (พื้นหลังติดโทนสีตามความเร่งด่วน ไม่ใช่แค่จุดสีเล็กๆ เหมือนเดิม)
+  // ขนาดตัวอักษรใหญ่ขึ้นทั้งชุดให้อ่านง่ายบนจอมือถือ (ของเดิมใช้ text-[9px]/[10px] เล็กเกินไป)
+  const slaOverdueCount = slaQueue.filter((r) => r.isOverdue).length;
+  const slaNearDueCount = slaQueue.length - slaOverdueCount;
+
+  const slaQueueList = (
+    <div className="max-h-full overflow-y-auto">
+      {isLoadingSlaQueue ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">กำลังโหลด...</p>
+      ) : slaQueue.length === 0 ? (
+        <div className="py-14 text-center px-6">
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-3">
+            <Clock className="w-7 h-7 text-emerald-500" strokeWidth={1.75} />
+          </div>
+          <p className="text-sm font-bold text-[#241F5E]">ไม่มีใบงานใกล้ครบ/เกินกำหนด</p>
+          <p className="text-xs text-muted-foreground mt-1">ทุกใบงานของแผนกอยู่ในกรอบเวลาที่กำหนด</p>
+        </div>
+      ) : (
+        <div className="p-3 space-y-2.5">
+          {/* สรุปจำนวนด่วน — กวาดตาได้ไวว่ามีกี่ใบเกินกำหนดจริง กี่ใบแค่ใกล้ครบ */}
+          <div className="flex items-center gap-2 px-0.5 pb-0.5">
+            {slaOverdueCount > 0 && (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-red-700 bg-red-50 px-2.5 py-1.5 rounded-full">
+                <AlertTriangle className="w-3.5 h-3.5" strokeWidth={2.5} /> เกินกำหนด {slaOverdueCount}
+              </span>
+            )}
+            {slaNearDueCount > 0 && (
+              <span className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-full">
+                <Clock className="w-3.5 h-3.5" strokeWidth={2.5} /> ใกล้ครบกำหนด {slaNearDueCount}
+              </span>
+            )}
+          </div>
+
+          {slaQueue.map((r) => (
+            <div
+              key={r.id}
+              className={`rounded-2xl border p-3.5 flex items-start gap-3 ${
+                r.isOverdue ? 'bg-red-50/70 border-red-100' : 'bg-amber-50/70 border-amber-100'
+              }`}
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${r.isOverdue ? 'bg-red-100' : 'bg-amber-100'}`}>
+                <AlertTriangle className={`w-5 h-5 ${r.isOverdue ? 'text-red-600' : 'text-amber-600'}`} strokeWidth={2.5} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-sm font-black text-[#241F5E] font-mono">{r.ref_id}</p>
+                  <span
+                    className={`shrink-0 text-[11px] font-bold text-white px-2 py-1 rounded-full ${
+                      r.isOverdue ? 'bg-red-600' : 'bg-amber-500'
+                    }`}
+                  >
+                    {r.isOverdue ? 'เกินกำหนด' : 'ใกล้ครบกำหนด'}
+                  </span>
+                </div>
+                <p className="text-xs font-semibold text-slate-700 mt-1">{getStatusLabel(r.current_status)}</p>
+                {r.hospital_name && <p className="text-xs text-slate-500 truncate mt-0.5">{r.hospital_name}</p>}
+                <p className="text-xs text-slate-400 mt-1.5 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
+                  ครบกำหนด {formatDateTime(r.status_due_at)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const totalUnread = unreadCount + slaUnreadCount;
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -257,9 +411,9 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
         className="relative flex items-center justify-center w-9 h-9 rounded-xl text-[#6B6698] hover:text-[#E1592A] bg-white/70 hover:bg-[#FBEFE6] border border-white/60 hover:border-[#F0C6AA] transition-colors shrink-0"
       >
         <Bell className="w-4 h-4" strokeWidth={2.25} />
-        {unreadCount > 0 && (
+        {totalUnread > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {totalUnread > 9 ? '9+' : totalUnread}
           </span>
         )}
       </button>
@@ -277,14 +431,18 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
         >
           <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
           <div
-            className={`absolute top-0 right-0 bottom-0 w-[85vw] max-w-sm bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+            className={`absolute top-0 right-0 bottom-0 w-[90vw] max-w-sm sm:max-w-md bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
               open ? 'translate-x-0' : 'translate-x-full'
             }`}
           >
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-slate-100 shrink-0">
               <div>
-                <p className="text-sm font-bold text-[#241F5E]">การแจ้งเตือน</p>
-                <p className="text-[10px] text-[#A7A2C4]">10 รายการล่าสุด</p>
+                <p className="text-sm font-bold text-[#241F5E]">
+                  {slaActions && activeTab === 'sla' ? 'SLA Monitoring' : 'การแจ้งเตือน'}
+                </p>
+                <p className="text-[11px] text-[#A7A2C4]">
+                  {slaActions && activeTab === 'sla' ? 'ใบงานใกล้ครบ/เกินกำหนดของแผนก ณ ขณะนี้' : '10 รายการล่าสุด'}
+                </p>
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -294,7 +452,38 @@ export function NotificationBell({ scope = 'csr' }: NotificationBellProps) {
                 <X className="w-4 h-4" strokeWidth={2.5} />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto">{notificationList}</div>
+
+            {/* แท็บ "การแจ้งเตือน" / "SLA Monitoring" — เฉพาะ scope csr/log/wh (มี slaActions) */}
+            {slaActions && (
+              <div className="flex items-center gap-1.5 p-2.5 border-b border-slate-100 shrink-0">
+                <button
+                  onClick={() => setActiveTab('feed')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2.5 rounded-xl transition-colors ${
+                    activeTab === 'feed' ? 'bg-[#ECEAF6] text-[#2E2B7A]' : 'text-muted-foreground hover:bg-slate-100'
+                  }`}
+                >
+                  การแจ้งเตือน
+                  {unreadCount > 0 && (
+                    <span className="text-[10px] font-bold bg-[#2E2B7A] text-white rounded-full min-w-[18px] text-center px-1.5 py-0.5">{unreadCount}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('sla')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2.5 rounded-xl transition-colors ${
+                    activeTab === 'sla' ? 'bg-red-50 text-red-700' : 'text-muted-foreground hover:bg-slate-100'
+                  }`}
+                >
+                  SLA Monitoring
+                  {slaUnreadCount > 0 && (
+                    <span className="text-[10px] font-bold bg-red-600 text-white rounded-full min-w-[18px] text-center px-1.5 py-0.5">{slaUnreadCount}</span>
+                  )}
+                </button>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto">
+              {slaActions && activeTab === 'sla' ? slaQueueList : notificationList}
+            </div>
           </div>
         </div>,
         document.body

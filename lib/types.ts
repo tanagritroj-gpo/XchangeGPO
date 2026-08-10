@@ -139,13 +139,17 @@ export interface UnansweredQuestionRow {
 // เรียก) ไม่ใช่คอลัมน์จริงในตาราง — กันไม่ให้ raw timestamp หลุดออกมาฝั่ง client โดยไม่จำเป็น
 export interface NotificationLogRow {
   id: string;
-  type: 'ping' | 'new_request' | 'new_client';
+  type: 'ping' | 'new_request' | 'new_client' | 'sla_warning' | 'sla_breach';
   request_id: number | null;
   ref_id: string | null;
   contact_name: string | null;
   hospital_name: string | null;
   created_at: string;
   isUnread: boolean;
+  // ใช้เฉพาะ type=sla_warning/sla_breach: แผนกเจ้าของใบงาน (csr/logistics/warehouse — คำเต็ม
+  // ไม่ใช่ scope key ของ NotificationBell) NULL สำหรับ type อื่นทั้งหมด และเป็น sentinel ของ
+  // แจ้งเตือน manager สำหรับแถว sla_breach (ดู lib/sla.ts, app/actions/sla-actions.ts)
+  department: string | null;
 }
 
 export interface StatusLogRow {
@@ -159,4 +163,26 @@ export interface StatusLogRow {
   drug_item_id: number | null;
   actor_type: 'staff' | 'system' | 'customer';
   rejection_reason_code: string | null;
+}
+
+// กฎ SLA ต่อ status_name — แก้ไขได้เองผ่านหน้า manager (/admin/manager/sla)
+export interface SlaRuleRow {
+  status_name: string;
+  sla_days: number;
+  warning_days: number;
+  updated_at: string | null;
+}
+
+// ใบงานที่ใกล้ครบ/เกินกำหนด SLA — query สดจาก requests (ไม่ใช่ประวัติ notification_log)
+// ใช้ทั้งในแท็บ "SLA Monitoring" ของ NotificationBell และ dashboard ของ manager
+export interface SlaQueueRow {
+  id: number;
+  ref_id: string;
+  hospital_name: string | null;
+  contact_name: string | null;
+  current_status: string;
+  status_due_at: string;
+  status_warn_at: string;
+  isOverdue: boolean;
+  department: 'csr' | 'logistics' | 'warehouse';
 }

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
+import { updateRequestCurrentStatus } from '@/lib/sla';
 
 // ดึง Session เพื่อเช็คว่าเป็น Logistics หรือ Manager
 async function getLogisticsSession() {
@@ -70,7 +71,7 @@ export async function updateLogisticsStatus(
         request_id: requestId, staff_id: session.id, department: 'logistics', status_name: 'rejected',
         staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
       });
-      await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+      await updateRequestCurrentStatus(requestId, 'rejected');
       revalidatePath('/admin/logistics/dashboard');
       return { success: true };
     }
@@ -88,10 +89,7 @@ export async function updateLogisticsStatus(
       await supabaseAdmin.from('status_logs').insert(logs);
     }
 
-    await supabaseAdmin
-      .from('requests')
-      .update({ current_status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, newStatus);
 
     await supabaseAdmin
       .from('drug_items')
@@ -135,10 +133,7 @@ export async function updateItemStatus(
 
     if (isAllProcessed) {
       const finalRequestStatus = hasAccepted ? 'at_warehouse' : 'rejected';
-      await supabaseAdmin
-        .from('requests')
-        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-        .eq('id', item.request_id);
+      await updateRequestCurrentStatus(item.request_id, finalRequestStatus);
     }
 
     await supabaseAdmin.from('status_logs').insert({
@@ -193,10 +188,7 @@ export async function rejectItemStatus(
 
       if (isAllProcessed) {
         const finalRequestStatus = hasAccepted ? 'at_warehouse' : 'rejected';
-        await supabaseAdmin
-          .from('requests')
-          .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-          .eq('id', item.request_id);
+        await updateRequestCurrentStatus(item.request_id, finalRequestStatus);
       }
     }
 
@@ -256,10 +248,7 @@ export async function confirmLogisticsBatch(
     if (hasAccepted) finalRequestStatus = 'at_warehouse';
 
     if (isAllProcessed) {
-      await supabaseAdmin
-        .from('requests')
-        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-        .eq('id', requestId);
+      await updateRequestCurrentStatus(requestId, finalRequestStatus);
     }
 
     revalidatePath('/admin/logistics/dashboard');

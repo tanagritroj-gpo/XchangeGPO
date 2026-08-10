@@ -37,24 +37,35 @@ export async function getManagerOrCsrSession() {
 // (join requests กับ drug_items ทั้งตาราง) — การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายไปอยู่ที่
 // CSR hub แล้ว (getCSRHubCounts ใน csr-actions.ts) จึงตัด unanswered ออกจากที่นี่
 export async function getManagerHubCounts(): Promise<
-  | { success: true; pendingStaff: number; totalRequests: number }
+  | { success: true; pendingStaff: number; totalRequests: number; pendingReview: number; completed: number; rejected: number }
   | { success: false; error: string }
 > {
   try {
     await getManagerSession();
 
-    const [pendingStaffRes, totalRequestsRes] = await Promise.all([
+    // pendingReview/completed/rejected เพิ่มเข้ามาสำหรับแถบมินิสถิติ 5 ช่อง (ทั้งหมด/รอตรวจสอบ/
+    // กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ) ใน tile "ใบงานทั้งหมด" ของหน้า manager hub — pattern
+    // เดียวกับ getCSRHubCounts() ใน csr-actions.ts (CSR hub มีแถบเดียวกันนี้อยู่แล้ว) —
+    // "กำลังดำเนินการ" ไม่ได้ query แยก คำนวณฝั่ง client จาก total - pending_review - completed
+    // - rejected
+    const [pendingStaffRes, totalRequestsRes, pendingReviewRes, completedRes, rejectedRes] = await Promise.all([
       supabaseAdmin.from('staff_users').select('id', { count: 'exact', head: true }).eq('is_approved', false),
       supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'pending_review'),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'completed'),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'rejected'),
     ]);
 
-    const firstError = pendingStaffRes.error || totalRequestsRes.error;
+    const firstError = pendingStaffRes.error || totalRequestsRes.error || pendingReviewRes.error || completedRes.error || rejectedRes.error;
     if (firstError) return { success: false, error: firstError.message };
 
     return {
       success: true,
       pendingStaff: pendingStaffRes.count ?? 0,
       totalRequests: totalRequestsRes.count ?? 0,
+      pendingReview: pendingReviewRes.count ?? 0,
+      completed: completedRes.count ?? 0,
+      rejected: rejectedRes.count ?? 0,
     };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };

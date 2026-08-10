@@ -9,6 +9,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { Resend } from 'resend';
 import { getErrorMessage } from '@/lib/error-message';
+import { updateRequestCurrentStatus } from '@/lib/sla';
 import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -74,20 +75,32 @@ export async function getCSRDashboardData() {
 // อนุมัติแล้ว กำลังอยู่ระหว่างขั้นตอนลดหนี้/แลกเปลี่ยนจริง ต่างจาก pendingReview ที่นับ
 // เฉพาะใบงานที่ยังไม่เข้าสู่ขั้นตอนนี้เลย (ดู label mapping ที่ app/admin/csr/dashboard/page.tsx)
 export async function getCSRHubCounts(): Promise<
-  | { success: true; pendingClients: number; pendingReview: number; unanswered: number; receiving: number }
+  | {
+      success: true; pendingClients: number; pendingReview: number; unanswered: number;
+      totalRequests: number; completed: number; rejected: number;
+    }
   | { success: false; error: string }
 > {
   try {
     await getCSRSession();
 
-    const [pendingClientsRes, pendingReviewRes, unansweredRes, receivingRes] = await Promise.all([
+    // totalRequests/completed/rejected เพิ่มเข้ามาสำหรับแถบมินิสถิติ 5 ช่อง (ทั้งหมด/รอตรวจสอบ/
+    // กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ) ใน tile "CSR Dashboard" ของหน้า hub — "กำลังดำเนินการ"
+    // ไม่ได้ query แยก คำนวณฝั่ง client จาก total - pending_review - completed - rejected
+    // (pattern เดียวกับ inProgressCount ใน staff-approvals/page.tsx) — ตัด receiving ออกแล้ว
+    // (เคยใช้กับ pill "รอลดหนี้/แลกเปลี่ยน" ที่ตัดออกไปพร้อมกับปรับ tile นี้ ตอนนี้ไม่มีจุด
+    // ไหนในหน้าเรียกใช้ค่านี้อีกแล้ว)
+    const [pendingClientsRes, pendingReviewRes, unansweredRes, totalRes, completedRes, rejectedRes] = await Promise.all([
       supabaseAdmin.from('clients').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
       supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'pending_review'),
       supabaseAdmin.from('chatbot_unanswered_questions').select('id', { count: 'exact', head: true }),
-      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'receiving'),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'completed'),
+      supabaseAdmin.from('requests').select('id', { count: 'exact', head: true }).eq('current_status', 'rejected'),
     ]);
 
-    const firstError = pendingClientsRes.error || pendingReviewRes.error || unansweredRes.error || receivingRes.error;
+    const firstError = pendingClientsRes.error || pendingReviewRes.error || unansweredRes.error
+      || totalRes.error || completedRes.error || rejectedRes.error;
     if (firstError) return { success: false, error: firstError.message };
 
     return {
@@ -95,7 +108,9 @@ export async function getCSRHubCounts(): Promise<
       pendingClients: pendingClientsRes.count ?? 0,
       pendingReview: pendingReviewRes.count ?? 0,
       unanswered: unansweredRes.count ?? 0,
-      receiving: receivingRes.count ?? 0,
+      totalRequests: totalRes.count ?? 0,
+      completed: completedRes.count ?? 0,
+      rejected: rejectedRes.count ?? 0,
     };
   } catch (e: unknown) {
     return { success: false, error: getErrorMessage(e) };
@@ -456,13 +471,13 @@ export async function approveRequest(requestId: number, remark?: string) {
         request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected',
         staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
       });
-      await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+      await updateRequestCurrentStatus(requestId, 'rejected');
       revalidatePath('/admin/csr/dashboard');
       return { success: true };
     }
 
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'approved', staff_remark: remark || 'อนุมัติใบงาน' });
-    await supabaseAdmin.from('requests').update({ current_status: 'approved', updated_at: new Date().toISOString() }).eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, 'approved');
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
   });
@@ -489,7 +504,7 @@ export async function rejectRequest(requestId: number, reasonCode: string, detai
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: remark });
     const { data: items } = await supabaseAdmin.from('drug_items').select('id').eq('request_id', requestId);
     if (items) await supabaseAdmin.from('status_logs').insert(items.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: `ปฏิเสธใบงาน: ${remark}` })));
-    await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, 'rejected');
     await supabaseAdmin.from('drug_items').update({ current_status: 'rejected' }).eq('request_id', requestId);
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
@@ -516,13 +531,13 @@ export async function startExchangeProcess(requestId: number, remark?: string) {
         request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected',
         staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
       });
-      await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+      await updateRequestCurrentStatus(requestId, 'rejected');
       revalidatePath('/admin/csr/dashboard');
       return { success: true };
     }
 
     await supabaseAdmin.from('status_logs').insert(activeItems.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: newStatus, staff_remark: remark || defaultRemark })));
-    await supabaseAdmin.from('requests').update({ current_status: newStatus, updated_at: new Date().toISOString() }).eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, newStatus);
     await supabaseAdmin.from('drug_items').update({ current_status: newStatus }).eq('request_id', requestId).neq('current_status', 'rejected');
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
@@ -542,13 +557,13 @@ export async function completeRequest(requestId: number, remark?: string) {
         request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'rejected',
         staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
       });
-      await supabaseAdmin.from('requests').update({ current_status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+      await updateRequestCurrentStatus(requestId, 'rejected');
       revalidatePath('/admin/csr/dashboard');
       return { success: true };
     }
 
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'completed', staff_remark: remark || 'งานเสร็จสิ้น' });
-    await supabaseAdmin.from('requests').update({ current_status: 'completed', updated_at: new Date().toISOString() }).eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, 'completed');
     await supabaseAdmin.from('drug_items').update({ current_status: 'completed' }).eq('request_id', requestId).neq('current_status', 'rejected');
     revalidatePath('/admin/csr/dashboard');
     return { success: true };

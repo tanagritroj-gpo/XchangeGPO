@@ -15,7 +15,6 @@ import {
   BarChart3,
   FileSpreadsheet,
   Download,
-  CalendarRange,
   Search,
   FileText,
   LogOut,
@@ -31,7 +30,6 @@ import ManagerInsights from './component/ManagerInsights';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
-import { filterCsrRequests } from '@/lib/csr-report-filters';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
@@ -117,10 +115,9 @@ function StaffApprovalPageInner() {
   // กดซ้ำที่ตัวที่เลือกอยู่แล้วจะล้างกลับเป็น "ทั้งหมด"
   const [requestTypeFilter, setRequestTypeFilter] = useState<'รับคืนลดหนี้' | 'รับคืนแลกเปลี่ยน' | null>(null);
 
-  // ── Download Center (แท็บ downloads) — sub-tab + ตัวกรองช่วงวันที่ + คำค้นหาใบงานเดี่ยว ──
+  // ── Download Center (แท็บ downloads) — sub-tab + คำค้นหาใบงานเดี่ยว ── (ตัวกรองช่วงวันที่ +
+  // Audit Trail Report ย้ายไปหน้า /admin/manager/sla แล้ว — ดู 06-sla-monitoring-design.md หัวข้อ 7)
   const [downloadSubTab, setDownloadSubTab] = useState<'reports' | 'single'>('reports');
-  const [downloadDateFrom, setDownloadDateFrom] = useState('');
-  const [downloadDateTo, setDownloadDateTo] = useState('');
   const [downloadSearch, setDownloadSearch] = useState('');
   // แบ่งหน้าสำหรับแท็บ "ตามใบงานเดี่ยว" — 10 รายการต่อหน้า
   const [singlePage, setSinglePage] = useState(1);
@@ -190,13 +187,6 @@ function StaffApprovalPageInner() {
 
   // ใบงานทั้งหมด = ทุกสถานะไม่กรองเลย ทุกลูกค้า ไม่จำกัดขอบเขต (ต่างจาก sale ที่ scope ตามลูกค้าที่ดูแล)
   const allRequests = requests;
-
-  // ── Download Center: preview จำนวนใบงาน/log ที่จะได้ก่อนกดดาวน์โหลดจริง ──
-  // ใช้ filterCsrRequests ตัวเดียวกับที่ downloads-export/route.ts ใช้จริง เพื่อให้ตัวเลข
-  // ที่เห็นตรงกับไฟล์ที่ดาวน์โหลดเสมอ (ไม่ต้องยิง request ไปนับล่วงหน้า)
-  const rangePreviewRequests = filterCsrRequests(allRequests, { dateFrom: downloadDateFrom, dateTo: downloadDateTo });
-  const rangePreviewRequestIds = new Set(rangePreviewRequests.map((r) => r.id));
-  const rangePreviewLogCount = statusLogs.filter((l) => rangePreviewRequestIds.has(l.request_id)).length;
 
   // ── Download Center: ค้นหาใบงานเดี่ยว (ref id หรือชื่อหน่วยงาน) เรียงใหม่สุดก่อน — แบ่งหน้าละ
   // SINGLE_PAGE_SIZE รายการแทนการตัด 30 แถวแรกทิ้งแบบเดิม เพื่อให้เข้าถึงใบงานเก่าๆ ได้ครบ ──
@@ -476,7 +466,7 @@ function StaffApprovalPageInner() {
                   <div>
                     <h2 className="text-sm font-bold text-foreground">รายงานผู้บริหาร</h2>
                     <p className="text-[11px] text-muted-foreground">
-                      ดาวน์โหลด audit trail และรายงานสรุปสำหรับผู้บริหาร เป็นไฟล์ Excel ไว้เก็บ/ตรวจสอบย้อนหลัง
+                      ดาวน์โหลดรายงานสรุปสำหรับผู้บริหาร เป็นไฟล์ Excel ไว้เก็บ/ตรวจสอบย้อนหลัง (Audit Trail Report ย้ายไปที่ SLA Monitoring System แล้ว)
                     </p>
                   </div>
                 </div>
@@ -574,58 +564,9 @@ function StaffApprovalPageInner() {
 
                 {downloadSubTab === 'reports' && (
                   <div className="space-y-4">
-                    {/* ── ตัวกรองช่วงวันที่ — ใช้กับ Audit Trail Report ด้านล่าง
-                         (พอร์ตลูกค้า/หน่วยงานไม่กรองตามช่วงเวลา เป็นภาพรวมสะสมทั้งพอร์ต) ── */}
-                    <div className="bg-white rounded-2xl border border-border p-5 space-y-3">
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        เลือกช่วงวันที่ที่ต้องการสำหรับ Audit Trail Report ด้านล่าง — ไม่เลือกวันที่ = ทุกช่วงเวลา
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md">
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-muted-foreground uppercase">จากวันที่</label>
-                          <input
-                            type="date" value={downloadDateFrom}
-                            onChange={(e) => setDownloadDateFrom(e.target.value)}
-                            className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-bold text-muted-foreground uppercase">ถึงวันที่</label>
-                          <input
-                            type="date" value={downloadDateTo}
-                            onChange={(e) => setDownloadDateTo(e.target.value)}
-                            className="w-full text-sm border border-border rounded-lg px-2.5 py-1.5"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ── Audit Trail Report — เดิมคือแท็บ "ตามช่วงเวลา" ย้ายมารวมในนี้ ── */}
-                    <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
-                          <CalendarRange size={16} className="text-teal-600" strokeWidth={2.5} />
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-foreground">Audit Trail Report</h3>
-                          <p className="text-[11px] text-muted-foreground">ประวัติการเปลี่ยนสถานะ (status_logs) ทุกจุด พร้อมผู้ดำเนินการและหมายเหตุ รวมถึงเวลาที่ใช้ในแต่ละขั้นตอน (SLA) ตั้งแต่รับคำร้องจนเสร็จสิ้น ของใบงานทั้งหมดในช่วงที่เลือก</p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-teal-50 border border-teal-100 rounded-xl px-4 py-3.5">
-                        <p className="text-xs text-teal-800 font-semibold">
-                          พบ {rangePreviewRequests.length} ใบงาน · {rangePreviewLogCount} รายการ log ในช่วงที่เลือก
-                        </p>
-                        <a
-                          href={`/admin/manager/downloads-export?mode=range${downloadDateFrom ? `&dateFrom=${downloadDateFrom}` : ''}${downloadDateTo ? `&dateTo=${downloadDateTo}` : ''}`}
-                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
-                        >
-                          <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
-                        </a>
-                      </div>
-                    </div>
-
-                    {/* ── รายงานพอร์ตลูกค้า/หน่วยงาน — ภาพรวมสะสมทั้งหมด ไม่มีตัวกรองวันที่ ── */}
+                    {/* ── รายงานพอร์ตลูกค้า/หน่วยงาน — ภาพรวมสะสมทั้งหมด ไม่มีตัวกรองวันที่ ──
+                         (Audit Trail Report ย้ายไปหน้า /admin/manager/sla แล้ว — รวมกับ
+                         SLA Monitoring System ตาม 06-sla-monitoring-design.md หัวข้อ 7) */}
                     <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">

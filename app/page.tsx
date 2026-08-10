@@ -295,7 +295,7 @@ function HomePageContent() {
                       value={empId}
                       onChange={(e) => setEmpId(e.target.value)}
                       className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
-                      placeholder="รหัสพนักงาน"
+                      placeholder="ชื่อผู้ใช้งาน"
                       tabIndex={!isCustomer ? undefined : -1}
                     />
                   </div>
