@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getManagerHubCounts } from '@/app/actions/manager-actions';
+import { getManagerSlaBadgeCount } from '@/app/actions/sla-actions';
 import Link from 'next/link';
-import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2 } from 'lucide-react';
+import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2, AlarmClock } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -31,6 +32,7 @@ export default function ManagerHubPage() {
   const [today, setToday] = useState('');
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [counts, setCounts] = useState<{ pendingStaff: number; totalRequests: number } | null>(null);
+  const [slaBadgeCount, setSlaBadgeCount] = useState<number | null>(null);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
@@ -56,6 +58,14 @@ export default function ManagerHubPage() {
       );
     }
     loadCounts();
+  }, []);
+
+  useEffect(() => {
+    async function loadSlaBadge() {
+      const result = await getManagerSlaBadgeCount();
+      setSlaBadgeCount(result.success ? result.count ?? 0 : 0);
+    }
+    loadSlaBadge();
   }, []);
 
   const handleLogout = async () => {
@@ -236,6 +246,26 @@ export default function ManagerHubPage() {
                 <p className="text-xs text-[#6B6698] truncate">ติดตามสถานะคำร้องของลูกค้าได้ทุกราย</p>
               </div>
               <ArrowRight className="w-4 h-4 text-teal-600 group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+          </Link>
+
+          {/* Tile: SLA Monitoring System — กว้าง 2/สูง 1 หน่วย โทนแดง/ส้ม (แยกจาก teal ที่ใช้ไป
+              2 จุดแล้ว เพื่อให้เด่นเป็นสัญญาณเร่งด่วน) รวม dashboard SLA ทุกแผนก, ตั้งค่ากฎ
+              sla_rules, และ Audit Trail Report ที่ย้ายมาจาก Download Center — ตัวเลข badge
+              คือจำนวนใบงานเกินกำหนดที่ manager ยังไม่เคยเห็น (sla_breach, department is null,
+              ดู app/actions/sla-actions.ts getManagerSlaBadgeCount) */}
+          <Link href="/admin/manager/sla" className="group block md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(225,89,42,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(225,89,42,0.4)] hover:border-red-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-red-400 to-red-600 shadow-md shadow-red-600/30 ring-1 ring-white/30 shrink-0">
+                <AlarmClock className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-black text-[#241F5E]">SLA Monitoring System</h2>
+                <p className="text-xs text-[#6B6698] truncate">
+                  {slaBadgeCount ? `${slaBadgeCount} ใบงานเกินกำหนด` : 'ติดตาม SLA ทุกแผนก'}
+                </p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-red-600 group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </Link>
         </div>

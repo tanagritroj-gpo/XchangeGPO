@@ -7,7 +7,13 @@ import { getSaleCoverage } from './sale-actions';
 import { getErrorMessage } from '@/lib/error-message';
 import type { NotificationLogRow } from '@/lib/types';
 
-const NOTIFICATION_COLUMNS = 'id, type, request_id, ref_id, contact_name, hospital_name, created_at';
+const NOTIFICATION_COLUMNS = 'id, type, request_id, ref_id, contact_name, hospital_name, created_at, department';
+
+// type ที่ยิงมาจาก check_sla_notifications() (cron) — มีฟีดของตัวเองแยกต่างหากในแท็บ
+// "SLA Monitoring" ของ NotificationBell (ดู app/actions/sla-actions.ts) ฟังก์ชันด้านล่างที่
+// ดูแลฟีด "การแจ้งเตือน" เดิม (ping/new_request/new_client) ต้องกันประเภทนี้ออกเสมอ ไม่งั้น
+// จะไปปนกับโควตา 10 รายการล่าสุด และ mark อ่านข้าม scope กันเอง
+const SLA_NOTIFICATION_TYPES = '(sla_warning,sla_breach)';
 
 // เลือกคอลัมน์ read_by_*_at ทุกตัวแบบ static เสมอ (ไม่ประกอบ column name แบบ dynamic ใน
 // .select()) เพราะ supabase-js parse select string เป็น type ตอน compile — string ที่ไม่ใช่
@@ -89,6 +95,7 @@ async function getUnreadCount(scope: UnfilteredScope) {
     const { count, error } = await supabaseAdmin
       .from('notification_log')
       .select('id', { count: 'exact', head: true })
+      .not('type', 'in', SLA_NOTIFICATION_TYPES)
       .is(READ_AT_COLUMN[scope], null);
 
     if (error) return { success: false, error: error.message };
@@ -105,6 +112,7 @@ async function getRecentList(scope: UnfilteredScope) {
     const { data, error } = await supabaseAdmin
       .from('notification_log')
       .select(`${NOTIFICATION_COLUMNS}, ${ALL_READ_AT_COLUMNS}`)
+      .not('type', 'in', SLA_NOTIFICATION_TYPES)
       .order('created_at', { ascending: false })
       .limit(RECENT_LIMIT);
 
@@ -122,6 +130,7 @@ async function markAsRead(scope: UnfilteredScope) {
     const { error } = await supabaseAdmin
       .from('notification_log')
       .update({ [READ_AT_COLUMN[scope]]: new Date().toISOString(), [READ_BY_COLUMN[scope]]: session.id })
+      .not('type', 'in', SLA_NOTIFICATION_TYPES)
       .is(READ_AT_COLUMN[scope], null);
 
     if (error) return { success: false, error: error.message };

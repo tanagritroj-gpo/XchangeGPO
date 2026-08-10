@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
+import { updateRequestCurrentStatus } from '@/lib/sla';
 
 // ดึง Session เพื่อเช็คว่าเป็น Warehouse หรือ Manager
 async function getWHSession() {
@@ -86,10 +87,7 @@ export async function stampCheckedIn(
     );
 
     if (isAllChecked) {
-      await supabaseAdmin
-        .from('requests')
-        .update({ current_status: 'checked_in', updated_at: new Date().toISOString() })
-        .eq('id', item.request_id);
+      await updateRequestCurrentStatus(item.request_id, 'checked_in');
     }
 
     await supabaseAdmin.from('status_logs').insert({
@@ -151,10 +149,7 @@ export async function confirmCheckedInBatch(
       await supabaseAdmin.from('status_logs').insert(logs);
     }
 
-    await supabaseAdmin
-      .from('requests')
-      .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-      .eq('id', requestId);
+    await updateRequestCurrentStatus(requestId, finalRequestStatus);
 
     revalidatePath('/admin/wh/dashboard');
     return { success: true };
@@ -198,10 +193,7 @@ export async function stampReceiving(
 
     if (isAllProcessed) {
       const finalRequestStatus = hasReceived ? 'receiving' : 'rejected';
-      await supabaseAdmin
-        .from('requests')
-        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-        .eq('id', item.request_id);
+      await updateRequestCurrentStatus(item.request_id, finalRequestStatus);
     }
 
     await supabaseAdmin.from('status_logs').insert({
@@ -259,10 +251,7 @@ export async function rejectWHItem(
       const hasReceived = allItems?.some(i => i.current_status === 'receiving');
       const finalRequestStatus = hasReceived ? 'receiving' : 'rejected';
 
-      await supabaseAdmin
-        .from('requests')
-        .update({ current_status: finalRequestStatus, updated_at: new Date().toISOString() })
-        .eq('id', item.request_id);
+      await updateRequestCurrentStatus(item.request_id, finalRequestStatus);
     }
 
     await supabaseAdmin.from('status_logs').insert({
