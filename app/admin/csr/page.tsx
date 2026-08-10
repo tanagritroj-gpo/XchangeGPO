@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getCSRHubCounts } from '@/app/actions/csr-actions';
 import Link from 'next/link';
-import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, Users, ArrowRight, LogOut, Loader2, BarChart3, FileSpreadsheet, Clock, HelpCircle, PackageOpen, Search } from 'lucide-react';
+import { ShieldCheck, User, Building2, PenLine, LayoutDashboard, Users, ArrowRight, LogOut, Loader2, BarChart3, FileSpreadsheet, Clock, HelpCircle, Search, Wrench, ClipboardList, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotificationBell } from '@/components/NotificationBell';
+import { AnalogClock } from '@/components/AnalogClock';
+import { MiniStat } from '@/components/MiniStat';
 
 // ── หน้า hub ของ CSR — จัดวางแบบ "bento grid" เดียวกับ Manager hub (app/admin/manager/page.tsx)
 // คงโทนสีเดิมของ CSR ไว้ทั้งหมด (hero indigo, ปุ่มฟอร์มส้ม, จัดการลูกค้ามัสตาร์ด, รายงานเทา)
@@ -26,11 +28,25 @@ export default function CsrHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
   const [today, setToday] = useState('');
+  const [now, setNow] = useState<Date | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [counts, setCounts] = useState<{ pendingClients: number; pendingReview: number; unanswered: number; receiving: number } | null>(null);
+  const [counts, setCounts] = useState<{
+    pendingClients: number; pendingReview: number; unanswered: number;
+    totalRequests: number; completed: number; rejected: number;
+  } | null>(null);
 
   useEffect(() => {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
+  }, []);
+
+  // นาฬิกาเดินตามเวลาจริง ใส่ไว้ในการ์ด "สถานะบัญชี" เป็นลูกเล่นกันการ์ดดูโล่ง — เก็บเป็น Date
+  // ดิบๆ ใช้ป้อนทั้งตัวเลขดิจิทัล (24 ชม., hour12:false ตามมาตรฐานที่วางไว้แล้วในระบบ) และมุม
+  // เข็มของ AnalogClock จากค่าเดียวกัน ไม่ต้องแยกคำนวณ 2 รอบ — เลือกใช้เวลาปัจจุบันจริงเพราะ
+  // เป็นตัวเลขที่ขยับได้ตลอดโดยไม่ต้องเพิ่ม field login time ใหม่ฝั่ง session
+  useEffect(() => {
+    setNow(new Date());
+    const interval = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -48,8 +64,12 @@ export default function CsrHubPage() {
       const result = await getCSRHubCounts();
       setCounts(
         result.success
-          ? { pendingClients: result.pendingClients, pendingReview: result.pendingReview, unanswered: result.unanswered, receiving: result.receiving }
-          : { pendingClients: 0, pendingReview: 0, unanswered: 0, receiving: 0 }
+          ? {
+              pendingClients: result.pendingClients, pendingReview: result.pendingReview,
+              unanswered: result.unanswered,
+              totalRequests: result.totalRequests, completed: result.completed, rejected: result.rejected,
+            }
+          : { pendingClients: 0, pendingReview: 0, unanswered: 0, totalRequests: 0, completed: 0, rejected: 0 }
       );
     }
     loadCounts();
@@ -86,7 +106,9 @@ export default function CsrHubPage() {
         <div className="absolute bottom-[8%] right-[12%] w-14 h-14 rounded-full bg-[#EAD94C] opacity-[0.10] blur-xl" />
       </div>
 
-      <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
+      {/* pb-24 กันเนื้อหาแถวสุดท้ายโดน bottom nav bar (มือถือเท่านั้น, fixed) บังตอนเลื่อนสุด —
+           md:pb-8 กลับเป็นค่าปกติบนจอกว้างที่ไม่มี bottom bar */}
+      <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-6 pt-8 pb-24 md:pb-8 space-y-7">
 
         {/* ── LOGO & BRAND IDENTITY ── relative z-20: บาร์นี้มี backdrop-blur-md ซึ่งสร้าง
              stacking context ของตัวเอง ถ้าไม่ตั้ง z-index ให้ตัวบาร์เอง มันจะเทียบชั้นกับ
@@ -117,17 +139,29 @@ export default function CsrHubPage() {
           </div>
         </div>
 
-        {/* ══ Bento Grid — hero + สถานะ + ปลายทางทั้งหมดรวมในผืนเดียว (pattern เดียวกับ
-             Manager hub) — mobile เรียงเดี่ยว / md ขึ้นไปเป็น bento 6 คอลัมน์จริง ══ */}
+        {/* ══ Bento Grid v2 (ทดลองดีไซน์ใหม่) — เปลี่ยน 3 จุดหลักจากเวอร์ชันเดิม:
+             1) การ์ด "สถานะบัญชี" (มีแค่คำว่า Active เฉยๆ ไม่ค่อยมีข้อมูล) ย้ายไปเป็น badge
+                เล็กๆ ในตัว hero แทน แทนที่จะกินพื้นที่ทั้ง tile
+             2) พื้นที่ที่ว่างขึ้นจากข้อ 1 ให้การ์ด "กรอกแบบฟอร์มแทนลูกค้า" (CTA หลักของหน้านี้)
+                ขยายจาก 2×1 เป็น 2×2 เต็มความสูงคู่กับ hero — เน้นเป็น hero action คู่กัน
+                ชัดเจนขึ้นแทนที่จะเป็นแค่ปุ่มเล็กๆ ต่อท้ายรายการ
+             3) กลุ่มการ์ดเครื่องมือเสริม 4 ใบท้ายกริด เพิ่มหัวข้อกำกับ "เครื่องมือเสริม" แยก
+                จากกลุ่มการ์ดงานหลักด้านบนอย่างชัดเจน (แทนที่จะเรียงต่อกันเป็นก้อนเดียวไม่มี
+                จุดคั่นให้รู้ว่าเป็นคนละกลุ่มความสำคัญ) ══ */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 md:auto-rows-[128px]">
 
-          {/* Tile: Welcome hero — ใหญ่สุด กว้าง 4/สูง 2 หน่วย โทน indigo เดิมของ CSR */}
+          {/* Tile: Welcome hero — ใหญ่สุด กว้าง 4/สูง 2 หน่วย โทน indigo เดิมของ CSR — เพิ่ม
+               badge สถานะบัญชีเข้ามาในตัว (เดิมแยกเป็นการ์ดของตัวเอง) */}
           <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#38339B] via-[#2E2B7A] to-[#211D57] p-6 md:p-7 text-white shadow-2xl shadow-[#1A1740]/50 ring-1 ring-white/10 md:col-span-4 md:row-span-2">
             <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)] bg-[length:16px_16px]" />
             <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.08] to-transparent" />
             <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_70%)] opacity-60 blur-sm" />
             <div className="absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_70%)] opacity-50 blur-sm" />
             <div className="relative h-full flex flex-col justify-center">
+              {/* badge "บัญชี Active" ย้ายออกจาก hero แล้ว — ผู้ใช้เสนอให้แยกเป็นการ์ดเล็ก
+                   ต่างหาก (ดู tile "สถานะบัญชี" ถัดไป) เพราะต้นตอปัญหาสีขัดกันคือพื้นหลัง
+                   hero เองมี glow ทองที่แรงอยู่แล้ว ไม่ว่าจะปรับสี badge ยังไงก็ยังมีความเสี่ยง
+                   ชนกับโทนนั้นอยู่ดี — ย้ายออกไปอยู่การ์ดพื้นขาวเรียบๆ ตัดปัญหาที่ต้นตอเลย */}
               <p className="text-[#EAD94C] text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#EAD94C] shadow-[0_0_8px_2px_rgba(234,217,76,0.6)] animate-pulse" /> ยินดีต้อนรับ
               </p>
@@ -144,18 +178,43 @@ export default function CsrHubPage() {
             </div>
           </div>
 
-          {/* Tile: สถานะบัญชี — เล็ก กว้าง 2/สูง 1 หน่วย */}
-          <div className="rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.15)] ring-1 ring-white/40 p-5 flex flex-col justify-center md:col-span-2 md:row-span-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6698] mb-1.5">สถานะบัญชี</p>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_2px_rgba(16,185,129,0.5)] animate-pulse" />
-              <span className="text-[#241F5E] font-black text-lg">Active</span>
+          {/* Tile: สถานะบัญชี — แยกออกมาเป็นการ์ดเล็กของตัวเองอีกครั้งตามที่ผู้ใช้เสนอ (เดิม
+               พยายามยัดเป็น badge ในตัว hero แต่พื้นหลัง hero มี glow ทองแรงอยู่แล้ว ปรับสี
+               badge ยังไงก็เสี่ยงชนอยู่ดี — ย้ายมาอยู่การ์ดพื้นขาวเรียบๆ ตัดปัญหาที่ต้นตอ)
+               ใช้สีทีล + pattern "ping ring" (วงแหวนขยายจางหายซ้อนจุดทึบ) แทนจุด pulse เดิม
+               ที่เป็นแค่เขียวมรกตตัน — กว้าง 2/สูง 1 หน่วย
+               ★ เพิ่มนาฬิกาเข็ม (AnalogClock ด้านบนของไฟล์) วางคู่ขวามือ + เวลาดิจิทัลกำกับ
+               ไว้ใต้สถานะ Active เป็นลูกเล่นกันการ์ดดูโล่ง (ตามที่ผู้ใช้ขอ — เดิมมีแค่เวลา
+               ดิจิทัลบรรทัดเดียว ผู้ใช้ชอบแต่อยากได้เป็นนาฬิกาเข็มด้วย) — จัดเป็น flex แนวนอน
+               ข้อความชิดซ้าย/นาฬิกาชิดขวา เลือกใช้ "เวลาปัจจุบัน" เพราะเป็นข้อมูลจริงที่มีอยู่
+               แล้วไม่ต้องพึ่ง field ใหม่จาก session ต่างจากการนับเวลาตั้งแต่ login ที่ต้องเพิ่ม
+               field ฝั่ง server และจะรีเซ็ตให้ดูแปลกๆ ทุกครั้งที่ refresh หน้า
+               ★ min-h-[112px] md:min-h-0 — บนมือถือ grid ไม่มี auto-rows บังคับความสูงเหมือน
+               md+ (แถวยืดตามเนื้อหาอิสระ) การ์ดนี้เนื้อหาสูงกว่า "กรอกแบบฟอร์มแทนลูกค้า" ข้างล่าง
+               อยู่แล้ว (มีนาฬิกาเข็ม 64px) ทำให้ 2 การ์ดสูงไม่เท่ากันตอนเรียงบนมือถือ — ล็อกความ
+               สูงขั้นต่ำเท่ากันทั้งคู่ (ดูการ์ดถัดไปด้วย) md:min-h-0 รีเซ็ตทิ้งที่ md+ เพราะ
+               md:row-span-1 + auto-rows-[128px] ของ grid หลักคุมความสูงที่แน่นอนอยู่แล้ว */}
+          <div className="rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.15)] ring-1 ring-white/40 p-5 flex items-center justify-between gap-3 min-h-[112px] md:min-h-0 md:col-span-2 md:row-span-1">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6698] mb-1.5">สถานะบัญชี</p>
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-teal-500" />
+                </span>
+                <span className="text-[#241F5E] font-black text-lg">Active</span>
+              </div>
+              <p className="text-[11px] text-[#A7A2C4] mt-1.5 font-mono tabular-nums">
+                {now ? now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--'} น.
+              </p>
             </div>
+            <AnalogClock now={now} />
           </div>
 
-          {/* Tile: กรอกแบบฟอร์มแทนลูกค้า — featured action, กว้าง 2/สูง 1 หน่วย โทนส้ม (คำร้องหลัก) */}
+          {/* Tile: กรอกแบบฟอร์มแทนลูกค้า — featured action กลับมาเป็น 2×1 เท่าเดิม (หลังแยก
+               "สถานะบัญชี" กลับมาเป็นการ์ดของตัวเองแล้ว พื้นที่แถวบนไม่พอให้ 2×2 อีกต่อไป) */}
           <Link href="/admin/csr/form" className="group block md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-3xl bg-gradient-to-br from-[#EA6A3B] via-[#E1592A] to-[#B84018] shadow-md shadow-[#E1592A]/25 hover:shadow-[0_16px_40px_-12px_rgba(225,89,42,0.55)] transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
+            <div className="relative h-full min-h-[112px] md:min-h-0 rounded-3xl bg-gradient-to-br from-[#EA6A3B] via-[#E1592A] to-[#B84018] shadow-md shadow-[#E1592A]/25 hover:shadow-[0_16px_40px_-12px_rgba(225,89,42,0.55)] transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/20 ring-1 ring-white/30 shrink-0">
                 <PenLine className="w-5 h-5 text-white" />
               </div>
@@ -167,37 +226,46 @@ export default function CsrHubPage() {
             </div>
           </Link>
 
-          {/* Tile: CSR Dashboard — กว้าง 2/สูง 2 หน่วย โทนน้ำเงินม่วง เน้นตัวเลขรอตรวจสอบ */}
-          <Link href="/admin/csr/dashboard" className="group block md:col-span-2 md:row-span-2">
+          {/* Tile: CSR Dashboard — ขยายจาก 2×2 เป็น 4×2 ตามที่ผู้ใช้ขอ เพื่อให้มีที่พอสำหรับ
+               แถบมินิสถิติ 5 ช่อง (ทั้งหมด/รอตรวจสอบ/กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ —
+               ดู MiniStat component ด้านบนของไฟล์) จำลองมาจากชุด StatCard ที่ใช้ในหน้า
+               staff-approvals — "การจัดการข้อมูลลูกค้า" ถัดไปเลยหดจาก 2×2 เหลือ 2×2 เท่าเดิม
+               แต่ไหลไปอยู่ "ข้าง" การ์ดนี้แทนที่จะอยู่คู่ขนานเท่ากันเหมือนเดิม (grid auto-place
+               จัดให้เองจากการขยาย col-span ของการ์ดนี้ ไม่ต้องกำหนดตำแหน่งเอง)
+               ตัวเลขหลัก + pill "รอลดหนี้/แลกเปลี่ยน" แบบเดิมตัดออก เพราะข้อมูลซ้ำกับแถบ
+               มินิสถิติใหม่แล้ว (รอตรวจสอบ ⊂ แถบใหม่, receiving ⊂ "กำลังดำเนินการ") ประหยัด
+               พื้นที่แนวตั้งให้พอใส่แถบสถิติได้โดยไม่ล้น */}
+          <Link href="/admin/csr/dashboard" className="group block md:col-span-4 md:row-span-2">
             <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(46,43,122,0.45)] hover:border-[#2E2B7A]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
               <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-[#2E2B7A] via-[#4A46B0] to-[#2E2B7A] shadow-[0_0_10px_rgba(74,70,176,0.6)]" />
               <div className="p-6 flex-1 flex flex-col">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#4A46B0] to-[#2E2B7A] shadow-md shadow-[#2E2B7A]/30 ring-1 ring-white/20 mb-3">
-                  <LayoutDashboard className="w-5 h-5 text-white" />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#4A46B0] to-[#2E2B7A] shadow-md shadow-[#2E2B7A]/30 ring-1 ring-white/20 shrink-0">
+                    <LayoutDashboard className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-black text-[#241F5E]">CSR Dashboard</h2>
+                    <p className="text-xs text-[#6B6698] truncate">ภาพรวมใบงานทุกสถานะ — ตรวจสอบรายการที่รอดำเนินการ</p>
+                  </div>
                 </div>
-                {counts ? (
-                  <p className="text-[#2E2B7A] font-black text-3xl leading-none tabular-nums mb-1 flex items-center gap-1.5">
-                    {fmt(counts.pendingReview)}
-                    <Clock className="w-4 h-4 opacity-60" />
-                  </p>
-                ) : (
-                  <Skeleton className="h-8 w-14 mb-1" />
-                )}
-                <h2 className="text-sm font-black text-[#241F5E] mb-1">CSR Dashboard</h2>
-                <p className="text-xs text-[#6B6698] mb-3">ใบงานรอตรวจสอบ/อนุมัติ — ตรวจสอบรายการที่รอดำเนินการ</p>
 
-                {/* ตัวเลขที่สอง: ใบงานสถานะ "กำลังรับสินค้า" (receiving) — ผ่านตรวจสอบแล้ว
-                    รอ CSR กดเริ่มลดหนี้/เริ่มแลกเปลี่ยน ต่างจากตัวเลขหลักด้านบนที่นับเฉพาะ
-                    ใบงานที่ยังไม่เข้าสู่ขั้นตอนนี้ — ใช้ pill เล็กแยกชั้นไม่แข่งกับตัวเลขหลัก */}
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#ECEAF6]/70 border border-[#D8D5E8]/70 mb-4">
-                  <PackageOpen className="w-3.5 h-3.5 text-[#4A46B0] shrink-0" />
-                  {counts ? (
-                    <p className="text-[#4A46B0] font-black text-sm tabular-nums shrink-0">{fmt(counts.receiving)}</p>
-                  ) : (
-                    <Skeleton className="h-4 w-5 shrink-0" />
-                  )}
-                  <p className="text-[11px] text-[#6B6698] font-medium leading-tight">ใบงานรอลดหนี้/แลกเปลี่ยน</p>
-                </div>
+                {counts ? (
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    <MiniStat icon={ClipboardList} value={counts.totalRequests} label="ใบงานรวม" iconBg="bg-[#ECEAF6]" iconText="text-[#4A46B0]" />
+                    <MiniStat icon={Clock} value={counts.pendingReview} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600" />
+                    <MiniStat
+                      icon={RefreshCw}
+                      value={Math.max(counts.totalRequests - counts.pendingReview - counts.completed - counts.rejected, 0)}
+                      label="กำลังดำเนินการ" iconBg="bg-blue-50" iconText="text-blue-600"
+                    />
+                    <MiniStat icon={CheckCircle2} value={counts.completed} label="เสร็จสิ้น" iconBg="bg-emerald-50" iconText="text-emerald-600" />
+                    <MiniStat icon={XCircle} value={counts.rejected} label="ถูกปฏิเสธ" iconBg="bg-red-50" iconText="text-red-600" />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-5 gap-2 mb-4">
+                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[76px] rounded-xl" />)}
+                  </div>
+                )}
 
                 <span className="mt-auto text-xs font-bold text-[#2E2B7A] flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูรายการที่รอดำเนินการ <ArrowRight className="w-3.5 h-3.5" />
@@ -206,7 +274,8 @@ export default function CsrHubPage() {
             </div>
           </Link>
 
-          {/* Tile: การจัดการข้อมูลลูกค้า — กว้าง 2/สูง 2 หน่วย โทนมัสตาร์ด เน้นตัวเลขรออนุมัติ */}
+          {/* Tile: การจัดการข้อมูลลูกค้า — กว้าง 2/สูง 2 หน่วย โทนมัสตาร์ด เน้นตัวเลขรออนุมัติ
+               (ขนาดเท่าเดิม แค่ไหลไปอยู่ข้าง CSR Dashboard ที่ขยายกว้างขึ้นแทน) */}
           <Link href="/admin/csr/customers" className="group block md:col-span-2 md:row-span-2">
             <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(138,116,32,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(234,217,76,0.4)] hover:border-[#EAD94C]/60 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
               <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#F4E27E] to-[#EAD94C] shadow-[0_0_10px_rgba(234,217,76,0.6)]" />
@@ -228,84 +297,130 @@ export default function CsrHubPage() {
             </div>
           </Link>
 
-          {/* ── กลุ่ม 4 การ์ดเล็กท้ายกริด (Download Center / ศูนย์รายงาน / คำถามที่บอทตอบไม่ได้ /
-               Track & Trace) — ครอบด้วย sub-grid 2 คอลัมน์เฉพาะจอมือถือ ให้เรียง 2x2 แทนที่จะ
-               เรียงเดี่ยวทีละแถวเหมือนการ์ดอื่น (ตาม request ผู้ใช้ เจาะจงแค่ 4 การ์ดนี้เท่านั้น)
-               md:contents ทำให้ wrapper "หายไป" ที่จอ md ขึ้นไป เหลือแค่ลูกๆ เข้าไปอยู่ใน
-               bento grid 6 คอลัมน์หลักตามปกติ เหมือนก่อนห่อ wrapper ทุกจุด ไม่กระทบเลย์เอาต์เดิม */}
-          <div className="grid grid-cols-2 auto-rows-[128px] gap-4 md:contents">
-            {/* Tile: Download Center — placeholder "อยู่ระหว่างการพัฒนา" ตาม request ผู้ใช้
-                 (ยังไม่ลิงก์ไปไหน เป็น template รอออกแบบเนื้อหาจริงภายหลัง — pattern เดียวกับ
-                 การ์ด "ศูนย์รายงาน — เร็วๆ นี้" ที่ Sale hub ใช้) — กว้าง 2/สูง 1 หน่วย โทนทีล */}
-            <div className="relative rounded-3xl bg-white/50 backdrop-blur-xl border border-dashed border-[#C9C4E0]/70 opacity-80 overflow-hidden md:col-span-2 md:row-span-1">
-              <div className="absolute inset-0 opacity-[0.5] bg-[repeating-linear-gradient(135deg,_rgba(107,102,152,0.06)_0px,_rgba(107,102,152,0.06)_1px,_transparent_1px,_transparent_10px)]" />
-              <div className="relative h-full p-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#F1EDE0] ring-1 ring-white/50 shrink-0">
-                  <FileSpreadsheet className="w-5 h-5 text-[#6B6698]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-1.5 flex-wrap">
-                    Download Center
-                    <span className="text-[9px] font-bold uppercase tracking-wide bg-[#F1EDE0] text-[#6B6698] px-2 py-0.5 rounded-full shrink-0">อยู่ระหว่างการพัฒนา</span>
-                  </h2>
-                  <p className="text-xs text-[#A7A2C4] truncate">อยู่ระหว่างการพัฒนา และออกแบบเนื้อหาภายหลัง</p>
-                </div>
+          {/* ── Panel "เครื่องมือเสริม" (รอบ 2) — เดิมใช้แค่ label เล็ก+เส้นบางๆ ผู้ใช้ feedback
+               ว่าอ่านไม่ชัด ไม่โดดเด่น กลัวเลื่อนผ่านแล้วไม่เจอ — เปลี่ยนมาห่อทั้งกลุ่มด้วย panel
+               ที่มีพื้นหลัง/ขอบของตัวเอง (ไม่ใช่การ์ดลอยเดี่ยวๆ บนพื้นหลังหน้าเว็บเหมือนเดิม) ให้
+               เป็น "โซนที่จับต้องได้" ชัดเจนขณะเลื่อนผ่าน พร้อม header ทรง icon-chip + h2 +
+               subtitle ตาม pattern เดียวกับหน้าอื่นในระบบ (staff-approvals, /admin/manager/sla)
+               แทนที่จะเป็น label ทรงใหม่ที่ไม่มีที่ไหนในแอปใช้มาก่อน — md:col-span-6 กินเต็ม
+               ความกว้าง 6 คอลัมน์เสมอ ภายในเป็น grid ของตัวเอง (2 คอลัมน์มือถือ / 4 คอลัมน์
+               จอกว้าง) ไม่ต้องพึ่ง md:contents hack แบบเดิมแล้วเพราะไม่ได้ร่วม flow กับ bento
+               grid หลักโดยตรงอีกต่อไป — ไอคอนแต่ละใบย้ายขึ้นด้านบน (แนวตั้ง) แทนแนวนอน ให้
+               กวาดตาเจอง่ายขึ้นตอนมี 4 ใบเรียงในแถวเดียว — hidden md:block: บนมือถือซ่อน
+               panel นี้ทั้งก้อน เปลี่ยนไปใช้ bottom nav bar แบบ fixed แทน (ดูท้ายไฟล์) ตาม
+               ที่ผู้ใช้เสนอ เพราะแก้ปัญหา "เลื่อนผ่านแล้วไม่เจอ" ได้เด็ดขาดกว่า (bar ไม่เลื่อน
+               หายไปไหนเลย) — จอกว้างยังคงเห็น panel เดิมตามปกติ ไม่มี bottom bar
+               ★ md:row-span-2 (แก้บั๊ก) — auto-rows-[128px] ของ grid หลักเป็น track ขนาดตายตัว
+               ไม่ยืดตามเนื้อหา ถ้า panel นี้กิน row เดียว (128px) แต่เนื้อหาจริง (header +
+               grid การ์ด 4 ใบสูง min-h-[128px] แต่ละใบ + padding) สูงกว่านั้นมาก มันจะ "ล้น"
+               ออกนอก track ไปทับ footer ที่อยู่ถัดไปในหน้า (เจอจริงจากการทดสอบ) — ให้ 2 rows
+               (~272px รวม gap) เผื่อพื้นที่พอสำหรับเนื้อหาจริงแทน */}
+          <div className="hidden md:block md:col-span-6 md:row-span-2 rounded-3xl bg-white/40 backdrop-blur-md border border-white/50 shadow-[0_4px_20px_-8px_rgba(107,102,152,0.1)] p-5 md:p-6">
+            <div className="flex items-center gap-2.5 mb-4 px-1">
+              <div className="w-9 h-9 rounded-xl bg-[#ECEAF6] ring-1 ring-white/50 flex items-center justify-center shrink-0">
+                <Wrench className="w-4 h-4 text-[#6B6698]" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-[#241F5E]">เครื่องมือเสริม</h2>
+                <p className="text-xs text-[#6B6698]">ทางลัดไปเครื่องมือและรายงานที่ใช้บ่อย</p>
               </div>
             </div>
 
-            {/* Tile: ศูนย์รายงาน (Report Center) — กว้าง 2/สูง 1 หน่วย โทนเทา */}
-            <Link href="/admin/csr/reports" className="group block md:col-span-2 md:row-span-1">
-              <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(107,102,152,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(107,102,152,0.4)] hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
-                  <BarChart3 className="w-5 h-5 text-[#6B6698]" />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
+              {/* Tile: Download Center — placeholder "อยู่ระหว่างการพัฒนา" ตาม request ผู้ใช้
+                   (ยังไม่ลิงก์ไปไหน เป็น template รอออกแบบเนื้อหาจริงภายหลัง) */}
+              <div className="relative rounded-2xl bg-white/60 border border-dashed border-[#C9C4E0]/70 opacity-80 overflow-hidden p-4 flex flex-col gap-2 min-h-[128px]">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#F1EDE0] ring-1 ring-white/50 shrink-0">
+                  <FileSpreadsheet className="w-4 h-4 text-[#6B6698]" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-[#241F5E]">Report Center</h2>
-                  <p className="text-xs text-[#6B6698] truncate">Visual Dashboard</p>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-black text-[#241F5E]">Download Center</h3>
+                  <p className="text-[10px] text-[#A7A2C4] leading-snug mt-0.5">อยู่ระหว่างการพัฒนา</p>
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
               </div>
-            </Link>
 
-            {/* Tile: คำถามที่บอทตอบไม่ได้ — กว้าง 2/สูง 1 หน่วย โทนเทา เน้นตัวเลขค้างทบทวน
-                (ย้ายมาจาก manager hub — ใช้ logic/ดีไซน์เดิมทุกจุด) */}
-            <Link href="/admin/csr/chatbot" className="group block md:col-span-2 md:row-span-1">
-              <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(107,102,152,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(107,102,152,0.4)] hover:border-[#6B6698]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
-                  <HelpCircle className="w-5 h-5 text-[#6B6698]" />
+              {/* Tile: ศูนย์รายงาน (Report Center) */}
+              <Link href="/admin/csr/reports" className="group block">
+                <div className="h-full rounded-2xl bg-white/70 border border-white/60 hover:border-[#6B6698]/40 hover:shadow-[0_10px_24px_-12px_rgba(107,102,152,0.4)] transition-all duration-300 p-4 flex flex-col gap-2 min-h-[128px]">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
+                    <BarChart3 className="w-4 h-4 text-[#6B6698]" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-black text-[#241F5E]">Report Center</h3>
+                    <p className="text-[10px] text-[#6B6698] mt-0.5">Visual Dashboard</p>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#6B6698] group-hover:translate-x-1 transition-transform" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-1.5">
-                    คำถามที่บอทตอบไม่ได้
+              </Link>
+
+              {/* Tile: คำถามที่บอทตอบไม่ได้ — เน้นตัวเลขค้างทบทวน (ย้ายมาจาก manager hub) */}
+              <Link href="/admin/csr/chatbot" className="group block">
+                <div className="h-full rounded-2xl bg-white/70 border border-white/60 hover:border-[#6B6698]/40 hover:shadow-[0_10px_24px_-12px_rgba(107,102,152,0.4)] transition-all duration-300 p-4 flex flex-col gap-2 min-h-[128px]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-[#ECEAF6] ring-1 ring-white/50 shrink-0">
+                      <HelpCircle className="w-4 h-4 text-[#6B6698]" />
+                    </div>
                     {!!counts?.unanswered && (
-                      <span className="text-[10px] font-bold text-white bg-[#6B6698] px-1.5 py-0.5 rounded-full shrink-0">{fmt(counts.unanswered)}</span>
+                      <span className="text-[9px] font-bold text-white bg-[#6B6698] px-1.5 py-0.5 rounded-full shrink-0">{fmt(counts.unanswered)}</span>
                     )}
-                  </h2>
-                  <p className="text-xs text-[#6B6698] truncate">ทบทวนคำถามที่ตอบว่า &quot;ไม่แน่ใจ&quot;</p>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-black text-[#241F5E]">Follow-up Question</h3>
+                    <p className="text-[10px] text-[#6B6698] mt-0.5 leading-snug">ทบทวนคำถาม &quot;เพื่อพัฒนา chat-AI&quot;</p>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-[#6B6698] group-hover:translate-x-1 transition-transform" />
                 </div>
-                <ArrowRight className="w-4 h-4 text-[#6B6698] group-hover:translate-x-1 transition-transform shrink-0" />
-              </div>
-            </Link>
+              </Link>
 
-            {/* Tile: Track & Trace — กว้าง 2/สูง 1 หน่วย โทนทีล เข้าชุดกับการ์ดเดียวกันบน
-                manager hub (app/admin/manager/page.tsx) — ให้ CSR ค้นหา/ติดตามใบงานได้ทุกราย
-                ในระบบ (รวมที่ CSR กรอกแทนลูกค้าเอง) เพื่อตอบลูกค้าได้ถูกต้อง — ไม่มีตัวเลขสรุป
-                เพราะเป็นเครื่องมือค้นหา ไม่ใช่รายการค้าง */}
-            <Link href="/admin/csr/tracking" className="group block md:col-span-2 md:row-span-1">
-              <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(13,148,136,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(13,148,136,0.4)] hover:border-teal-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-400 to-teal-600 shadow-md shadow-teal-600/30 ring-1 ring-white/30 shrink-0">
-                  <Search className="w-5 h-5 text-white" />
+              {/* Tile: Track & Trace — เข้าชุดกับการ์ดเดียวกันบน manager hub */}
+              <Link href="/admin/csr/tracking" className="group block">
+                <div className="h-full rounded-2xl bg-white/70 border border-white/60 hover:border-teal-500/40 hover:shadow-[0_10px_24px_-12px_rgba(13,148,136,0.4)] transition-all duration-300 p-4 flex flex-col gap-2 min-h-[128px]">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-gradient-to-br from-teal-400 to-teal-600 shadow-sm shadow-teal-600/30 ring-1 ring-white/30 shrink-0">
+                    <Search className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-black text-[#241F5E]">Track & Trace</h3>
+                    <p className="text-[10px] text-[#6B6698] mt-0.5">ติดตามสถานะ</p>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-teal-600 group-hover:translate-x-1 transition-transform" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-sm font-black text-[#241F5E]">Track & Trace</h2>
-                  <p className="text-xs text-[#6B6698] truncate">ติดตามสถานะ</p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-teal-600 group-hover:translate-x-1 transition-transform shrink-0" />
-              </div>
-            </Link>
+              </Link>
+            </div>
           </div>
         </div>
       </main>
+
+      {/* ══ Bottom nav bar — เฉพาะมือถือ (md:hidden), fixed เกาะขอบล่างจอเสมอ ══
+           แทนที่ panel "เครื่องมือเสริม" บนมือถือตามที่ผู้ใช้เสนอ — แก้ปัญหา "เลื่อนผ่านแล้ว
+           ไม่เจอ" เด็ดขาดกว่า label/panel เพราะ bar นี้ไม่เลื่อนหายไปไหนเลย อยู่ติดขอบล่าง
+           ตลอดเวลาไม่ว่าจะเลื่อนหน้าไปถึงไหน — เอาเฉพาะ 3 ทางลัดที่ใช้งานได้จริง (ไม่รวม
+           Download Center ที่ยังเป็นแค่ placeholder "อยู่ระหว่างการพัฒนา" ไม่คุ้มเปลืองที่ในแถบ
+           ที่มีพื้นที่จำกัด — ยังดูได้จากหน้าจอกว้างในตัว panel เดิม)
+           z-30 ต่ำกว่า NotificationBell drawer (z-50) เสมอ กันไม่ให้บังตอนเปิดกระดิ่ง —
+           safe-area-inset-bottom กันแถบ home indicator ของ iPhone บังปุ่มล่างสุด ══ */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-xl border-t border-white/60 shadow-[0_-4px_20px_-8px_rgba(46,43,122,0.15)] px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <div className="grid grid-cols-3 gap-1 max-w-md mx-auto">
+          <Link href="/admin/csr/reports" className="flex flex-col items-center gap-1 py-1.5 rounded-xl text-[#6B6698] active:bg-slate-100 transition-colors">
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px] font-bold">รายงาน</span>
+          </Link>
+          <Link href="/admin/csr/chatbot" className="flex flex-col items-center gap-1 py-1.5 rounded-xl text-[#6B6698] active:bg-slate-100 transition-colors">
+            <span className="relative">
+              <HelpCircle className="w-5 h-5" />
+              {!!counts?.unanswered && (
+                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#6B6698] px-1 text-[8px] font-bold text-white ring-2 ring-white">
+                  {counts.unanswered > 9 ? '9+' : counts.unanswered}
+                </span>
+              )}
+            </span>
+            <span className="text-[10px] font-bold">คำถามบอท</span>
+          </Link>
+          <Link href="/admin/csr/tracking" className="flex flex-col items-center gap-1 py-1.5 rounded-xl text-teal-700 active:bg-teal-50 transition-colors">
+            <Search className="w-5 h-5" />
+            <span className="text-[10px] font-bold">ติดตาม</span>
+          </Link>
+        </div>
+      </nav>
 
       <footer className="relative mt-4 py-5 px-6 text-center border-t border-[#EADFAF]">
         <div className="absolute left-1/2 -translate-x-1/2 -top-px w-16 h-px bg-gradient-to-r from-transparent via-[#EAD94C] to-transparent" />
