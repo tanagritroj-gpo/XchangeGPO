@@ -15,7 +15,10 @@ const RegisterSchema = z.object({
   contact_name: z.string().min(1).max(100),
   position: z.string().min(1).max(100),
   phone: z.string().regex(/^[0-9+\-\s]{9,15}$/, 'รูปแบบเบอร์โทรไม่ถูกต้อง'),
-  email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง'),
+  // ★ trim + toLowerCase ก่อนบันทึก — ให้ตรงกับ EmailSchema ใน auth-actions.ts ที่ normalize
+  // ฝั่ง lookup (login/Google callback/password reset) ด้วยรูปแบบเดียวกัน กันบัญชีซ้ำซ้อนจาก
+  // ตัวพิมพ์ต่างกัน และกัน login ผ่าน Google ล้มเหลวถ้า case ไม่ตรงกับตอนลงทะเบียน
+  email: z.string().trim().toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง'),
   // ★ login ลูกค้าใช้ email เป็น username (ไม่มีคอลัมน์ username แยก) คู่กับรหัสผ่านนี้
   password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร').max(100),
   // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL —

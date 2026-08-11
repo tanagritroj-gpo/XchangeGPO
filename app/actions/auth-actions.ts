@@ -16,7 +16,13 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
-const EmailSchema = z.string().trim().min(1, 'กรุณากรอกอีเมล').email('รูปแบบอีเมลไม่ถูกต้อง');
+// ★ .toLowerCase() ต่อจาก .trim() เสมอ — กันเคส email ตัวพิมพ์ต่างกัน (เช่น Google OAuth
+// คืน "John@Gmail.com" แต่ตอนลงทะเบียนกรอก "john@gmail.com") ทำให้ login ล้มเหลวทั้งที่เป็น
+// บัญชีเดียวกัน เนื่องจากทุกจุด lookup (login, Google callback, password reset) ผ่าน schema
+// นี้จุดเดียว การ normalize ตรงนี้จุดเดียวจึงครอบคลุมทั้งหมด — คู่กับ RegisterSchema.email ใน
+// auth.ts ที่ normalize ฝั่งบันทึกข้อมูลใหม่ด้วยเช่นกัน (ข้อมูลเดิมใน DB ตรวจแล้วเป็น lowercase
+// อยู่แล้วทุกแถว ไม่ต้อง backfill)
+const EmailSchema = z.string().trim().min(1, 'กรุณากรอกอีเมล').toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง');
 
 function getClientIp(headerList: Headers): string {
   // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
@@ -95,6 +101,17 @@ export async function loginCustomerAction(payload: { email: string; password: st
 
   // ★ กันเดารหัสผ่านรัว — เดิมมีแค่ bcrypt กับ DUMMY_HASH (กัน timing attack) แต่ไม่มี cap
   // จำนวนครั้งเลย ต่างจากทุกจุด auth อื่นในระบบ (พบระหว่าง security audit 7 ส.ค. 2569)
+  //
+  // ★★ เพิ่ม IP-based limit คู่กับของเดิม (พบระหว่าง security audit 11 ส.ค. 2569) — ของเดิม
+  // ผูกกับ email เดียวเท่านั้น กันแค่ "เดารหัสผ่านซ้ำกับบัญชีเดียว" ไม่กัน credential
+  // stuffing ที่กระจายยิงหลายอีเมลพร้อมกันจาก IP เดียว (เช่น บอทลองรหัสผ่านที่หลุดจากที่อื่น
+  // ไล่ทีละอีเมลๆ ละไม่กี่ครั้ง หลบ cap ต่อบัญชีได้สบายๆ) เพดานตั้งกว้างกว่าของเดิม (20 vs 10)
+  // เพราะ IP เดียวอาจมีผู้ใช้จริงหลายคน (เช่น รพ./ร้านยาที่ใช้ NAT เดียวกัน) ไม่อยากบล็อก
+  // คนปกติเกินจำเป็น เช็คก่อน per-email เพราะเป็นเกราะกว้างกว่า
+  const ip = getClientIp(await headers());
+  const ipRateLimit = await checkRateLimit(`login-customer-ip:${ip}`, 20, 300);
+  if (!ipRateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+
   const rateLimit = await checkRateLimit(`login-customer:${cleanEmail}`, 10, 300);
   if (!rateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
 

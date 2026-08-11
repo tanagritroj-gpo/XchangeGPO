@@ -99,6 +99,16 @@ export async function loginStaffAction(payload: { username: string; password: st
   try {
     // ★ กันเดารหัสผ่านรัว — เดิมมีแค่ bcrypt กับ DUMMY_HASH (กัน timing attack) แต่ไม่มี cap
     // จำนวนครั้งเลย ต่างจากทุกจุด auth อื่นในระบบ (พบระหว่าง security audit 7 ส.ค. 2569)
+    //
+    // ★★ เพิ่ม IP-based limit คู่กับของเดิม (พบระหว่าง security audit 11 ส.ค. 2569) — ของเดิม
+    // ผูกกับ username เดียวเท่านั้น กันแค่ "เดารหัสผ่านซ้ำกับบัญชีเดียว" ไม่กัน credential
+    // stuffing ที่กระจายยิงหลาย username พร้อมกันจาก IP เดียว เพดานตั้งกว้างกว่าของเดิม
+    // (20 vs 10) เพราะ IP เดียวอาจมีพนักงานหลายคน login จากเครือข่ายเดียวกัน (office/สาขา)
+    // ไม่อยากบล็อกคนปกติเกินจำเป็น เช็คก่อน per-username เพราะเป็นเกราะกว้างกว่า
+    const ip = getClientIp(await headers());
+    const ipRateLimit = await checkRateLimit(`login-staff-ip:${ip}`, 20, 300);
+    if (!ipRateLimit.allowed) return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+
     const rateLimit = await checkRateLimit(`login-staff:${username}`, 10, 300);
     if (!rateLimit.allowed) return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
 
