@@ -14,13 +14,13 @@ export default async function AuthenticatedLayout({
   if (!customer) redirect('/');
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[calc(100dvh-56px)] overflow-hidden bg-background">
 
       <div className="hidden md:flex w-64 flex-shrink-0">
         <Sidebar customer={customer} />
       </div>
 
-      <main className="flex-1 overflow-y-auto pb-20 md:pb-8 p-4 md:p-8">
+      <main className="flex-1 overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-8 p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
           {children}
         </div>

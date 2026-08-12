@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, Download, Copy, Check, Mail, ArrowRight, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Download, Copy, Check, Mail, ArrowRight, X, QrCode } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action';
 
@@ -59,6 +60,7 @@ export function ReviewSuccessCard({
   const [emailState, setEmailState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [downloading, setDownloading] = useState(false);
   const [docModalUrl, setDocModalUrl] = useState<string | null>(null);
+  const [qrOpen, setQrOpen] = useState(false);
   const [recipients, setRecipients] = useState<OrgContact[]>([]);
   const [recipientsLoaded, setRecipientsLoaded] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
@@ -149,6 +151,25 @@ export function ReviewSuccessCard({
     await navigator.clipboard.writeText(refId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 4b. ลิงก์หน้าติดตามสถานะแบบ public (ไม่ต้อง login) — ปลายทางของ QR code
+  // ต้องเป็น /tracking (ไม่ใช่ /customer/tracking ที่ล็อกอินถึงเข้าได้) เพราะคนสแกน QR
+  // อาจเป็นใครก็ได้ที่ถือใบเสร็จ ไม่ใช่ผู้ใช้ที่ล็อกอินอยู่ตอนนี้เสมอไป
+  // ใช้ window.location.origin แทน NEXT_PUBLIC_SITE_URL ตรงๆ เพราะ env var นั้น bake
+  // ตอน build และมักหลุด sync กับโดเมนจริง (เช่นตั้งไว้เป็น localhost แต่ deploy ขึ้น
+  // production แล้วลืมแก้ที่ Vercel) — origin จาก browser การันตีว่าตรงกับโดเมนที่ผู้ใช้
+  // เปิดอยู่จริงเสมอ ไม่ว่าจะเป็น localhost, preview, หรือ production
+  const trackingUrl = `${typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_SITE_URL ?? '')}/tracking?ref=${refId}`;
+
+  // 4c. ดาวน์โหลด QR code เป็นไฟล์ PNG จาก <canvas> ที่ qrcode.react เรนเดอร์ไว้
+  const handleDownloadQr = () => {
+    const canvas = document.getElementById('tracking-qr-canvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `qr-tracking-${refId}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   // 5. ฟังก์ชันส่งอีเมล — ฝั่ง CSR ส่งเฉพาะผู้รับที่ติ๊กเลือกไว้ (getEmailRecipientsFn ให้มา)
@@ -283,29 +304,55 @@ export function ReviewSuccessCard({
                 </div>
               )}
 
-              <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {/* แถวเครื่องมืออ้างอิง — คัดลอกเลข ref กับ QR code วางคู่กัน ให้ลูกค้าเลือกใช้แบบไหนก็ได้
+                  (showTrackingLink คุม QR เหมือนลิงก์ติดตามด้านล่าง ฝั่ง staff เลยไม่เห็น) */}
+              <div className={`grid gap-3 ${showTrackingLink ? 'grid-cols-2' : allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
                   className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all flex items-center justify-center gap-1.5"
                 >
                   {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'คัดลอกแล้ว' : 'คัดลอกเลขอ้างอิง'}
                 </button>
-                {/* ปุ่มส่งอีเมล — ซ่อนทั้งบล็อกถ้า allowEmail=false (ฝั่ง staff ไม่ต้องส่งอีเมล)
-                    เงื่อนไข disabled แยกสองแบบ: ฝั่ง CSR (getEmailRecipientsFn) เช็คว่ามีผู้รับ
-                    ที่ติ๊กเลือกไว้ไหม ฝั่งลูกค้าเดิมเช็ค customerEmail เหมือนเดิมทุกประการ */}
-                {allowEmail && (
+                {showTrackingLink ? (
                   <button
-                    onClick={handleEmailCopy}
-                    disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
-                    className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    type="button"
+                    onClick={() => setQrOpen(true)}
+                    className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all flex items-center justify-center gap-1.5"
                   >
-                    {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
-                    {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
-                    {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
-                    {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
+                    <QrCode size={15} /> QR Code ติดตามสถานะ
                   </button>
+                ) : (
+                  /* ฝั่ง staff ไม่มี QR — คงเลย์เอาต์เดิมไว้ ปุ่มอีเมลอยู่คู่กับคัดลอก ref ตามเดิม */
+                  allowEmail && (
+                    <button
+                      onClick={handleEmailCopy}
+                      disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
+                      className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
+                      {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
+                      {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
+                      {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
+                    </button>
+                  )
                 )}
               </div>
+
+              {/* ปุ่มส่งอีเมลแบบเต็มแถว — เฉพาะกรณีที่ QR เข้ามาแทนที่ตำแหน่งเดิมของปุ่มนี้แล้ว
+                  (ฝั่งลูกค้า: showTrackingLink=true) เงื่อนไข disabled แยกสองแบบเหมือนเดิม:
+                  ฝั่ง CSR (getEmailRecipientsFn) เช็คว่ามีผู้รับที่ติ๊กเลือกไว้ไหม ฝั่งลูกค้าเช็ค customerEmail */}
+              {showTrackingLink && allowEmail && (
+                <button
+                  onClick={handleEmailCopy}
+                  disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
+                  className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
+                  {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
+                  {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
+                  {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
+                </button>
+              )}
 
               {/* ลิงก์ "ติดตามสถานะคำร้องนี้" — ควบคุมแยกจากปุ่มอีเมลแล้ว ผ่าน showTrackingLink
                   ฝั่งลูกค้า (default true) ยังเห็นเหมือนเดิม ฝั่ง staff (false) ไม่เห็นตามที่ตกลงกันไว้ */}
@@ -365,6 +412,44 @@ export function ReviewSuccessCard({
               </div>
             </div>
             <iframe src={docModalUrl} className="flex-1 w-full" title="ใบรับคืนสินค้า" />
+          </div>
+        </div>
+      )}
+
+      {/* ══ โมดัล QR code — สแกนแล้วเข้าหน้าติดตามสถานะ public พร้อมเลข ref-id กรอกไว้ให้แล้ว ══ */}
+      {qrOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => setQrOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">
+              <h3 className="text-base font-bold text-foreground">QR Code ติดตามสถานะ</h3>
+              <button
+                onClick={() => setQrOpen(false)}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-slate-600 transition-all"
+                aria-label="ปิด"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex flex-col items-center gap-4 p-6">
+              <div className="p-4 bg-white rounded-2xl border-2 border-teal-100">
+                <QRCodeCanvas id="tracking-qr-canvas" value={trackingUrl} size={200} level="M" marginSize={0} />
+              </div>
+              <p className="text-sm text-center text-muted-foreground">
+                สแกนเพื่อดูสถานะคำร้อง <span className="font-mono font-bold text-teal-700">{refId}</span> ได้ทันที ไม่ต้องเข้าสู่ระบบ
+              </p>
+              <button
+                onClick={handleDownloadQr}
+                className="w-full py-3 rounded-2xl font-black text-sm text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Download size={15} /> ดาวน์โหลด QR Code
+              </button>
+            </div>
           </div>
         </div>
       )}

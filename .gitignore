@@ -33,6 +33,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*.local
 .env
+.env.local.cloud-backup
 
 # vercel
 .vercel
@@ -48,3 +49,4 @@ next-env.d.ts
 # for the 2026-08-03 decision) — covers the numbered 01-05 series plus this one
 /0[0-9]-*.md
 /SYSTEM_ASSESSMENT.md
+.env*
