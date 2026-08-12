@@ -1,6 +1,7 @@
 'use server'
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import * as Sentry from '@sentry/nextjs';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
@@ -79,6 +80,7 @@ export async function createReturnRequest(formData: ReturnFormData) {
 
   if (uploadErr) {
     console.error('Signature upload failed:', uploadErr);
+    Sentry.captureException(uploadErr, { tags: { area: 'signature-upload' } });
     throw new Error("บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่");
   }
 
@@ -172,6 +174,9 @@ export async function createReturnRequest(formData: ReturnFormData) {
     });
   } catch (notifyErr) {
     console.error('createReturnRequest: failed to log notification', notifyErr);
+    // level: warning เพราะ non-blocking (คำร้องหลักสร้างสำเร็จแล้ว) แต่ยังอยากรู้ถ้าเกิดถี่
+    // เพราะแปลว่า CSR/Manager/Sale ไม่เห็นแจ้งเตือนคำร้องใหม่เข้าระบบเงียบๆ
+    Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
   }
 
   return { id: data[0].request_id, refId: data[0].ref_id };

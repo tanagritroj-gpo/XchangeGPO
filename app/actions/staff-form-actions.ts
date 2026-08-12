@@ -1,6 +1,7 @@
 'use server'
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
@@ -228,6 +229,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     });
   } catch (notifyErr) {
     console.error('createStaffReturnRequest: failed to log notification', notifyErr);
+    Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
   }
 
   return { id: data[0].request_id, refId: data[0].ref_id };
@@ -276,6 +278,7 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
 
     if (uploadErr) {
       console.error('Storage upload failed (staff):', uploadErr);
+      Sentry.captureException(uploadErr, { tags: { area: 'pdf-upload' } });
       return { success: false, error: 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่' };
     }
 
@@ -471,6 +474,12 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
     const sentEmails = results.filter((r) => r.ok).map((r) => r.email);
     if (sentEmails.length === 0) {
       console.error('Resend API Error (staff, all recipients failed):', results);
+      // ★ ส่งแค่จำนวนผู้รับที่พลาด ไม่ส่ง results ทั้งก้อนเพราะมี email จริงของผู้รับฝังอยู่
+      Sentry.captureMessage('send staff pdf email: all recipients failed', {
+        level: 'error',
+        tags: { area: 'send-staff-pdf-email' },
+        extra: { requestId, recipientCount: results.length },
+      });
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
     }
 
@@ -497,6 +506,7 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
     };
   } catch (err: unknown) {
     console.error('Send Staff Email Catch Error:', err);
+    Sentry.captureException(err, { tags: { area: 'send-staff-pdf-email' } });
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' };
   }
 }

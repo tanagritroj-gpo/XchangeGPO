@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import * as Sentry from '@sentry/nextjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
@@ -54,6 +55,7 @@ export async function registerCustomer(payload: unknown) {
 
     if (uploadErr) {
       console.error('Registration signature upload failed:', uploadErr);
+      Sentry.captureException(uploadErr, { tags: { area: 'signature-upload' } });
       return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
@@ -100,6 +102,7 @@ export async function registerCustomer(payload: unknown) {
       });
     } catch (notifyErr) {
       console.error('registerCustomer: failed to log notification', notifyErr);
+      Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
     }
 
     return { success: true, data: inserted };
@@ -107,6 +110,10 @@ export async function registerCustomer(payload: unknown) {
   } catch (error: unknown) {
     console.error("Registration Error:", error);
     const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: string }).code : undefined;
+    // ★ ไม่ capture เคสอีเมลซ้ำ (23505) — เป็นพฤติกรรมคาดหวังปกติของผู้ใช้ ไม่ใช่ระบบพัง
+    if (code !== '23505') {
+      Sentry.captureException(error, { tags: { area: 'customer-registration' } });
+    }
     return {
       success: false,
       error: code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"

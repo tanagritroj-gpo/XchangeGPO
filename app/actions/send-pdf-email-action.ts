@@ -2,6 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { Resend } from 'resend';
+import * as Sentry from '@sentry/nextjs';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -78,6 +79,7 @@ export async function sendPdfEmailAction(requestId: number) {
 
     if (emailErr) {
       console.error('Resend API Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
+      Sentry.captureException(emailErr, { tags: { area: 'send-pdf-email' } });
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail จาก Resend
     }
 
@@ -101,6 +103,7 @@ export async function sendPdfEmailAction(requestId: number) {
 
   } catch (err: unknown) {
     console.error('Send Email Catch Error:', err); // log เต็มไว้ฝั่ง server
+    Sentry.captureException(err, { tags: { area: 'send-pdf-email' } });
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ err.message ดิบ
   }
 }

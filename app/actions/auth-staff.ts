@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
@@ -88,6 +89,11 @@ export async function registerStaff(payload: StaffRegisterPayload) {
     return { success: true };
   } catch (error: unknown) {
     console.error("Staff Registration Error:", error);
+    // ★ ไม่ capture เคส username/รหัสพนักงานซ้ำ — เป็นพฤติกรรมคาดหวังปกติของผู้ใช้ ไม่ใช่
+    // ระบบพัง (เช็คจาก message เพราะ throw ใหม่เป็น Error ธรรมดา ไม่มี .code ของ Postgres ติดมา)
+    if (getErrorMessage(error) !== 'Username หรือรหัสพนักงานนี้ถูกใช้งานแล้ว') {
+      Sentry.captureException(error, { tags: { area: 'staff-registration' } });
+    }
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -139,7 +145,11 @@ export async function loginStaffAction(payload: { username: string; password: st
       .select('token')
       .single();
 
-    if (sessErr || !session) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+    if (sessErr || !session) {
+      console.error('Staff login: session creation failed:', sessErr);
+      Sentry.captureException(sessErr, { tags: { area: 'staff-login' } });
+      return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+    }
 
     const cookieStore = await cookies();
     cookieStore.set('staff_session', session.token, {
@@ -153,6 +163,7 @@ export async function loginStaffAction(payload: { username: string; password: st
     return { success: true, role: user.role, department: user.department };
   } catch (error: unknown) {
     console.error("Login Error:", error);
+    Sentry.captureException(error, { tags: { area: 'staff-login' } });
     return { success: false, error: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ" };
   }
 }
@@ -204,6 +215,8 @@ export async function getStaffSession() {
 
   if (error) {
     console.error('getStaffSession query error:', error);
+    // ★ เรียกทุกหน้า staff ที่ต้อง login ถ้าพังแปลว่า staff ทุกคนหลุด session พร้อมกัน
+    Sentry.captureException(error, { level: 'fatal', tags: { area: 'staff-session' } });
     return null;
   }
 
@@ -336,6 +349,7 @@ export async function resetStaffPassword(username: string, otp: string, newPassw
     return { success: true };
   } catch (error: unknown) {
     console.error('Staff Password Reset Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-password-reset' } });
     return { success: false, error: getErrorMessage(error) };
   }
 }

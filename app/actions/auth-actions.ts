@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { Resend } from 'resend';
 import { render } from '@react-email/render';
@@ -233,6 +234,7 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
     return { success: true };
   } catch (error: unknown) {
     console.error('Customer Password Reset Error:', error);
+    Sentry.captureException(error, { tags: { area: 'customer-password-reset' } });
     return { success: false, error: getErrorMessage(error) };
   }
 }
@@ -253,6 +255,9 @@ export async function getCustomerSession() {
 
   if (error) {
     console.error('getCustomerSession query error:', error);
+    // ★ จุดสำคัญมาก — เรียกทุกหน้าที่ต้อง login ถ้าพังแปลว่าลูกค้าทุกคนหลุด session
+    // พร้อมกันทั้งระบบ ควรรู้ทันที ไม่ใช่รอมีคนมาแจ้ง
+    Sentry.captureException(error, { level: 'fatal', tags: { area: 'customer-session' } });
     return null;
   }
 
