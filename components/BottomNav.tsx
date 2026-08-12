@@ -24,7 +24,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100 flex items-stretch h-16">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100 flex items-stretch min-h-16 pb-[env(safe-area-inset-bottom)]">
 
       {tabs.map(tab => {
         const active = pathname === tab.href || pathname.startsWith(tab.href + '/');

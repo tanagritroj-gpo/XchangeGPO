@@ -11,17 +11,19 @@ export default async function WelcomeLayout({ children }: { children: React.Reac
   if (!session) redirect('/');
 
   return (
-    // root layout (app/layout.tsx) ไม่มี <main pt-[56px]> ครอบอยู่แล้ว
-    // (header ถูกลบออกไปแล้ว) จึงไม่ต้องหัก offset 56px จากความสูง/ตำแหน่งใดๆ
-    // ในไฟล์นี้อีกต่อไป — ใช้ h-screen เต็มความสูงจริงตรงๆ
-    <div className="min-h-screen flex bg-[#f5fbf9]">
+    // root layout (app/layout.tsx) มี <main pt-[56px]> ครอบ header คงที่สูง 56px
+    // อยู่จริง (คอมเมนต์เดิมตรงนี้เข้าใจผิดว่าถูกลบไปแล้ว) — ต้องหัก offset 56px
+    // ออกจาก h-screen ไม่งั้น div นี้จะสูงเกิน viewport จริงไป 56px แล้วดันเนื้อหา
+    // ท้ายสุด (เช่นปุ่มต่างๆ) ให้จมอยู่ใต้ BottomNav บนมือถือ (บั๊กเดียวกับที่เจอใน
+    // app/(authenticated)/layout.tsx)
+    <div className="h-[calc(100dvh-56px)] overflow-hidden flex bg-[#f5fbf9]">
       <aside
-        className="hidden md:flex w-64 sticky top-0 h-screen bg-white/80 backdrop-blur-xl border-r border-teal-50 shadow-sm z-40"
+        className="hidden md:flex w-64 sticky top-0 h-full bg-white/80 backdrop-blur-xl border-r border-teal-50 shadow-sm z-40"
       >
         <Sidebar customer={session} />
       </aside>
 
-      <main className="flex-1 h-screen overflow-y-auto pb-20 md:pb-0">
+      <main className="flex-1 h-full overflow-y-auto pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </main>
 

@@ -21,7 +21,9 @@ const AUTO_OPEN_DELAY_MS = 700;
  * ChatWidget — ปุ่มลอย + หน้าต่างแชท FAQ
  *
  * ตำแหน่ง/offset อิงตาม StickyReturnCTA ที่เคยแก้ไว้ก่อนหน้า:
- * bottom-20 (80px) = ความสูงจริงของ BottomNav (h-16=64px) + เว้น 16px
+ * 5rem (80px) = ความสูงจริงของ BottomNav (h-16=64px) + เว้น 16px, บวก
+ * env(safe-area-inset-bottom) ให้ตรงกับ padding ของ BottomNav/main ใน
+ * app/(authenticated)/layout.tsx — กันปุ่มจมใต้ BottomNav บนจอมี home indicator
  * บนมือถือ, bottom-6 บนจอ >= md ที่ไม่มี BottomNav แล้ว, z-[60] กันโดน
  * layer อื่นบัง (สูงกว่า header/sidebar ที่ใช้ z-50 ทั่วไป)
  *
@@ -212,7 +214,7 @@ export function ChatWidget() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? 'ปิดหน้าต่างแชท' : 'เปิดหน้าต่างแชท'}
-        className="fixed bottom-20 right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-900/20 transition-transform duration-150 hover:bg-teal-700 active:scale-95 md:bottom-6 md:right-6"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-900/20 transition-transform duration-150 hover:bg-teal-700 active:scale-95 md:bottom-6 md:right-6"
       >
         {open ? (
           <X className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
