@@ -1,4 +1,5 @@
 import 'server-only';
+import * as Sentry from '@sentry/nextjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 
 interface RateLimitResult {
@@ -26,8 +27,19 @@ export async function checkRateLimit(
 
   // ถ้า rate limit เช็คไม่ได้ (เช่น migration ยังไม่รัน) ให้ "เปิดผ่าน" แทนที่จะบล็อกผู้ใช้ปกติ
   // แต่ log ไว้เพื่อให้รู้ว่าต้องรีบแก้ — fail-open เฉพาะ tracking (ข้อมูล read-only, ความเสี่ยงต่ำกว่า fail-closed ที่ปิดฟีเจอร์ทั้งหมด)
+  // ★ ผูกเข้า Sentry ด้วย (พบระหว่าง security audit 11 ส.ค. 2569) — เดิมมีแค่ console.error
+  // ที่ไม่มีใครเห็นจริงจนกว่าจะไป grep log เอง ตอนนี้ยิง alert ทันทีที่การป้องกัน brute-force
+  // ทั้งระบบหลุดจริงจากปัญหา DB ไม่ใช่แค่บันทึกเงียบๆ
   if (error || !data) {
     console.error('[rate-limit] check failed, failing open:', error?.message);
+    // ★ ส่งแค่ "หมวด" ของ key (ส่วนก่อน ':' แรก เช่น "login-customer", "track") ไม่ส่ง
+    // key เต็ม เพราะหลาย call site ฝัง email/IP ของผู้ใช้ไว้ในนั้น (เช่น
+    // `login-customer:${email}`) — ส่งทั้งก้อนจะหลุด PII เข้า Sentry ตรงๆ
+    Sentry.captureMessage('rate-limit check failed, failing open', {
+      level: 'error',
+      tags: { area: 'rate-limit', keyCategory: key.split(':')[0] },
+      extra: { limit, windowSeconds, dbError: error?.message },
+    });
     return { allowed: true, remaining: limit };
   }
 

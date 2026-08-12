@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import * as Sentry from '@sentry/nextjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
@@ -15,7 +16,10 @@ const RegisterSchema = z.object({
   contact_name: z.string().min(1).max(100),
   position: z.string().min(1).max(100),
   phone: z.string().regex(/^[0-9+\-\s]{9,15}$/, 'รูปแบบเบอร์โทรไม่ถูกต้อง'),
-  email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง'),
+  // ★ trim + toLowerCase ก่อนบันทึก — ให้ตรงกับ EmailSchema ใน auth-actions.ts ที่ normalize
+  // ฝั่ง lookup (login/Google callback/password reset) ด้วยรูปแบบเดียวกัน กันบัญชีซ้ำซ้อนจาก
+  // ตัวพิมพ์ต่างกัน และกัน login ผ่าน Google ล้มเหลวถ้า case ไม่ตรงกับตอนลงทะเบียน
+  email: z.string().trim().toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง'),
   // ★ login ลูกค้าใช้ email เป็น username (ไม่มีคอลัมน์ username แยก) คู่กับรหัสผ่านนี้
   password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร').max(100),
   // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL —
@@ -51,6 +55,7 @@ export async function registerCustomer(payload: unknown) {
 
     if (uploadErr) {
       console.error('Registration signature upload failed:', uploadErr);
+      Sentry.captureException(uploadErr, { tags: { area: 'signature-upload' } });
       return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
@@ -97,6 +102,7 @@ export async function registerCustomer(payload: unknown) {
       });
     } catch (notifyErr) {
       console.error('registerCustomer: failed to log notification', notifyErr);
+      Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
     }
 
     return { success: true, data: inserted };
@@ -104,6 +110,10 @@ export async function registerCustomer(payload: unknown) {
   } catch (error: unknown) {
     console.error("Registration Error:", error);
     const code = typeof error === 'object' && error !== null && 'code' in error ? (error as { code?: string }).code : undefined;
+    // ★ ไม่ capture เคสอีเมลซ้ำ (23505) — เป็นพฤติกรรมคาดหวังปกติของผู้ใช้ ไม่ใช่ระบบพัง
+    if (code !== '23505') {
+      Sentry.captureException(error, { tags: { area: 'customer-registration' } });
+    }
     return {
       success: false,
       error: code === '23505' ? "อีเมลนี้ได้ทำการลงทะเบียนไปแล้ว" : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"

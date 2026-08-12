@@ -1,6 +1,7 @@
 'use server';
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import * as Sentry from '@sentry/nextjs';
 import { buildReturnFormPdf } from '../services/pdf-service';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -60,6 +61,7 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
 
     if (uploadErr) {
       console.error('Storage upload failed:', uploadErr); // log เต็มไว้ฝั่ง server เท่านั้น
+      Sentry.captureException(uploadErr, { tags: { area: 'pdf-upload' } });
       return { success: false, error: 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่' }; // ไม่ส่ง detail กลับ client
     }
 

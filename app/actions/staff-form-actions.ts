@@ -1,10 +1,12 @@
 'use server'
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
 import { bucketForOrgType } from '@/lib/sale-coverage';
+import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
 import { Resend } from 'resend';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 
@@ -130,19 +132,21 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     throw new Error('ไม่พบข้อมูลหน่วยงานที่เลือก กรุณาเลือกใหม่');
   }
 
-  // มูลค่ารวมคำนวณจาก จำนวน × ราคาต่อหน่วย ฝั่ง server เสมอ ไม่เชื่อ item.val จาก client ตรงๆ
+  // มูลค่ารวมคำนวณจาก จำนวน × ราคาต่อหน่วย ฝั่ง server เสมอ ไม่เชื่อ item.val จาก client ตรงๆ —
+  // DrugItemInputSchema (lib/return-request-schema.ts) กัน qty/unit_price ไม่มีขอบเขตบนด้วย
+  // (พบระหว่าง security audit 11 ส.ค. 2569 — เดิมกันแค่ติดลบ/NaN) ใช้ schema เดียวกับ
+  // form-actions.ts (ฝั่งลูกค้า) ให้ขอบเขตค่าที่ยอมรับตรงกันทั้งสองช่องทาง
   const items: ReturnItemInput[] = formData.items.map((item: DrugItemEntry): ReturnItemInput => {
-    const qty = Math.max(0, Number(item.qty) || 0);
-    const unitPrice = Math.max(0, Number(item.unitPrice) || 0);
+    const parsed = DrugItemInputSchema.parse(item);
     return {
-      drug_name: String(item.drugName ?? '').slice(0, 200),
-      qty,
-      unit: item.unit || 'ไม่ระบุ',
-      lot_number: item.lot || '',
-      exp_date: sanitizeDate(item.exp),
-      unit_price: unitPrice,
-      value_amount: qty * unitPrice,
-      invoice_number: item.inv || '',
+      drug_name: parsed.drugName,
+      qty: parsed.qty,
+      unit: parsed.unit,
+      lot_number: parsed.lot,
+      exp_date: sanitizeDate(parsed.exp),
+      unit_price: parsed.unitPrice,
+      value_amount: parsed.qty * parsed.unitPrice,
+      invoice_number: parsed.inv,
     };
   });
 
@@ -153,7 +157,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
   const requestData = {
     ref_id: `REF-${crypto.randomUUID().substring(0, 8).toUpperCase()}`,
     // doc_number ไม่รับจาก client อีกต่อไป — create_exchange_request จอง atomic เอง
-    request_type: formData.sender?.request_type,
+    request_type: sanitizeFreeText(formData.sender?.request_type),
 
     // ★ ข้อมูลหน่วยงาน ยึดจาก organization ที่ยืนยันว่ามีอยู่จริงในระบบ ไม่ใช่จาก client ตรงๆ
     // ไม่มี phone/customer_email ของผู้ติดต่อรายคนอีกต่อไป — sendStaffPdfEmailAction จะ
@@ -167,16 +171,18 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     //   เพื่อให้ตามหาผู้รับผิดชอบคำร้องนี้ได้จริง แทนป้ายข้อความทั่วไป
     contact_name: session.full_name || session.username,
 
-    return_reason: formData.return_reason,
-    delivery_type: formData.delivery_type,
-    addr_street: formData.addr_street,
-    addr_sub: formData.addr_sub,
-    addr_district: formData.addr_district,
-    addr_province: formData.addr_province,
-    agent_info: formData.agent_info,
-    exchange_product_type: formData.exchange_product_type,
-    exchange_product_list: formData.exchange_product_list,
-    exchange_product_other: formData.exchange_product_other,
+    // ★ sanitizeFreeText (lib/return-request-schema.ts) ตัดความยาวข้อความอิสระที่ DB ไม่ได้
+    //    จำกัดไว้เอง (พบระหว่าง security audit 11 ส.ค. 2569 — เดิมส่งตรงจาก client ไม่มี cap)
+    return_reason: sanitizeFreeText(formData.return_reason),
+    delivery_type: sanitizeFreeText(formData.delivery_type),
+    addr_street: sanitizeFreeText(formData.addr_street),
+    addr_sub: sanitizeFreeText(formData.addr_sub),
+    addr_district: sanitizeFreeText(formData.addr_district),
+    addr_province: sanitizeFreeText(formData.addr_province),
+    agent_info: sanitizeFreeText(formData.agent_info),
+    exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
+    exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
+    exchange_product_other: sanitizeFreeText(formData.exchange_product_other),
 
     // ★ ไม่มี signature_url / signer_name / signer_position — CSR ไม่มี step เซ็นชื่อ
     //   คอลัมน์เหล่านี้ nullable อยู่แล้ว (ยืนยันจาก schema จริง) ปล่อยว่างได้โดยไม่ error
@@ -223,6 +229,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     });
   } catch (notifyErr) {
     console.error('createStaffReturnRequest: failed to log notification', notifyErr);
+    Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
   }
 
   return { id: data[0].request_id, refId: data[0].ref_id };
@@ -271,6 +278,7 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
 
     if (uploadErr) {
       console.error('Storage upload failed (staff):', uploadErr);
+      Sentry.captureException(uploadErr, { tags: { area: 'pdf-upload' } });
       return { success: false, error: 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่' };
     }
 
@@ -316,9 +324,11 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
 // ── 5. รายชื่อผู้ติดต่อ (b2b_customers) ของหน่วยงานที่ผูกกับคำร้องนี้ — ใช้เลือกผู้รับอีเมล
 // ในหน้าตรวจสอบ (ReviewSuccessCard) เมื่อหน่วยงานนั้นมี contact/login มากกว่า 1 คน — join
 // ผ่าน requests.customer_code (สายเดียวกับที่ยืนยันแล้วว่าถูกต้องในรายงานพอร์ตลูกค้า)
-export async function getOrgContactsForRequest(requestId: number) {
-  await requireCsrSession();
-
+// แยก logic ออกมาเป็น fetchOrgContactsForRequest (ไม่เช็ค session เอง) เพื่อให้
+// sendStaffPdfEmailAction เรียกซ้ำได้โดยตรง — ใช้สร้าง allowlist ตรวจ recipientEmails
+// ที่ client ส่งมาก่อน insert ลง queue ส่งอีเมลจริง (กัน CSR ส่งเอกสารลูกค้าไปอีเมล
+// ภายนอกที่ไม่ใช่ผู้ติดต่อ/sale ของหน่วยงานนั้น)
+async function fetchOrgContactsForRequest(requestId: number) {
   const { data: request, error: reqErr } = await supabaseAdmin
     .from('requests')
     .select('customer_code')
@@ -326,7 +336,7 @@ export async function getOrgContactsForRequest(requestId: number) {
     .maybeSingle();
 
   if (reqErr || !request?.customer_code) {
-    return { success: false, error: 'ไม่พบรหัสลูกค้าของคำร้องนี้' };
+    return { success: false as const, error: 'ไม่พบรหัสลูกค้าของคำร้องนี้' };
   }
 
   const { data: contacts, error } = await supabaseAdmin
@@ -335,7 +345,7 @@ export async function getOrgContactsForRequest(requestId: number) {
     .eq('customer_code', request.customer_code)
     .order('contact_name', { ascending: true });
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false as const, error: error.message };
 
   const recipients: { id: number | string; contact_name: string | null; email: string }[] = [...(contacts ?? [])];
 
@@ -367,7 +377,12 @@ export async function getOrgContactsForRequest(requestId: number) {
     });
   }
 
-  return { success: true, data: recipients };
+  return { success: true as const, data: recipients };
+}
+
+export async function getOrgContactsForRequest(requestId: number) {
+  await requireCsrSession();
+  return fetchOrgContactsForRequest(requestId);
 }
 
 // ── 6. ส่งอีเมลลิงก์ PDF ให้ลูกค้า — CSR เป็นคนกด แต่ต้องส่งไปที่อีเมลลูกค้า ไม่ใช่อีเมล staff ──
@@ -395,11 +410,20 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
 
-    const recipients = recipientEmails && recipientEmails.length > 0
-      ? recipientEmails
-      : requestData.customer_email
-        ? [requestData.customer_email]
-        : [];
+    // ★ recipientEmails มาจาก client — ห้ามเชื่อตรงๆ ต้องกรองผ่าน allowlist ของหน่วยงาน
+    // เจ้าของคำร้องนี้ก่อนเสมอ (ผู้ติดต่อจริงใน b2b_customers + sale rep ที่ดูแลเขต — ชุด
+    // เดียวกับที่ getOrgContactsForRequest คืนให้ UI เลือก) กัน CSR ที่ login แล้วสั่งส่งลิงก์
+    // เอกสาร (มี PII ลูกค้า) ไปอีเมลภายนอกที่ไม่เกี่ยวข้องกับหน่วยงานนี้ได้
+    let recipients: string[];
+    if (recipientEmails && recipientEmails.length > 0) {
+      const contactsResult = await fetchOrgContactsForRequest(requestId);
+      const allowlist = new Set(
+        (contactsResult.success ? contactsResult.data : []).map((c) => c.email.trim().toLowerCase())
+      );
+      recipients = recipientEmails.filter((email) => allowlist.has(email.trim().toLowerCase()));
+    } else {
+      recipients = requestData.customer_email ? [requestData.customer_email] : [];
+    }
 
     if (recipients.length === 0) {
       return { success: false, error: 'ไม่มีอีเมลผู้รับ กรุณาเลือกผู้รับก่อนส่ง' };
@@ -450,6 +474,12 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
     const sentEmails = results.filter((r) => r.ok).map((r) => r.email);
     if (sentEmails.length === 0) {
       console.error('Resend API Error (staff, all recipients failed):', results);
+      // ★ ส่งแค่จำนวนผู้รับที่พลาด ไม่ส่ง results ทั้งก้อนเพราะมี email จริงของผู้รับฝังอยู่
+      Sentry.captureMessage('send staff pdf email: all recipients failed', {
+        level: 'error',
+        tags: { area: 'send-staff-pdf-email' },
+        extra: { requestId, recipientCount: results.length },
+      });
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
     }
 
@@ -476,6 +506,7 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
     };
   } catch (err: unknown) {
     console.error('Send Staff Email Catch Error:', err);
+    Sentry.captureException(err, { tags: { area: 'send-staff-pdf-email' } });
     return { success: false, error: 'ระบบขัดข้อง กรุณาลองใหม่ภายหลัง' };
   }
 }

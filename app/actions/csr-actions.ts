@@ -1,6 +1,7 @@
 'use server'
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
@@ -280,6 +281,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           await generateRegistrationDocument(client, organization.customer_code, session);
         } catch (docErr) {
           console.error('generateRegistrationDocument failed (non-blocking):', docErr);
+          Sentry.captureException(docErr, { level: 'warning', tags: { area: 'registration-document' } });
         }
       } catch (approveErr) {
         // ★ ย้อน clients.status กลับ 'pending' ไม่ว่าจะพังตรงขั้นตอนไหนก็ตาม (หา/สร้าง
@@ -287,6 +289,10 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
         // ทั้งที่ไม่มี b2b_customer จริงผูกอยู่เลย (แต่ละ statement ข้างบนเป็นคนละ
         // statement ไม่ใช่ transaction เดียวกัน ถ้าพังกลางทางแล้วปล่อย status ค้างไว้
         // จะกลายเป็นข้อมูลขัดแย้งแบบเดียวกับที่เจอใน client เก่าที่หลุดมาก่อนหน้านี้)
+        // ★ จุดนี้เดิมไม่มี console.error/alert เลย (พบระหว่างไล่หา error สำคัญที่ยังไม่มี
+        // การแจ้งเตือน 11 ส.ค. 2569) ทั้งที่เป็น failure ที่ร้ายแรงที่สุดของ flow อนุมัติ
+        // ลูกค้า (สร้าง organization/b2b_customers พังกลางทาง) — ต้อง capture ก่อน throw
+        Sentry.captureException(approveErr, { tags: { area: 'csr-client-approval' } });
         await supabaseAdmin.from('clients').update({ status: 'pending' }).eq('id', clientId);
         throw approveErr;
       }

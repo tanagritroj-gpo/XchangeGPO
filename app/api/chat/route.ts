@@ -1,10 +1,18 @@
 import { NextRequest } from 'next/server';
 import { CHATBOT_SYSTEM_PROMPT, MAX_HISTORY_MESSAGES } from '@/lib/chatbot-knowledge';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
+import { getCustomerSession } from '@/app/actions/auth-actions';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // วลีที่ prompt สั่งให้บอทพูดตรงๆ เวลาไม่มั่นใจ (ดู "กฎกันตอบมั่ว" ใน
 // CHATBOT_SYSTEM_PROMPT) ใช้จับคำถามที่บอทตอบไม่ได้เพื่อเก็บไว้ทบทวน
 const UNCERTAIN_MARKER = 'ไม่แน่ใจ';
+
+// จำนวนตัวอักษรสูงสุดต่อ 1 ข้อความ — กัน request เดี่ยวที่ยัดข้อความยาวผิดปกติ
+// เข้ามาเพื่อดันต้นทุน token (ไม่เกี่ยวกับ MAX_HISTORY_MESSAGES ที่คุมแค่ "จำนวน"
+// ข้อความ ไม่ได้คุม "ความยาว" ของแต่ละข้อความ) 1,500 ตัวอักษรเผื่อเหลือเฟือสำหรับ
+// คำถาม FAQ จริงที่ยาวที่สุดในระบบ (ยาวสุดตอนนี้ไม่ถึง 200 ตัวอักษร)
+const MAX_MESSAGE_LENGTH = 1500;
 
 /**
  * POST /api/chat
@@ -16,6 +24,25 @@ const UNCERTAIN_MARKER = 'ไม่แน่ใจ';
  * ── ทำไมต้องผ่าน route นี้ ไม่เรียก Gemini ตรงจาก browser ──
  * GEMINI_API_KEY ต้องอยู่ฝั่ง server เท่านั้น (env var ไม่มี prefix NEXT_PUBLIC_)
  * ถ้าเรียกจาก client โดยตรง key จะหลุดไปอยู่ใน bundle ที่ใครก็ดูได้จาก DevTools
+ *
+ * ── auth + rate limit (แก้ตามรายงาน audit วันที่ 2569-08-11 — เดิมไม่มีทั้งคู่) ──
+ * เช็ค session ก่อนอย่างอื่นทั้งหมดเหมือน /api/staff-chat — ChatWidget ของลูกค้า
+ * mount เฉพาะใน layout ที่ authenticated อยู่แล้ว (welcome/(authenticated)) ไม่มี
+ * flow ไหนที่ตั้งใจให้คนไม่ login คุยกับบอทได้ การเช็ค session ก่อนเรียก Gemini
+ * ทุกครั้งจึงตัดต้นทุน token จากผู้ใช้ไม่ผ่านการยืนยันตัวตนได้เท่ากับศูนย์ (ไม่ใช่แค่
+ * ป้องกัน แต่ยังเป็นเกราะหลักด้าน "ไม่เปลือง token" ด้วย) ต่อด้วย rate limit ผูกกับ
+ * customer.id กันบัญชีเดียว (ถูกขโมย/สคริปต์ยิงถี่) ถล่ม Gemini API เกินจำเป็น —
+ * 30 ครั้ง/10 นาที กว้างพอสำหรับสนทนาจริงกับ FAQ bot แต่บล็อกการยิงรัวแบบสคริปต์
+ *
+ * ── เผื่อขยายชุดคำถาม (FAQ_ENTRIES) ในอนาคต ──
+ * ตอนนี้ CHATBOT_SYSTEM_PROMPT ยัดทุกคำถาม/คำตอบเข้า system prompt เดียวส่งทุก
+ * request (ดู lib/chatbot-knowledge.ts) เหมาะกับขนาดปัจจุบัน (~10 entries) ถ้า
+ * FAQ_ENTRIES โตขึ้นมากในอนาคต (หลักสิบ-ร้อยรายการ) ต้นทุน token/request จะโตเป็น
+ * เส้นตรงตามไปด้วย ถึงจุดนั้นควรเปลี่ยนไปใช้ pattern แบบ function-calling/retrieval
+ * (ดึงเฉพาะ entry ที่เกี่ยวข้องตามคำถาม) แบบเดียวกับที่ /api/staff-chat ใช้กับ
+ * TOOLS อยู่แล้ว แทนที่จะยัดทุกอย่างเข้า prompt เดียวเหมือนตอนนี้ — rate limit
+ * และการเช็ค auth ในไฟล์นี้ออกแบบให้ไม่ผูกกับโครง prompt แบบใดแบบหนึ่ง จึงไม่ต้อง
+ * แก้ตรงนี้ซ้ำตอนเปลี่ยนโครง FAQ ในอนาคต
  */
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -27,6 +54,13 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = 'gemini-3.1-flash-lite';
 
 export async function POST(req: NextRequest) {
+  // ── 1. เช็ค session ก่อนอย่างอื่นทั้งหมด (เหมือน /api/staff-chat) — ตัดจบ
+  // ทันทีถ้าไม่ได้ login ไม่แตะ Gemini เลยแม้แต่ครั้งเดียว ──
+  const customer = await getCustomerSession();
+  if (!customer?.id) {
+    return Response.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
+  }
+
   if (!GEMINI_API_KEY) {
     return Response.json(
       { error: 'ระบบแชทยังไม่พร้อมใช้งาน (ไม่พบ GEMINI_API_KEY)' },
@@ -44,6 +78,16 @@ export async function POST(req: NextRequest) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
   if (messages.length === 0) {
     return Response.json({ error: 'ไม่มีข้อความ' }, { status: 400 });
+  }
+  if (messages.some((m) => typeof m.text !== 'string' || m.text.length > MAX_MESSAGE_LENGTH)) {
+    return Response.json({ error: 'ข้อความยาวเกินไป กรุณาสั้นลง' }, { status: 400 });
+  }
+
+  // ── 2. Rate limit ผูกกับลูกค้าคนนี้ — กันบัญชีเดียว (ถูกขโมย/สคริปต์) ยิงถี่
+  // เกินจำเป็น 30 ครั้ง/10 นาที กว้างพอสำหรับสนทนาจริง ──
+  const rateResult = await checkRateLimit(`chat:${customer.id}`, 30, 600);
+  if (!rateResult.allowed) {
+    return Response.json({ error: 'ส่งข้อความถี่เกินไป กรุณาลองใหม่อีกครั้งในอีกสักครู่' }, { status: 429 });
   }
 
   // เก็บแค่ history ล่าสุด N ข้อความ กันส่ง context ยาวเกินจำเป็น (คุมต้นทุน)
