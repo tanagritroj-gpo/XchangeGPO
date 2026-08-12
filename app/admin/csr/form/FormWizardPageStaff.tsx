@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createStaffReturnRequest, generateStaffPdfAction, sendStaffPdfEmailAction, getOrgContactsForRequest } from '@/app/actions/staff-form-actions';
+import { getAssignedSaleRepsForOrg } from '@/app/actions/sale-lookup-actions';
 import FormStepper from '@/components/FormStepper';
 import Step1InfoStaff from './components/Step1InfoStaff';
 import Step2Items from '../../../(authenticated)/form/components/Step2Items';
@@ -93,7 +94,7 @@ export default function FormWizardPageStaff() {
         {/* Step content */}
         {step === 1 && <Step1InfoStaff next={nextStep} updateData={setFormData} />}
         {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
-        {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
+        {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} getSaleRepsFn={getAssignedSaleRepsForOrg} />}
         {step === 4 && (
           <ReviewPage
             back={prevStep}
