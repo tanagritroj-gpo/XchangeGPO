@@ -15,9 +15,6 @@ interface StepProps {
   getSaleRepsFn?: (customerCode?: string) => Promise<SaleRepLookupResult>;
 }
 
-// คั่นระหว่างชื่อ sale ที่ระบบดึงมา กับโน้ตนัดหมายที่ผู้ใช้พิมพ์เพิ่มเอง ตอนเก็บรวมเป็น
-// agent_info string เดียว (คอลัมน์เดิมในฐานข้อมูล) — ใช้ split กลับตอนโหลดข้อมูลเดิมด้วย
-const APPOINTMENT_SEP = ' | นัดหมาย: ';
 
 const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
 const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
@@ -90,11 +87,7 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
   const [saleRepsLoading, setSaleRepsLoading] = useState(false);
   const [saleRepsFetched, setSaleRepsFetched] = useState(false);
   const [manualAgentInfo, setManualAgentInfo] = useState(formData?.agent_info || '');
-  const [appointmentNote, setAppointmentNote] = useState(
-    formData?.agent_info?.includes(APPOINTMENT_SEP)
-      ? formData.agent_info.split(APPOINTMENT_SEP)[1] ?? ''
-      : ''
-  );
+  const [appointmentNote, setAppointmentNote] = useState(formData?.agent_appointment_note || '');
   useEffect(() => {
     if (deliveryType !== 'ผู้แทน' || saleRepsFetched) return;
     let cancelled = false;
@@ -131,24 +124,23 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
       if (exchangeMode === 'อื่นๆ' && !exchangeOtherText.trim()) return alert('กรุณาระบุชื่อสินค้าที่ต้องการครับ');
     }
     if (!deliveryType) return alert('กรุณาเลือกวิธีส่งคืนครับ');
-    // ถ้ามี sale ที่ระบบจับคู่ให้อัตโนมัติ ใช้ชื่อ sale เป็นหลัก + ต่อโน้ตนัดหมายที่พิมพ์เพิ่ม
-    // (ถ้ามี) ต่อท้ายด้วย separator เดียวกับที่ parse กลับตอน mount — ถ้าไม่มี sale คนไหน
-    // ดูแลเขตนี้เลย ใช้ข้อความที่กรอกเองแทนตรงๆ (ช่องว่างให้กรอกเอง ตามที่ตกลงไว้)
-    const agentInfo = saleReps.length > 0
-      ? saleReps.map(r => r.full_name).join(', ') + (appointmentNote.trim() ? `${APPOINTMENT_SEP}${appointmentNote.trim()}` : '')
-      : manualAgentInfo;
+    // ถ้ามี sale ที่ระบบจับคู่ให้อัตโนมัติ ใช้ชื่อ sale เป็นหลัก ถ้าไม่มีใครดูแลเขตนี้เลย
+    // ใช้ข้อความที่กรอกเองแทน (ช่องว่างให้กรอกเอง ตามที่ตกลงไว้) — โน้ตนัดหมายเก็บแยกคอลัมน์
+    // ของตัวเอง (agent_appointment_note) ไม่ยัดรวมเป็น string เดียวกับ agent_info อีกต่อไป
+    const agentInfo = saleReps.length > 0 ? saleReps.map(r => r.full_name).join(', ') : manualAgentInfo;
     updateData((prev) => ({
       ...prev,
-      return_reason:          reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
-      exchange_product_type:  exchangeMode,
-      exchange_product_list:  JSON.stringify(checkedItems),
-      exchange_product_other: exchangeOtherText,
-      delivery_type:          deliveryType,
-      addr_street:            addrStreet,
-      addr_sub:               addrSub,
-      addr_district:          addrDistrict,
-      addr_province:          addrProvince,
-      agent_info:             agentInfo,
+      return_reason:            reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
+      exchange_product_type:    exchangeMode,
+      exchange_product_list:    JSON.stringify(checkedItems),
+      exchange_product_other:   exchangeOtherText,
+      delivery_type:            deliveryType,
+      addr_street:              addrStreet,
+      addr_sub:                 addrSub,
+      addr_district:            addrDistrict,
+      addr_province:            addrProvince,
+      agent_info:               agentInfo,
+      agent_appointment_note:   saleReps.length > 0 ? appointmentNote.trim() || undefined : undefined,
     }));
     next();
   };

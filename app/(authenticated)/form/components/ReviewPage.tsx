@@ -83,8 +83,8 @@ export default function ReviewPage({
 
   const {
     sender, items, totalValue, return_reason, delivery_type,
-    addr_street, addr_sub, addr_district, addr_province, agent_info,
-    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other 
+    addr_street, addr_sub, addr_district, addr_province, agent_info, agent_appointment_note,
+    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other
   } = formData;
 
   // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
@@ -199,6 +199,7 @@ if (status === 'success') {
   
         <ReviewRow label="วิธีส่งคืน" value={delivery_type} />
         <ReviewRow label="รายละเอียด" value={deliveryDetail} />
+        <ReviewRow label="วันนัดหมายรับสินค้า" value={agent_appointment_note} />
       </ReviewCard>
 
       {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}

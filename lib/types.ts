@@ -36,6 +36,7 @@ export interface RequestRow {
   exchange_product: string | null;
   delivery_type: string | null;
   agent_info: string | null;
+  agent_appointment_note: string | null;
   addr_street: string | null;
   addr_district: string | null;
   signature_url: string | null;

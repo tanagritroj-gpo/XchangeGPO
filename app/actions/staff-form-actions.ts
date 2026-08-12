@@ -185,6 +185,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     addr_district: sanitizeFreeText(formData.addr_district),
     addr_province: sanitizeFreeText(formData.addr_province),
     agent_info: sanitizeFreeText(formData.agent_info),
+    agent_appointment_note: sanitizeFreeText(formData.agent_appointment_note),
     exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
     exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
     exchange_product_other: sanitizeFreeText(formData.exchange_product_other),
