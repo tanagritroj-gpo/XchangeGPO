@@ -260,13 +260,29 @@ export function ReviewSuccessCard({
 
           {pdfState === 'ready' && (
             <div className="grid grid-cols-1 gap-3 w-full">
-              <button
-                onClick={handleDownload}
-                disabled={downloading}
-                className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
-              >
-                {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} ดาวน์โหลดใบรับคืน (PDF)
-              </button>
+              {/* ── สองปุ่มนี้คือ "วิธีรับ PDF" คู่กัน วางติดกันแล้วให้น้ำหนักภาพเท่ากัน
+                  (โทนเขียวเหมือนกัน) เพื่อสื่อว่าเป็นทางเลือกคู่กัน: โหลดเอง หรือ ส่งเข้าอีเมล ── */}
+              <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} ดาวน์โหลด PDF
+                </button>
+                {allowEmail && (
+                  <button
+                    onClick={handleEmailCopy}
+                    disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
+                    className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {emailState === 'sending' && <><Loader2 size={17} className="animate-spin" /> กำลังส่ง…</>}
+                    {emailState === 'sent' && <><Check size={17} /> ส่งแล้ว</>}
+                    {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
+                    {emailState === 'idle' && <><Mail size={17} /> ส่ง PDF เข้าอีเมล</>}
+                  </button>
+                )}
+              </div>
 
               {/* ── เลือกผู้รับอีเมล — เฉพาะฝั่ง CSR (getEmailRecipientsFn) เมื่อหน่วยงานนี้มี
                   contact มากกว่า 1 คน — ฝั่งลูกค้าไม่มี prop นี้เลยจะไม่เห็นส่วนนี้เลย ── */}
@@ -305,15 +321,16 @@ export function ReviewSuccessCard({
               )}
 
               {/* แถวเครื่องมืออ้างอิง — คัดลอกเลข ref กับ QR code วางคู่กัน ให้ลูกค้าเลือกใช้แบบไหนก็ได้
-                  (showTrackingLink คุม QR เหมือนลิงก์ติดตามด้านล่าง ฝั่ง staff เลยไม่เห็น) */}
-              <div className={`grid gap-3 ${showTrackingLink ? 'grid-cols-2' : allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  (showTrackingLink คุม QR เหมือนลิงก์ติดตามด้านล่าง ฝั่ง staff เลยไม่เห็น เหลือปุ่ม
+                  คัดลอก ref เดี่ยวๆ เต็มแถว) */}
+              <div className={`grid gap-3 ${showTrackingLink ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleCopyRef}
                   className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all flex items-center justify-center gap-1.5"
                 >
                   {copied ? <Check size={15} /> : <Copy size={15} />} {copied ? 'คัดลอกแล้ว' : 'คัดลอกเลขอ้างอิง'}
                 </button>
-                {showTrackingLink ? (
+                {showTrackingLink && (
                   <button
                     type="button"
                     onClick={() => setQrOpen(true)}
@@ -321,38 +338,8 @@ export function ReviewSuccessCard({
                   >
                     <QrCode size={15} /> QR Code ติดตามสถานะ
                   </button>
-                ) : (
-                  /* ฝั่ง staff ไม่มี QR — คงเลย์เอาต์เดิมไว้ ปุ่มอีเมลอยู่คู่กับคัดลอก ref ตามเดิม */
-                  allowEmail && (
-                    <button
-                      onClick={handleEmailCopy}
-                      disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
-                      className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-                    >
-                      {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
-                      {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
-                      {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
-                      {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
-                    </button>
-                  )
                 )}
               </div>
-
-              {/* ปุ่มส่งอีเมลแบบเต็มแถว — เฉพาะกรณีที่ QR เข้ามาแทนที่ตำแหน่งเดิมของปุ่มนี้แล้ว
-                  (ฝั่งลูกค้า: showTrackingLink=true) เงื่อนไข disabled แยกสองแบบเหมือนเดิม:
-                  ฝั่ง CSR (getEmailRecipientsFn) เช็คว่ามีผู้รับที่ติ๊กเลือกไว้ไหม ฝั่งลูกค้าเช็ค customerEmail */}
-              {showTrackingLink && allowEmail && (
-                <button
-                  onClick={handleEmailCopy}
-                  disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
-                  className="py-3 rounded-2xl font-bold text-sm text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-                >
-                  {emailState === 'sending' && <><Loader2 size={15} className="animate-spin" /> กำลังส่ง…</>}
-                  {emailState === 'sent' && <><Check size={15} /> ส่งแล้ว</>}
-                  {emailState === 'error' && 'ส่งไม่สำเร็จ ลองใหม่'}
-                  {emailState === 'idle' && <><Mail size={15} /> ส่งเข้าอีเมล</>}
-                </button>
-              )}
 
               {/* ลิงก์ "ติดตามสถานะคำร้องนี้" — ควบคุมแยกจากปุ่มอีเมลแล้ว ผ่าน showTrackingLink
                   ฝั่งลูกค้า (default true) ยังเห็นเหมือนเดิม ฝั่ง staff (false) ไม่เห็นตามที่ตกลงกันไว้ */}

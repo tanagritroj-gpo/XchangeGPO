@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, Check, ChevronDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ReturnFormData } from '../form-types';
 
 interface StepProps {
@@ -13,7 +13,10 @@ interface StepProps {
 
 const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
 const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
-const selectCls   = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%230d9488\' stroke-width=\'1.5\' stroke-linecap=\'round\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_14px_center] bg-[length:18px] pr-10';
+// เดิมลองฝัง chevron ผ่าน bg-[url("data:image/svg+xml...")] แต่ Tailwind ไม่ยอม
+// generate CSS ให้ (backgroundImage คำนวณออกมาเป็น none) เลยเปลี่ยนมาใช้ไอคอน
+// ChevronDown จริงวางทับแทน เหมือนวิธีที่ Step2Items.tsx ใช้กับ select อื่นๆ ทุกตัว
+const selectCls   = 'w-full pl-4 pr-10 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer';
 
 function SectionTitle({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -234,12 +237,15 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <FieldLabel>จังหวัด</FieldLabel>
-                  <select value={addrProvince} onChange={e => setAddrProvince(e.target.value)} className={selectCls}>
-                    <option value="">-- เลือกจังหวัด --</option>
-                    {['สงขลา', 'พัทลุง', 'สตูล', 'ตรัง', 'ปัตตานี', 'ยะลา', 'นราธิวาส'].map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select value={addrProvince} onChange={e => setAddrProvince(e.target.value)} className={selectCls}>
+                      <option value="">-- เลือกจังหวัด --</option>
+                      {['สงขลา', 'พัทลุง', 'สตูล', 'ตรัง', 'ปัตตานี', 'ยะลา', 'นราธิวาส'].map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  </div>
                 </div>
               </div>
             </div>

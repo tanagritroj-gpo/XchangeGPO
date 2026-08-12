@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { createStaffReturnRequest, generateStaffPdfAction, sendStaffPdfEmailAction, getOrgContactsForRequest } from '@/app/actions/staff-form-actions';
@@ -27,6 +27,13 @@ export default function FormWizardPageStaff() {
     reason: '',
     totalValue: 0,
   });
+
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // เหตุผลเดียวกับฝั่งลูกค้าใน FormWizardPage.tsx — สลับ step แล้ว scroll ค้างตำแหน่งเดิม
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }, [step]);
 
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 4));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
@@ -76,7 +83,7 @@ export default function FormWizardPageStaff() {
       </div>
 
       {/* ══ Content ══ */}
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div ref={topRef} className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-10">
 
         {/* Stepper — เหลือ 4 ขั้น ไม่มีขั้นลงนาม */}
         <div className="max-w-3xl mx-auto">
