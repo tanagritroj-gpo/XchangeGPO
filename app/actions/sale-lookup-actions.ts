@@ -8,6 +8,7 @@ import { bucketForOrgType } from '@/lib/sale-coverage';
 export interface SaleRepInfo {
   id: string;
   full_name: string;
+  email: string;
 }
 
 export type SaleRepLookupResult =
@@ -17,24 +18,26 @@ export type SaleRepLookupResult =
 // จับคู่ sale ที่ดูแลหน่วยงานนี้ — logic เดียวกับที่ fetchOrgContactsForRequest() ใน
 // staff-form-actions.ts ใช้ตอนหา sale เพื่อเป็นผู้รับอีเมล (many-to-many ผ่าน
 // org_type/province เทียบกับ sale_customer_types/sale_provinces ของแต่ละคน ไม่ใช่
-// assign ตรง 1 หน่วยงานต่อ 1 sale — อาจได้ 0/1/หลายคนก็ได้)
+// assign ตรง 1 หน่วยงานต่อ 1 sale — อาจได้ 0/1/หลายคนก็ได้) ★ ต้องมี email เท่านั้นถึงจะนับ
+// (ไม่มี email ส่งอีเมลหาไม่ได้อยู่แล้ว)
 async function findSaleRepsCovering(orgType: string | null | undefined, province: string | null | undefined): Promise<SaleRepInfo[]> {
   const bucket = bucketForOrgType(orgType);
   if (!bucket || !province) return [];
 
   const { data: saleReps } = await supabaseAdmin
     .from('staff_users')
-    .select('id, full_name, sale_customer_types, sale_provinces')
+    .select('id, full_name, email, sale_customer_types, sale_provinces')
     .eq('department', 'sale')
-    .eq('is_approved', true);
+    .eq('is_approved', true)
+    .not('email', 'is', null);
 
   return (saleReps ?? [])
     .filter((s) => {
       const types = (s.sale_customer_types as string[] | null) ?? [];
       const provinces = (s.sale_provinces as string[] | null) ?? [];
-      return types.includes(bucket) && provinces.includes(province);
+      return !!s.email && types.includes(bucket) && provinces.includes(province);
     })
-    .map((s) => ({ id: String(s.id), full_name: s.full_name ?? 'ไม่ระบุชื่อ' }));
+    .map((s) => ({ id: String(s.id), full_name: s.full_name ?? 'ไม่ระบุชื่อ', email: s.email as string }));
 }
 
 // ฝั่งลูกค้า — ใช้ตอนกรอกแบบฟอร์มเอง เลือก "จัดส่งผ่านผู้แทน" แล้วอยากรู้ว่า sale
@@ -50,6 +53,12 @@ export async function getAssignedSaleRepsForCustomer(): Promise<SaleRepLookupRes
     .select('org_type, province')
     .eq('customer_code', session.customer_code)
     .maybeSingle();
+
+  // ★ "หน่วยงานรัฐอื่นๆ" (gov_other) ไม่มี sale คนไหนดูแลโดยเจตนา (ยืนยันจากผู้ใช้ระบบ) —
+  // ใส่ exclusion ไว้แค่ในฟังก์ชันนี้ (ฝั่งลูกค้ากรอกเองเท่านั้น) ไม่แตะ bucketForOrgType()
+  // ที่ใช้ร่วมกับฝั่ง CSR (fetchOrgContactsForRequest/getAssignedSaleRepsForOrg ด้านล่าง)
+  // เพราะฝั่งนั้นออกแบบไว้ดีอยู่แล้ว ไม่ต้องแก้ตามที่ตกลงกันไว้
+  if (org?.org_type === 'gov_other') return { success: true, reps: [] };
 
   return { success: true, reps: await findSaleRepsCovering(org?.org_type, org?.province) };
 }
