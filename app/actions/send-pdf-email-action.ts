@@ -7,6 +7,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
 import { sendPdfDocumentEmail } from '@/lib/email-service';
+import { getAssignedSaleRepsForCustomer } from './sale-lookup-actions';
 
 export async function sendPdfEmailAction(requestId: number) {
   try {
@@ -61,11 +62,7 @@ export async function sendPdfEmailAction(requestId: number) {
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
-    // ★ 6. ส่งไปที่ session.email เสมอ — ไม่พึ่งค่าที่เก็บใน requestData
-    //    (แม้ตอน insert จะมาจาก session.email อยู่แล้ว แต่ยึด session ปัจจุบันเป็น
-    //     single source of truth เพื่อความชัดเจนว่าใครคือผู้รับที่แท้จริง)
-    const { error: emailErr } = await sendPdfDocumentEmail({
-      to: session.email,
+    const pdfEmailParams = {
       refId: requestData.ref_id,
       hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
       docNumber: requestData.doc_number ?? null,
@@ -78,12 +75,33 @@ export async function sendPdfEmailAction(requestId: number) {
         drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
       })),
       downloadUrl: signed.signedUrl,
-    });
+    };
+
+    // ★ 6. ส่งไปที่ session.email เสมอ — ไม่พึ่งค่าที่เก็บใน requestData
+    //    (แม้ตอน insert จะมาจาก session.email อยู่แล้ว แต่ยึด session ปัจจุบันเป็น
+    //     single source of truth เพื่อความชัดเจนว่าใครคือผู้รับที่แท้จริง)
+    const { error: emailErr } = await sendPdfDocumentEmail({ ...pdfEmailParams, to: session.email });
 
     if (emailErr) {
       console.error('Gmail SMTP Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
       Sentry.captureException(emailErr, { tags: { area: 'send-pdf-email' } });
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail ดิบ
+    }
+
+    // ★ 6b. ส่งสำเนาให้ sale ที่ดูแลหน่วยงานนี้ด้วย (ถ้ามี) — เฉพาะฝั่งลูกค้ากรอกฟอร์มเองเท่านั้น
+    // ตามที่ตกลงกันไว้ (ไม่แตะฝั่ง CSR) "หน่วยงานรัฐอื่นๆ" ไม่มี sale ดูแลอยู่แล้วโดยตั้งใจ จะได้
+    // reps ว่างกลับมาเอง (ดู getAssignedSaleRepsForCustomer) เป็น best-effort เงียบๆ ถ้าพลาด
+    // ไม่ให้กระทบผลลัพธ์ที่ลูกค้าเห็น (ลูกค้าได้อีเมลของตัวเองแล้วถือว่าสำเร็จ)
+    try {
+      const saleRepsResult = await getAssignedSaleRepsForCustomer();
+      if (saleRepsResult.success && saleRepsResult.reps.length > 0) {
+        await Promise.all(
+          saleRepsResult.reps.map((rep) => sendPdfDocumentEmail({ ...pdfEmailParams, to: rep.email }))
+        );
+      }
+    } catch (saleEmailErr) {
+      console.error('send-pdf-email: failed to notify sale rep(s)', saleEmailErr);
+      Sentry.captureException(saleEmailErr, { level: 'warning', tags: { area: 'send-pdf-email-sale-cc' } });
     }
 
     // 7. บันทึก Log — insert ตรง ไม่ผ่าน RPC เดิม
