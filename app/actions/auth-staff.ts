@@ -5,14 +5,9 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
-import { Resend } from 'resend';
-import { render } from '@react-email/render';
-import * as React from 'react';
-import StaffPasswordResetEmail from '@/lib/emails/StaffPasswordResetEmail';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getErrorMessage } from '@/lib/error-message';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendStaffOtpEmail } from '@/lib/email-service';
 
 function getClientIp(headerList: Headers): string {
   // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
@@ -280,13 +275,7 @@ export async function requestStaffPasswordReset(username: string) {
       used: false,
     });
 
-    const emailHtml = await render(React.createElement(StaffPasswordResetEmail, { otp }));
-    await resend.emails.send({
-      from: 'GPO Xchange <onboarding@resend.dev>',
-      to: staff.email,
-      subject: 'รหัส OTP สำหรับตั้งรหัสผ่านใหม่ — GPO Xchange Staff Portal',
-      html: emailHtml,
-    });
+    await sendStaffOtpEmail({ to: staff.email, otp });
   }
 
   return { success: true };

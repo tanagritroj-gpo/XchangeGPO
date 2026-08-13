@@ -2,20 +2,15 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
-import * as React from 'react';
-import { render } from '@react-email/render';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
 import { bucketForOrgType } from '@/lib/sale-coverage';
 import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
-import { Resend } from 'resend';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
-import PdfDocumentEmail from '@/lib/emails/PdfDocumentEmail';
 import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendPdfDocumentEmail } from '@/lib/email-service';
 
 const sanitizeDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -457,33 +452,26 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
-    const emailHtml = await render(
-      React.createElement(PdfDocumentEmail, {
-        hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
-        refId: requestData.ref_id,
-        docNumber: requestData.doc_number ?? null,
-        requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
-        requestType: requestData.request_type ?? null,
-        returnReason: requestData.return_reason ?? null,
-        deliveryType: requestData.delivery_type ?? null,
-        totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
-        items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
-          drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
-        })),
-        downloadUrl: signed.signedUrl,
-        preparedByStaff: true,
-      })
-    );
+    const pdfEmailParams = {
+      refId: requestData.ref_id,
+      hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
+      docNumber: requestData.doc_number ?? null,
+      requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
+      requestType: requestData.request_type ?? null,
+      returnReason: requestData.return_reason ?? null,
+      deliveryType: requestData.delivery_type ?? null,
+      totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
+      items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
+        drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
+      })),
+      downloadUrl: signed.signedUrl,
+      preparedByStaff: true,
+    };
 
     // ★ ส่งแยกทีละฉบับต่อผู้รับ (ไม่ยัดทุกคนรวมกันใน to[] เดียว) กันผู้รับเห็นอีเมลกันเอง
     const results = await Promise.all(
       recipients.map((email) =>
-        resend.emails.send({
-          from: 'Xchange Portal <onboarding@resend.dev>',
-          to: [email],
-          subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
-          html: emailHtml,
-        }).then((r) => ({ email, ok: !r.error }))
+        sendPdfDocumentEmail({ ...pdfEmailParams, to: email }).then((r) => ({ email, ok: !r.error }))
       )
     );
 

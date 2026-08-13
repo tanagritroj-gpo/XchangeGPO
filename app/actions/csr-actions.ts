@@ -8,12 +8,10 @@ import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-rea
 import { buildRegistrationConfirmationPdf } from '@/app/services/registration-pdf-service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
-import { Resend } from 'resend';
 import { getErrorMessage } from '@/lib/error-message';
 import { updateRequestCurrentStatus } from '@/lib/sla';
 import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendRegistrationApprovedEmail } from '@/lib/email-service';
 
 async function getCSRSession() {
   const session = await getStaffSession();
@@ -363,21 +361,11 @@ async function generateRegistrationDocument(client: ClientRow, customerCode: str
     .createSignedUrl(filePath, 60 * 60 * 24);
   if (signErr || !signed) throw signErr ?? new Error('createSignedUrl failed');
 
-  const { error: emailErr } = await resend.emails.send({
-    from: 'GPO Xchange <onboarding@resend.dev>',
-    to: [client.email],
-    subject: 'เปิดใช้งานรหัสลูกค้าสำเร็จ — GPO Xchange Portal',
-    html: `
-      <h2>สวัสดีครับ, ตัวแทนจาก ${client.hospital_name}</h2>
-      <p>ระบบได้เปิดใช้งานรหัสลูกค้าของท่านเรียบร้อยแล้ว</p>
-      <p>รหัสลูกค้าของท่านคือ: <strong>${customerCode}</strong></p>
-      <p>
-        <a href="${signed.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
-          คลิกที่นี่เพื่อดาวน์โหลดเอกสารยืนยันการลงทะเบียน
-        </a>
-      </p>
-      <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
-    `,
+  const { error: emailErr } = await sendRegistrationApprovedEmail({
+    to: client.email,
+    hospitalName: client.hospital_name,
+    customerCode,
+    documentUrl: signed.signedUrl,
   });
   if (emailErr) throw emailErr;
 }

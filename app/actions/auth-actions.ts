@@ -5,15 +5,10 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
-import { Resend } from 'resend';
-import { render } from '@react-email/render';
-import * as React from 'react';
-import CustomerPasswordResetEmail from '@/lib/emails/CustomerPasswordResetEmail';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { getErrorMessage } from '@/lib/error-message';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendCustomerOtpEmail } from '@/lib/email-service';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
@@ -165,13 +160,7 @@ export async function requestCustomerPasswordReset(email: string) {
       used: false,
     });
 
-    const emailHtml = await render(React.createElement(CustomerPasswordResetEmail, { otp }));
-    await resend.emails.send({
-      from: 'GPO Xchange <onboarding@resend.dev>',
-      to: cleanEmail,
-      subject: 'รหัส OTP สำหรับตั้งรหัสผ่านใหม่ — GPO Xchange Portal',
-      html: emailHtml,
-    });
+    await sendCustomerOtpEmail({ to: cleanEmail, otp });
   }
 
   return { success: true };
