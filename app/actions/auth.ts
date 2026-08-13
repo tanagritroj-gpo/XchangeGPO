@@ -6,6 +6,7 @@ import * as Sentry from '@sentry/nextjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { sendRegistrationReceivedEmail } from '@/lib/email-service';
 
 const ORG_TYPE_VALUES = ORG_TYPE_OPTIONS.map((o) => o.value) as [string, ...string[]];
 
@@ -103,6 +104,19 @@ export async function registerCustomer(payload: unknown) {
     } catch (notifyErr) {
       console.error('registerCustomer: failed to log notification', notifyErr);
       Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
+    }
+
+    // แจ้งลูกค้าว่าระบบได้รับข้อมูลลงทะเบียนแล้ว รออนุมัติ — เงียบๆ ถ้าส่งไม่สำเร็จ ไม่ให้
+    // กระทบผลลงทะเบียนจริง (เหมือน pattern notification_log ด้านบน)
+    try {
+      const { error: emailErr } = await sendRegistrationReceivedEmail({
+        to: data.email,
+        hospitalName: data.hospital_name,
+      });
+      if (emailErr) throw emailErr;
+    } catch (emailErr) {
+      console.error('registerCustomer: failed to send confirmation email', emailErr);
+      Sentry.captureException(emailErr, { level: 'warning', tags: { area: 'registration-received-email' } });
     }
 
     return { success: true, data: inserted };

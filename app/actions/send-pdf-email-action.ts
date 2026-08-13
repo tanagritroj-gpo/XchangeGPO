@@ -1,17 +1,12 @@
 'use server';
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
-import { Resend } from 'resend';
 import * as Sentry from '@sentry/nextjs';
-import * as React from 'react';
-import { render } from '@react-email/render';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
-import PdfDocumentEmail from '@/lib/emails/PdfDocumentEmail';
 import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendPdfDocumentEmail } from '@/lib/email-service';
 
 export async function sendPdfEmailAction(requestId: number) {
   try {
@@ -66,37 +61,29 @@ export async function sendPdfEmailAction(requestId: number) {
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
-    const emailHtml = await render(
-      React.createElement(PdfDocumentEmail, {
-        hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
-        refId: requestData.ref_id,
-        docNumber: requestData.doc_number ?? null,
-        requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
-        requestType: requestData.request_type ?? null,
-        returnReason: requestData.return_reason ?? null,
-        deliveryType: requestData.delivery_type ?? null,
-        totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
-        items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
-          drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
-        })),
-        downloadUrl: signed.signedUrl,
-      })
-    );
-
     // ★ 6. ส่งไปที่ session.email เสมอ — ไม่พึ่งค่าที่เก็บใน requestData
     //    (แม้ตอน insert จะมาจาก session.email อยู่แล้ว แต่ยึด session ปัจจุบันเป็น
     //     single source of truth เพื่อความชัดเจนว่าใครคือผู้รับที่แท้จริง)
-    const { error: emailErr } = await resend.emails.send({
-      from: 'Xchange Portal <onboarding@resend.dev>',
-      to: [session.email],
-      subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${requestData.ref_id})`,
-      html: emailHtml,
+    const { error: emailErr } = await sendPdfDocumentEmail({
+      to: session.email,
+      refId: requestData.ref_id,
+      hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
+      docNumber: requestData.doc_number ?? null,
+      requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
+      requestType: requestData.request_type ?? null,
+      returnReason: requestData.return_reason ?? null,
+      deliveryType: requestData.delivery_type ?? null,
+      totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
+      items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
+        drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
+      })),
+      downloadUrl: signed.signedUrl,
     });
 
     if (emailErr) {
-      console.error('Resend API Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
+      console.error('Gmail SMTP Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
       Sentry.captureException(emailErr, { tags: { area: 'send-pdf-email' } });
-      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail จาก Resend
+      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail ดิบ
     }
 
     // 7. บันทึก Log — insert ตรง ไม่ผ่าน RPC เดิม
