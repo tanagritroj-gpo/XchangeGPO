@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Download, Copy, Check, Mail, ArrowRight, X, QrCode } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { generatePdfAction } from '@/app/actions/generate-pdf-action';
@@ -64,6 +64,9 @@ export function ReviewSuccessCard({
   const [recipients, setRecipients] = useState<OrgContact[]>([]);
   const [recipientsLoaded, setRecipientsLoaded] = useState(false);
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+  // กันส่งอีเมลอัตโนมัติซ้ำ (เช่น React StrictMode dev เรียก effect 2 รอบ) — ref เพราะต้อง
+  // เช็คแบบ synchronous ก่อน setState รอบแรกจะ apply เสร็จด้วยซ้ำ
+  const autoEmailSentRef = useRef(false);
 
   // 1. เตรียมเอกสารอัตโนมัติทันทีที่โหลดหน้าจอ
   useEffect(() => {
@@ -174,7 +177,8 @@ export function ReviewSuccessCard({
 
   // 5. ฟังก์ชันส่งอีเมล — ฝั่ง CSR ส่งเฉพาะผู้รับที่ติ๊กเลือกไว้ (getEmailRecipientsFn ให้มา)
   // ฝั่งลูกค้าไม่ส่ง recipientEmails เลย (undefined) ให้ sendPdfEmailAction ทำงานแบบเดิมทุกประการ
-  const handleEmailCopy = async () => {
+  // silent=true ตอนถูกเรียกอัตโนมัติ (ฝั่งลูกค้า) — กัน alert() เด้งเองโดยไม่มีใครกดอะไรเลย
+  const handleEmailCopy = async (silent = false) => {
     setEmailState('sending');
     const result = await sendEmailActionFn(requestId, getEmailRecipientsFn ? selectedEmails : undefined);
 
@@ -183,9 +187,20 @@ export function ReviewSuccessCard({
     } else {
       setEmailState('error');
       // เพิ่มบรรทัดนี้ เพื่อให้มันเด้งบอกว่าพังเพราะอะไร
-      alert(`สาเหตุที่ส่งไม่สำเร็จ: ${result.error}`); 
+      if (!silent) alert(`สาเหตุที่ส่งไม่สำเร็จ: ${result.error}`);
     }
   };
+
+  // 5b. ส่งอีเมล PDF ให้ลูกค้าเองอัตโนมัติทันทีที่เอกสารพร้อม — เฉพาะฝั่งลูกค้ากรอกฟอร์มเอง
+  // (showTrackingLink=true) เท่านั้น ไม่ต้องรอกดปุ่มเอง (เอาปุ่มออกจากหน้าจอไปแล้วด้วย — ดู
+  // JSX ด้านล่าง) ฝั่ง CSR/staff (showTrackingLink=false) ยังกดปุ่มเองเหมือนเดิมทุกประการ
+  // ไม่แตะพฤติกรรมนั้นเลยตามที่ตกลงกันไว้
+  useEffect(() => {
+    if (!showTrackingLink || pdfState !== 'ready' || autoEmailSentRef.current) return;
+    autoEmailSentRef.current = true;
+    handleEmailCopy(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTrackingLink, pdfState]);
 
   return (
     <div className="w-full max-w-lg mx-auto">
@@ -260,9 +275,10 @@ export function ReviewSuccessCard({
 
           {pdfState === 'ready' && (
             <div className="grid grid-cols-1 gap-3 w-full">
-              {/* ── สองปุ่มนี้คือ "วิธีรับ PDF" คู่กัน วางติดกันแล้วให้น้ำหนักภาพเท่ากัน
-                  (โทนเขียวเหมือนกัน) เพื่อสื่อว่าเป็นทางเลือกคู่กัน: โหลดเอง หรือ ส่งเข้าอีเมล ── */}
-              <div className={`grid gap-3 ${allowEmail ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {/* ── ปุ่มส่งอีเมลเดิม: ฝั่งลูกค้า (showTrackingLink=true) เอาออกแล้ว เพราะระบบ
+                  ส่งอัตโนมัติให้เองทันทีที่เอกสารพร้อม (ดู effect 5b ด้านบน) ไม่ต้องกดเอง —
+                  ฝั่ง CSR/staff ยังกดเองเหมือนเดิมทุกประการ ไม่แตะพฤติกรรมนั้นเลย ── */}
+              <div className={`grid gap-3 ${allowEmail && !showTrackingLink ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <button
                   onClick={handleDownload}
                   disabled={downloading}
@@ -270,9 +286,9 @@ export function ReviewSuccessCard({
                 >
                   {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} ดาวน์โหลด PDF
                 </button>
-                {allowEmail && (
+                {allowEmail && !showTrackingLink && (
                   <button
-                    onClick={handleEmailCopy}
+                    onClick={() => handleEmailCopy()}
                     disabled={emailState === 'sending' || (getEmailRecipientsFn ? selectedEmails.length === 0 : !customerEmail)}
                     className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                   >
@@ -283,6 +299,26 @@ export function ReviewSuccessCard({
                   </button>
                 )}
               </div>
+
+              {/* ── สถานะการส่งอีเมลอัตโนมัติ — เฉพาะฝั่งลูกค้า แทนที่ปุ่มที่เอาออกไป ให้ลูกค้า
+                  รู้ว่าระบบส่งให้แล้วโดยไม่ต้องทำอะไร ── */}
+              {showTrackingLink && emailState !== 'idle' && (
+                <p className="text-sm font-bold flex items-center justify-center gap-1.5">
+                  {emailState === 'sending' && (
+                    <span className="text-muted-foreground inline-flex items-center gap-1.5">
+                      <Loader2 size={14} className="animate-spin" /> กำลังส่งอีเมล PDF ให้ท่านอัตโนมัติ…
+                    </span>
+                  )}
+                  {emailState === 'sent' && (
+                    <span className="text-teal-600 inline-flex items-center gap-1.5">
+                      <Check size={14} /> ส่งอีเมล PDF ไปที่ {customerEmail} แล้ว
+                    </span>
+                  )}
+                  {emailState === 'error' && (
+                    <span className="text-rose-600">ส่งอีเมล PDF อัตโนมัติไม่สำเร็จ — ดาวน์โหลดเอกสารด้านบนได้ตามปกติ</span>
+                  )}
+                </p>
+              )}
 
               {/* ── เลือกผู้รับอีเมล — เฉพาะฝั่ง CSR (getEmailRecipientsFn) เมื่อหน่วยงานนี้มี
                   contact มากกว่า 1 คน — ฝั่งลูกค้าไม่มี prop นี้เลยจะไม่เห็นส่วนนี้เลย ── */}
