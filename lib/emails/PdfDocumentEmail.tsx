@@ -1,4 +1,4 @@
-import { Html, Body, Head, Heading, Text, Container, Section, Row, Column, Button, Hr } from '@react-email/components';
+import { Html, Body, Head, Heading, Text, Container, Section, Row, Column, Button, Hr, Img } from '@react-email/components';
 import * as React from 'react';
 
 export interface PdfDocumentEmailDrugItem {
@@ -20,6 +20,11 @@ export interface PdfDocumentEmailProps {
   totalValueText: string;
   items: PdfDocumentEmailDrugItem[];
   downloadUrl: string;
+  // ลิงก์หน้าติดตามสถานะแบบ public (ไม่ต้อง login) พร้อม ref กรอกไว้ให้แล้ว — โชว์เป็นทั้ง
+  // ข้อความลิงก์และ QR code (แนบเป็น inline attachment อ้างอิงผ่าน cid นี้ — ดู
+  // lib/email-service.ts ที่เป็นคนสร้าง QR จริงแล้วแนบเข้ามาพร้อม cid เดียวกัน)
+  trackingUrl: string;
+  trackingQrCid: string;
   // ★ ฝั่ง CSR กรอกแทนลูกค้า เปลี่ยนข้อความต้อนรับให้ตรงกับความจริง (คนละคนกดสร้างเอกสาร)
   preparedByStaff?: boolean;
 }
@@ -35,6 +40,8 @@ export default function PdfDocumentEmail({
   totalValueText,
   items,
   downloadUrl,
+  trackingUrl,
+  trackingQrCid,
   preparedByStaff = false,
 }: PdfDocumentEmailProps) {
   return (
@@ -113,6 +120,20 @@ export default function PdfDocumentEmail({
           </Section>
           <Text style={footerNote}>ลิงก์ดาวน์โหลดนี้มีอายุการใช้งาน 24 ชั่วโมงนับจากเวลาที่ส่งอีเมลฉบับนี้</Text>
 
+          <Hr style={hr} />
+
+          <Text style={sectionTitle}>ติดตามสถานะใบงาน</Text>
+          <Text style={text}>
+            ท่านสามารถติดตามสถานะใบงานนี้ได้ตลอดเวลา โดยไม่ต้องเข้าสู่ระบบ ผ่านลิงก์:{' '}
+            <a href={trackingUrl} style={link}>{trackingUrl}</a>
+          </Text>
+          <Text style={text}>
+            กรอกเลขที่อ้างอิง <strong>{refId}</strong> ในหน้าติดตามสถานะ หรือสแกน QR code ด้านล่างเพื่อเข้าสู่หน้านั้นโดยตรง
+          </Text>
+          <Section style={{ textAlign: 'center' as const, margin: '20px 0' }}>
+            <Img src={`cid:${trackingQrCid}`} width={160} height={160} alt="QR Code ติดตามสถานะ" style={qrImage} />
+          </Section>
+
           <Text style={footer}>องค์การเภสัชกรรม (GPO) — GPO Xchange Portal</Text>
         </Container>
       </Body>
@@ -169,4 +190,6 @@ const button = {
   display: 'inline-block',
 };
 const footerNote = { color: '#94a3b8', fontSize: '12px', textAlign: 'center' as const, margin: '0 0 20px' };
+const link = { color: '#0f766e', textDecoration: 'underline', wordBreak: 'break-all' as const };
+const qrImage = { margin: '0 auto', border: '8px solid #f0fdf4', borderRadius: '8px' };
 const footer = { color: '#64748b', fontSize: '12px', marginTop: '20px', borderTop: '1px solid #e2e8f0', paddingTop: '20px' };

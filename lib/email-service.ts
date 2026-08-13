@@ -1,6 +1,7 @@
 import 'server-only';
 import * as React from 'react';
 import { render } from '@react-email/render';
+import QRCode from 'qrcode';
 import { sendGmailMail } from '@/lib/mailer';
 import WelcomeEmail from '@/lib/emails/WelcomeEmail';
 import RegistrationApprovedEmail from '@/lib/emails/RegistrationApprovedEmail';
@@ -90,6 +91,14 @@ export async function sendPdfDocumentEmail(params: {
   downloadUrl: string;
   preparedByStaff?: boolean;
 }): Promise<SendResult> {
+  // ลิงก์หน้าติดตามสถานะแบบ public (ไม่ต้อง login) พร้อม ref กรอกไว้ให้แล้ว — ค่าเดียวกับ QR
+  // code ใน ReviewSuccessCard.tsx ตอนกดดูหลังส่งฟอร์ม (level M, ไม่มี logo กลาง) แค่ต้อง
+  // generate ฝั่ง server แทนด้วย package `qrcode` (ตัว react ใช้ browser canvas ไม่มีให้ใช้
+  // ในอีเมล) แล้วแนบเป็นรูปในตัวอีเมลผ่าน cid
+  const trackingUrl = `${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/tracking?ref=${encodeURIComponent(params.refId)}`;
+  const trackingQrCid = 'tracking-qr';
+  const qrPngBuffer = await QRCode.toBuffer(trackingUrl, { width: 320, margin: 1, errorCorrectionLevel: 'M' });
+
   const html = await render(
     React.createElement(PdfDocumentEmail, {
       hospitalName: params.hospitalName,
@@ -102,6 +111,8 @@ export async function sendPdfDocumentEmail(params: {
       totalValueText: params.totalValueText,
       items: params.items,
       downloadUrl: params.downloadUrl,
+      trackingUrl,
+      trackingQrCid,
       preparedByStaff: params.preparedByStaff,
     })
   );
@@ -109,5 +120,8 @@ export async function sendPdfDocumentEmail(params: {
     to: params.to,
     subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${params.refId})`,
     html,
+    attachments: [
+      { filename: 'tracking-qr.png', content: qrPngBuffer, cid: trackingQrCid },
+    ],
   });
 }
