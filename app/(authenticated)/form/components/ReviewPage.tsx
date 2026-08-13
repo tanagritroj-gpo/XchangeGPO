@@ -39,8 +39,12 @@ const renderExchangeList = (listStr: string) => {
 function ReviewRow({ label, value }: { label: string; value?: string | number }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-dashed border-slate-100 last:border-0">
-      <span className="text-[13px] font-black text-muted-foreground uppercase tracking-widest w-32 shrink-0 pt-0.5 flex items-center gap-1.5">
+    // label:value เดิมวางเคียงข้างแบบคอลัมน์ตายตัว w-32 (128px) ซึ่งพอเจอ label
+    // ยาวๆ อย่าง "รูปแบบแลกเปลี่ยน" บนจอมือถือ (375px) จะถูกบีบจนตัดขึ้นบรรทัดใหม่
+    // กลางคำ (ภาษาไทยไม่มีช่องว่างให้ตัดคำสวยๆ) ดูไม่ได้สัดส่วนกับ value ที่อยู่บรรทัดเดียว
+    // จึงสลับเป็นวางซ้อนกัน (label บน, value ล่าง) บนมือถือ แล้วค่อยเคียงข้างจาก sm: ขึ้นไป
+    <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 py-3 border-b border-dashed border-slate-100 last:border-0">
+      <span className="text-[13px] font-black text-muted-foreground uppercase tracking-widest sm:w-32 sm:shrink-0 pt-0.5 flex items-center gap-1.5">
         <span className="w-1 h-1 rounded-full bg-slate-300" />{label}
       </span>
       <span className="text-base text-slate-800 font-bold flex-1">{value}</span>
@@ -79,8 +83,8 @@ export default function ReviewPage({
 
   const {
     sender, items, totalValue, return_reason, delivery_type,
-    addr_street, addr_sub, addr_district, addr_province, agent_info,
-    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other 
+    addr_street, addr_sub, addr_district, addr_province, agent_info, agent_appointment_note,
+    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other
   } = formData;
 
   // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
@@ -195,6 +199,7 @@ if (status === 'success') {
   
         <ReviewRow label="วิธีส่งคืน" value={delivery_type} />
         <ReviewRow label="รายละเอียด" value={deliveryDetail} />
+        <ReviewRow label="วันนัดหมายรับสินค้า" value={agent_appointment_note} />
       </ReviewCard>
 
       {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}

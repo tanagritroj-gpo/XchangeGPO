@@ -13,9 +13,13 @@ export interface FormStepperStep {
  *  เสร็จแล้ว (ติ๊กถูก) / กำลังทำอยู่ (เลขเน้นด้วย ring) / ยังไม่ถึง (จาง) พร้อมเส้นเชื่อม
  *  ระหว่างแต่ละจุดให้เห็น flow ต่อเนื่องชัดเจนขึ้นกว่าเดิมที่มีแค่จุด+ตัวเลขลอยๆ */
 export default function FormStepper({ steps, currentStep }: { steps: FormStepperStep[]; currentStep: number }) {
+  // เดิมใช้ overflow-x-auto + min-w-[320px] แต่ label 5 ขั้น (ฝั่งลูกค้า) รวมความกว้าง
+  // ที่ต้องการจริงเกิน 320px ทำให้จอมือถือแคบๆ (320px, iPhone SE) โดนตัดขอบขวาไปเงียบๆ
+  // โดยไม่มีอะไรบอกว่า scroll ได้ — เปลี่ยนมาปล่อยให้ label ตัดขึ้นบรรทัดใหม่ได้แทน
+  // (เอา whitespace-nowrap ออก) เพื่อให้แถบนี้บีบตัวพอดีกับทุกความกว้างจอโดยไม่ต้อง scroll เลย
   return (
-    <div className="mb-6 md:mb-10 overflow-x-auto">
-      <div className="flex items-center min-w-[320px] px-2">
+    <div className="mb-6 md:mb-10">
+      <div className="flex items-center px-2">
         {steps.map((s, i) => {
           const isCompleted = currentStep > s.id;
           const isCurrent = currentStep === s.id;
@@ -34,7 +38,7 @@ export default function FormStepper({ steps, currentStep }: { steps: FormStepper
                   {isCompleted ? <Check className="w-4 h-4 md:w-[18px] md:h-[18px]" strokeWidth={3} /> : s.id}
                 </div>
                 <span
-                  className={`text-[11px] md:text-xs font-black uppercase mt-1.5 whitespace-nowrap ${
+                  className={`text-[11px] md:text-xs font-black uppercase mt-1.5 text-center leading-tight ${
                     isCompleted || isCurrent ? 'text-teal-700' : 'text-muted-foreground'
                   }`}
                 >

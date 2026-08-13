@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createReturnRequest } from '@/app/actions/form-actions';
 import FormStepper from '@/components/FormStepper';
@@ -38,6 +38,15 @@ export default function FormWizardPage({ session }: { session?: CustomerSessionI
     signature: null,
     totalValue: 0,
   });
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // สลับ step แล้วตำแหน่ง scroll เดิมจากขั้นก่อนหน้าค้างอยู่ (ไม่รีเซ็ตเอง) ทำให้
+  // ผู้ใช้บนมือถือมาโผล่กลางหน้าขั้นใหม่ พลาดหัวข้อ/ฟิลด์แรกไป — scrollIntoView หา
+  // container ที่ scroll ได้จริงเอง ใช้ได้ทั้ง main.overflow-y-auto (ลูกค้า) และ
+  // window scroll ปกติ (ไม่ต้องรู้ว่าใครเป็นคน scroll)
+  useEffect(() => {
+    topRef.current?.scrollIntoView({ block: 'start' });
+  }, [step]);
 
   const nextStep = () => setStep((prev) => Math.min(prev + 1, 5));
   const prevStep = () => setStep((prev) => Math.max(prev - 1, 1));
@@ -68,7 +77,7 @@ export default function FormWizardPage({ session }: { session?: CustomerSessionI
   return (
     <div className="py-4 md:py-8">
 
-      <div className="mb-6 px-1">
+      <div ref={topRef} className="mb-6 px-1">
         <h1 className="text-xl md:text-2xl font-black text-slate-800">แบบขอคืน / แลกเปลี่ยนยา</h1>
         <p className="text-sm font-bold text-teal-700">องค์การเภสัชกรรม สาขาภาคใต้</p>
       </div>

@@ -1,19 +1,27 @@
 'use client';
 
-import { useState } from 'react';
-import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, User, Loader2, Check, ChevronDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ReturnFormData } from '../form-types';
+import { getAssignedSaleRepsForCustomer, type SaleRepLookupResult } from '@/app/actions/sale-lookup-actions';
 
 interface StepProps {
   next:       () => void;
   back:       () => void;
   updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
   formData:   ReturnFormData;
+  // ★ เฉพาะฝั่ง CSR override เป็น getAssignedSaleRepsForOrg — ต้องรับ customer_code ของ
+  // หน่วยงานที่เลือกไว้ด้วย (ฝั่งลูกค้า default ไม่ใช้ค่านี้ ดึงจาก session ตัวเองเสมอ)
+  getSaleRepsFn?: (customerCode?: string) => Promise<SaleRepLookupResult>;
 }
+
 
 const textareaCls = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300';
 const inputCls    = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 placeholder:text-slate-300';
-const selectCls   = 'w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer bg-[url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%230d9488\' stroke-width=\'1.5\' stroke-linecap=\'round\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")] bg-no-repeat bg-[right_14px_center] bg-[length:18px] pr-10';
+// เดิมลองฝัง chevron ผ่าน bg-[url("data:image/svg+xml...")] แต่ Tailwind ไม่ยอม
+// generate CSS ให้ (backgroundImage คำนวณออกมาเป็น none) เลยเปลี่ยนมาใช้ไอคอน
+// ChevronDown จริงวางทับแทน เหมือนวิธีที่ Step2Items.tsx ใช้กับ select อื่นๆ ทุกตัว
+const selectCls   = 'w-full pl-4 pr-10 py-3 rounded-xl border-2 border-slate-100 bg-white text-base text-slate-800 focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 appearance-none cursor-pointer';
 
 function SectionTitle({ icon, children }: { icon?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -53,7 +61,7 @@ function BadgeBtn({ label, active, onClick }: { label: React.ReactNode; active: 
   );
 }
 
-export default function Step3Reason({ next, back, updateData, formData }: StepProps) {
+export default function Step3Reason({ next, back, updateData, formData, getSaleRepsFn = getAssignedSaleRepsForCustomer }: StepProps) {
   const isExchange = formData?.sender?.request_type === 'รับคืนแลกเปลี่ยน';
   const items = formData?.items || [];
 
@@ -71,7 +79,27 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
   const [addrSub, setAddrSub]             = useState(formData?.addr_sub || '');
   const [addrDistrict, setAddrDistrict]   = useState(formData?.addr_district || '');
   const [addrProvince, setAddrProvince]   = useState(formData?.addr_province || '');
-  const [agentInfo, setAgentInfo]         = useState(formData?.agent_info || '');
+
+  // ผู้แทน — ระบบดึงชื่อ sale ที่ดูแลหน่วยงานนี้มาโชว์อัตโนมัติ (logic เดียวกับที่ CSR
+  // ใช้หา sale เพื่อเป็นผู้รับอีเมล) ถ้าไม่มี sale คนไหนดูแลเขต/ประเภทหน่วยงานนี้เลย
+  // (bucket ไม่ match ใครสักคน) ค่อย fallback เป็นช่องกรอกเองแทน
+  const [saleReps, setSaleReps]           = useState<{ id: string; full_name: string }[]>([]);
+  const [saleRepsLoading, setSaleRepsLoading] = useState(false);
+  const [saleRepsFetched, setSaleRepsFetched] = useState(false);
+  const [manualAgentInfo, setManualAgentInfo] = useState(formData?.agent_info || '');
+  const [appointmentNote, setAppointmentNote] = useState(formData?.agent_appointment_note || '');
+  useEffect(() => {
+    if (deliveryType !== 'ผู้แทน' || saleRepsFetched) return;
+    let cancelled = false;
+    setSaleRepsLoading(true);
+    getSaleRepsFn(formData?.sender?.customer_code ?? undefined).then((result) => {
+      if (cancelled) return;
+      setSaleReps(result.success ? result.reps : []);
+      setSaleRepsLoading(false);
+      setSaleRepsFetched(true);
+    });
+    return () => { cancelled = true; };
+  }, [deliveryType, saleRepsFetched, getSaleRepsFn, formData?.sender?.customer_code]);
 
   const canProceed = Boolean(
     reason &&
@@ -96,18 +124,23 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
       if (exchangeMode === 'อื่นๆ' && !exchangeOtherText.trim()) return alert('กรุณาระบุชื่อสินค้าที่ต้องการครับ');
     }
     if (!deliveryType) return alert('กรุณาเลือกวิธีส่งคืนครับ');
+    // ถ้ามี sale ที่ระบบจับคู่ให้อัตโนมัติ ใช้ชื่อ sale เป็นหลัก ถ้าไม่มีใครดูแลเขตนี้เลย
+    // ใช้ข้อความที่กรอกเองแทน (ช่องว่างให้กรอกเอง ตามที่ตกลงไว้) — โน้ตนัดหมายเก็บแยกคอลัมน์
+    // ของตัวเอง (agent_appointment_note) ไม่ยัดรวมเป็น string เดียวกับ agent_info อีกต่อไป
+    const agentInfo = saleReps.length > 0 ? saleReps.map(r => r.full_name).join(', ') : manualAgentInfo;
     updateData((prev) => ({
       ...prev,
-      return_reason:          reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
-      exchange_product_type:  exchangeMode,
-      exchange_product_list:  JSON.stringify(checkedItems),
-      exchange_product_other: exchangeOtherText,
-      delivery_type:          deliveryType,
-      addr_street:            addrStreet,
-      addr_sub:               addrSub,
-      addr_district:          addrDistrict,
-      addr_province:          addrProvince,
-      agent_info:             agentInfo,
+      return_reason:            reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
+      exchange_product_type:    exchangeMode,
+      exchange_product_list:    JSON.stringify(checkedItems),
+      exchange_product_other:   exchangeOtherText,
+      delivery_type:            deliveryType,
+      addr_street:              addrStreet,
+      addr_sub:                 addrSub,
+      addr_district:            addrDistrict,
+      addr_province:            addrProvince,
+      agent_info:               agentInfo,
+      agent_appointment_note:   saleReps.length > 0 ? appointmentNote.trim() || undefined : undefined,
     }));
     next();
   };
@@ -234,21 +267,65 @@ export default function Step3Reason({ next, back, updateData, formData }: StepPr
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <FieldLabel>จังหวัด</FieldLabel>
-                  <select value={addrProvince} onChange={e => setAddrProvince(e.target.value)} className={selectCls}>
-                    <option value="">-- เลือกจังหวัด --</option>
-                    {['สงขลา', 'พัทลุง', 'สตูล', 'ตรัง', 'ปัตตานี', 'ยะลา', 'นราธิวาส'].map(p => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select value={addrProvince} onChange={e => setAddrProvince(e.target.value)} className={selectCls}>
+                      <option value="">-- เลือกจังหวัด --</option>
+                      {['สงขลา', 'พัทลุง', 'สตูล', 'ตรัง', 'ปัตตานี', 'ยะลา', 'นราธิวาส'].map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={15} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {deliveryType === 'ผู้แทน' && (
-            <div className="flex flex-col gap-1.5 p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
-              <FieldLabel>ชื่อผู้แทน / วันนัดหมาย</FieldLabel>
-              <input value={agentInfo} onChange={e => setAgentInfo(e.target.value)} placeholder="ชื่อผู้แทน และวันนัดหมายรับสินค้า" className={inputCls} />
+            <div className="flex flex-col gap-4 p-4 sm:p-5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border-2 border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex flex-col gap-1.5">
+                <FieldLabel>ผู้แทนที่ดูแล</FieldLabel>
+
+                {saleRepsLoading && (
+                  <div className="px-4 py-3 rounded-xl bg-white border border-slate-100 text-muted-foreground font-bold text-base flex items-center gap-2">
+                    <Loader2 size={15} className="animate-spin" /> กำลังค้นหาผู้แทนที่ดูแล...
+                  </div>
+                )}
+
+                {!saleRepsLoading && saleRepsFetched && saleReps.length > 0 && (
+                  <div className="px-4 py-3 rounded-xl bg-teal-50 border-2 border-teal-100 text-teal-800 font-bold text-base flex flex-col gap-1.5">
+                    {saleReps.map(r => (
+                      <span key={r.id} className="inline-flex items-center gap-1.5">
+                        <User size={15} className="text-teal-500 shrink-0" /> {r.full_name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* ★ ไม่มี sale คนไหนดูแลเขต/ประเภทหน่วยงานนี้เลย — ปล่อยเป็นช่องว่างให้กรอกเอง
+                    ตามที่ตกลงไว้ แทนการโชว์แค่ข้อความว่าไม่พบ */}
+                {!saleRepsLoading && saleRepsFetched && saleReps.length === 0 && (
+                  <input
+                    value={manualAgentInfo}
+                    onChange={e => setManualAgentInfo(e.target.value)}
+                    placeholder="ชื่อผู้แทน และวันนัดหมายรับสินค้า"
+                    className={inputCls}
+                  />
+                )}
+              </div>
+
+              {/* โน้ตนัดหมาย — โชว์เฉพาะตอนมี sale ให้แล้ว (ไม่งั้นผู้ใช้กรอกรวมในช่องเดียวด้านบนได้เลย) */}
+              {!saleRepsLoading && saleRepsFetched && saleReps.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  <FieldLabel>วันนัดหมายรับสินค้า (ถ้ามี)</FieldLabel>
+                  <input
+                    value={appointmentNote}
+                    onChange={e => setAppointmentNote(e.target.value)}
+                    placeholder="เช่น นัดรับวันที่ 20 ส.ค. ช่วงบ่าย"
+                    className={inputCls}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

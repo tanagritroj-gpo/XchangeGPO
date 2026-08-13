@@ -2,6 +2,8 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
+import * as React from 'react';
+import { render } from '@react-email/render';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
@@ -9,6 +11,9 @@ import { bucketForOrgType } from '@/lib/sale-coverage';
 import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
 import { Resend } from 'resend';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
+import PdfDocumentEmail from '@/lib/emails/PdfDocumentEmail';
+import type { DrugItemRow } from '@/lib/types';
+import { formatThaiDate } from '@/lib/format-thai-date';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -180,6 +185,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     addr_district: sanitizeFreeText(formData.addr_district),
     addr_province: sanitizeFreeText(formData.addr_province),
     agent_info: sanitizeFreeText(formData.agent_info),
+    agent_appointment_note: sanitizeFreeText(formData.agent_appointment_note),
     exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
     exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
     exchange_product_other: sanitizeFreeText(formData.exchange_product_other),
@@ -402,7 +408,11 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
 
     const { data: requestData, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select('ref_id, hospital_name, customer_email')
+      .select(`
+        ref_id, hospital_name, customer_email,
+        doc_number, request_date, created_at, request_type, return_reason, delivery_type, total_value,
+        drug_items(drug_name, qty, unit, lot_number, exp_date)
+      `)
       .eq('id', requestId)
       .maybeSingle();
 
@@ -447,17 +457,23 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
-    const emailHtml = `
-        <h2>สวัสดีครับ, ตัวแทนจาก ${requestData.hospital_name}</h2>
-        <p>เจ้าหน้าที่ CSR ได้ทำการสร้างเอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้าให้เรียบร้อยแล้ว</p>
-        <p>เลขอ้างอิงของคุณคือ: <strong>${requestData.ref_id}</strong></p>
-        <p>
-          <a href="${signed.signedUrl}" target="_blank" style="padding: 10px 20px; background-color: #0f5132; color: white; text-decoration: none; border-radius: 5px;">
-            คลิกที่นี่เพื่อดาวน์โหลดเอกสาร PDF
-          </a>
-        </p>
-        <p>ลิงก์นี้มีอายุการใช้งาน 24 ชั่วโมง</p>
-      `;
+    const emailHtml = await render(
+      React.createElement(PdfDocumentEmail, {
+        hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
+        refId: requestData.ref_id,
+        docNumber: requestData.doc_number ?? null,
+        requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
+        requestType: requestData.request_type ?? null,
+        returnReason: requestData.return_reason ?? null,
+        deliveryType: requestData.delivery_type ?? null,
+        totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
+        items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
+          drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
+        })),
+        downloadUrl: signed.signedUrl,
+        preparedByStaff: true,
+      })
+    );
 
     // ★ ส่งแยกทีละฉบับต่อผู้รับ (ไม่ยัดทุกคนรวมกันใน to[] เดียว) กันผู้รับเห็นอีเมลกันเอง
     const results = await Promise.all(
