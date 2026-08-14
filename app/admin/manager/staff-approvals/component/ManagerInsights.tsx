@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
 } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, StatusLogRow, DrugItemRow } from '@/lib/types';
@@ -138,6 +138,51 @@ function ChartCard({ icon: Icon, title, subtitle, accentBg, accentColor, rightSl
   );
 }
 
+// โดนัท + legend แบบ custom (ไม่ใช้ <Legend> ของ recharts ตรงๆ) — เพราะชื่อโรงพยาบาลภาษาไทย
+// มักยาวเกินกว่าที่ legend มาตรฐานของ recharts จะจัดวาง/ตัดคำได้สวย ทำ legend เองข้างๆ โดนัท
+// ควบคุม truncate ได้เต็มที่ พร้อมตัวเลขรวมตรงกลางวงให้เห็นภาพรวมโดยไม่ต้องบวกเลขเอง
+function DonutWithLegend({ data, colors, tooltipFormatter, legendValueFormatter, centerValue, centerLabel }: {
+  data: { name: string; value: number }[];
+  colors: string[];
+  tooltipFormatter: (v: number) => string;
+  legendValueFormatter: (v: number) => string;
+  centerValue: string;
+  centerLabel: string;
+}) {
+  return (
+    <div className="flex flex-col sm:flex-row items-center gap-5">
+      <div className="relative shrink-0 w-[170px] h-[170px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} dataKey="value" nameKey="name" innerRadius={54} outerRadius={78} paddingAngle={2} strokeWidth={0}>
+              {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+            </Pie>
+            <Tooltip
+              contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+              formatter={(v) => [tooltipFormatter(Number(v)), '']}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <p className="text-base font-black text-foreground">{centerValue}</p>
+          <p className="text-[9px] text-muted-foreground text-center leading-tight px-4">{centerLabel}</p>
+        </div>
+      </div>
+      <div className="flex-1 min-w-0 w-full space-y-1.5">
+        {data.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-6">ยังไม่มีข้อมูล</p>
+        ) : data.map((d, i) => (
+          <div key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colors[i % colors.length] }} />
+            <span className="truncate flex-1 text-slate-600 font-medium" title={d.name}>{d.name}</span>
+            <span className="font-bold text-slate-700 shrink-0">{legendValueFormatter(d.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PeriodToggle({ mode, onChange }: { mode: 'month' | 'year'; onChange: (m: 'month' | 'year') => void }) {
   return (
     <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100">
@@ -157,9 +202,30 @@ function PeriodToggle({ mode, onChange }: { mode: 'month' | 'year'; onChange: (m
   );
 }
 
+// สลับมุมมองข้อมูลภายในกราฟเดียว — สไตล์เดียวกับ PeriodToggle เป๊ะ แต่ generic รับ option
+// เป็น key/label ได้อิสระ (ไม่ผูกแค่ month/year) เผื่อใช้ซ้ำกับกราฟอื่นที่ต้องสลับมุมมองแบบนี้
+function ViewToggle<T extends string>({ value, options, onChange }: {
+  value: T; options: { key: T; label: string }[]; onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${value === opt.key ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Component ──
 export default function ManagerInsights({ requests, statusLogs }: { requests: RequestRow[]; statusLogs: StatusLogRow[] }) {
   const [drugPeriodMode, setDrugPeriodMode] = useState<'month' | 'year'>('month');
+  const [requestTrendMetric, setRequestTrendMetric] = useState<'count' | 'value'>('count');
   const [valuePeriodMode, setValuePeriodMode] = useState<'month' | 'year'>('month');
   const [reasonPeriodMode, setReasonPeriodMode] = useState<'month' | 'year'>('month');
 
@@ -210,15 +276,18 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
     };
   }, [requests]);
 
-  // 1) รายการยาที่ส่งคืน ต่อเดือน/ปี (เดิม)
-  const drugItemsTrend = useMemo(() => {
+  // 1) แนวโน้มใบงาน ต่อเดือน/ปี — สลับดูได้ 2 มุมมองในกราฟเดียว: จำนวนใบงาน / มูลค่ารวมของ
+  // ใบงาน (เดิมเป็นแค่จำนวนรายการยาที่ส่งคืนอย่างเดียว ไม่มีตัวเลือกมุมมอง)
+  const requestTrend = useMemo(() => {
     const periods = getPeriods(drugPeriodMode);
-    return periods.map(p => ({
-      period: p.label,
-      count: requests
-        .filter(r => r.created_at && getPeriodKey(r.created_at, drugPeriodMode) === p.key)
-        .reduce((s, r) => s + (r.drug_items?.length ?? 0), 0),
-    }));
+    return periods.map(p => {
+      const periodReqs = requests.filter(r => r.created_at && getPeriodKey(r.created_at, drugPeriodMode) === p.key);
+      return {
+        period: p.label,
+        count: periodReqs.length,
+        value: periodReqs.reduce((s, r) => s + (Number(r.total_value) || 0), 0),
+      };
+    });
   }, [requests, drugPeriodMode]);
 
   // ══ ใหม่ #1: เวลาเฉลี่ยแต่ละขั้นตอน (จาก status_logs) ══
@@ -279,6 +348,14 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
   }, [requests]);
 
+  // ตัวเลขรวมกลางวงโดนัท — รวมจากใบงานทั้งหมด ไม่ใช่แค่ top 8 ที่แสดงเป็นวง
+  const totalRequestCount = requests.length;
+  const totalRequestValue = useMemo(
+    () => requests.reduce((sum, r) => sum + (Number(r.total_value) || 0), 0),
+    [requests]
+  );
+  const formatBahtCompact = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k บาท` : `${v.toLocaleString('th-TH')} บาท`;
+
   // 4) มูลค่าสะสมแยกตาม request_type รายเดือน/ปี (เดิม)
   const requestTypes = useMemo(
     () => Array.from(new Set(requests.map(r => r.request_type).filter(Boolean))) as string[],
@@ -286,7 +363,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
   );
   const valueByTypeTrend = useMemo(() => {
     const periods = getPeriods(valuePeriodMode);
-    return periods.map(p => {
+    const rows = periods.map(p => {
       const row: Record<string, string | number> = { period: p.label };
       requestTypes.forEach(type => {
         row[type] = requests
@@ -295,7 +372,24 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       });
       return row;
     });
+    // ตัดช่วงเวลาว่างๆ ด้านหน้าออก — เดิมโชว์ย้อนหลังคงที่ 12 เดือน/5 ปีเสมอ ทั้งที่ระบบเพิ่งเริ่ม
+    // มีข้อมูลจริง กราฟเลยว่างเปล่าเกือบทั้งแผ่นแล้วมีแท่งข้อมูลจริงแค่แท่งเดียวโผล่ขวาสุด หา
+    // ช่วงแรกที่มีมูลค่าจริงอย่างน้อย 1 ประเภทแล้วเริ่มแสดงจากตรงนั้นแทน (dynamic ตามข้อมูลจริง
+    // ไม่ผูกวันที่ตายตัว — ข้อมูลเพิ่มขึ้นเรื่อยๆ ก็ยังถูกต้องเสมอ ไม่ต้องมาแก้ code ทีหลัง)
+    const firstWithData = rows.findIndex(row => requestTypes.some(type => Number(row[type]) > 0));
+    return firstWithData === -1 ? rows.slice(-1) : rows.slice(firstWithData);
   }, [requests, valuePeriodMode, requestTypes]);
+
+  // สรุปมูลค่ารวมทั้งหมดต่อประเภท (ไม่ตัดตามช่วงเวลาด้านบน) — แสดงเป็นแถบสรุปด้านบนกราฟให้เห็น
+  // ตัวเลขรวมได้ทันทีโดยไม่ต้องชี้ดู tooltip ทีละแท่ง
+  const valueByTypeTotals = useMemo(() => {
+    const map: Record<string, number> = {};
+    requests.forEach(r => {
+      if (!r.request_type) return;
+      map[r.request_type] = (map[r.request_type] || 0) + (Number(r.total_value) || 0);
+    });
+    return requestTypes.map(type => ({ type, value: map[type] ?? 0 }));
+  }, [requests, requestTypes]);
 
   // ══ ใหม่ #3: มูลค่า/จำนวนใบงานแยกตามจังหวัด ══
   const provinceStats = useMemo(() => {
@@ -386,7 +480,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       {/* ── Stat Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <StatCard icon={ClipboardList} label="ใบงานทั้งหมด" value={requests.length.toLocaleString('th-TH')} accentBg="bg-blue-100" accentColor="text-blue-600" />
-        <StatCard icon={Wallet} label="มูลค่ารวมทั้งหมด" value={`฿${totalValue.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`} accentBg="bg-emerald-100" accentColor="text-emerald-600" />
+        <StatCard icon={Wallet} label="มูลค่ารวมทั้งหมด" value={`${totalValue.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`} accentBg="bg-emerald-100" accentColor="text-emerald-600" />
         <StatCard icon={Package} label="รายการยารวม" value={totalDrugItems.toLocaleString('th-TH')} sub="ทุกใบงาน" accentBg="bg-teal-100" accentColor="text-teal-600" />
         <StatCard
           icon={Clock} label="เวลาเฉลี่ยจนเสร็จสิ้น"
@@ -407,7 +501,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
         <ComparisonCard
           icon={Wallet} label="มูลค่าเดือนนี้" periodLabel={`เทียบเดือนก่อน (${periodComparison.monthLabel})`}
           current={periodComparison.thisMonthValue} previous={periodComparison.lastMonthValue}
-          formatValue={(n) => `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`}
+          formatValue={(n) => `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`}
           accentBg="bg-emerald-100" accentColor="text-emerald-600"
         />
         <ComparisonCard
@@ -419,24 +513,41 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
         <ComparisonCard
           icon={Wallet} label="มูลค่าปีนี้" periodLabel={`เทียบปีก่อน (${periodComparison.yearLabel})`}
           current={periodComparison.thisYearValue} previous={periodComparison.lastYearValue}
-          formatValue={(n) => `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`}
+          formatValue={(n) => `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`}
           accentBg="bg-purple-100" accentColor="text-purple-600"
         />
       </div>
 
-      {/* ── 1) รายการยาที่ส่งคืน ต่อเดือน/ปี ── */}
+      {/* ── 1) แนวโน้มใบงาน ต่อเดือน/ปี — สลับดู "จำนวนใบงาน" / "มูลค่ารวม" ในกราฟเดียวกันได้ ── */}
       <ChartCard
-        icon={TrendingUp} title="รายการยาที่ส่งคืน" subtitle="แนวโน้มจำนวนรายการยาที่ส่งคืนตามช่วงเวลา"
+        icon={TrendingUp} title="แนวโน้มใบงาน"
+        subtitle={requestTrendMetric === 'count' ? 'จำนวนใบงานตามช่วงเวลา' : 'มูลค่ารวมของใบงานตามช่วงเวลา'}
         accentBg="bg-teal-100" accentColor="text-teal-600"
-        rightSlot={<PeriodToggle mode={drugPeriodMode} onChange={setDrugPeriodMode} />}
+        rightSlot={
+          <div className="flex items-center gap-2 flex-wrap">
+            <ViewToggle
+              value={requestTrendMetric}
+              options={[{ key: 'count', label: 'จำนวนใบงาน' }, { key: 'value', label: 'มูลค่ารวม' }]}
+              onChange={setRequestTrendMetric}
+            />
+            <PeriodToggle mode={drugPeriodMode} onChange={setDrugPeriodMode} />
+          </div>
+        }
       >
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={drugItemsTrend} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
+          <BarChart data={requestTrend} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} รายการ`, 'จำนวน']} />
-            <Bar dataKey="count" fill="#14b8a6" radius={[6, 6, 0, 0]} maxBarSize={36} />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+              allowDecimals={requestTrendMetric === 'count' ? false : undefined}
+              tickFormatter={requestTrendMetric === 'value' ? (v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v) : undefined}
+            />
+            <Tooltip
+              contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }}
+              formatter={(v) => requestTrendMetric === 'count' ? [`${v} ใบงาน`, 'จำนวน'] : [`${Number(v).toLocaleString('th-TH')} บาท`, 'มูลค่ารวม']}
+            />
+            <Bar dataKey={requestTrendMetric} fill={requestTrendMetric === 'count' ? '#14b8a6' : '#10b981'} radius={[6, 6, 0, 0]} maxBarSize={36} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -464,50 +575,55 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       {/* ── 2 & 3) สถิติลูกค้า: จำนวนใบงาน / มูลค่ารวม ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <ChartCard icon={Users} title="ลูกค้าที่ส่งเรื่องมากที่สุด" subtitle="Top 8 เรียงตามจำนวนใบงาน" accentBg="bg-blue-100" accentColor="text-blue-600">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={topCustomersByCount} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}
-                tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${v} ใบงาน`, '']} />
-              <Bar dataKey="count" fill="#3b82f6" radius={[0, 6, 6, 0]} maxBarSize={18} />
-            </BarChart>
-          </ResponsiveContainer>
+          <DonutWithLegend
+            data={topCustomersByCount.map(c => ({ name: c.name, value: c.count }))}
+            colors={PALETTE}
+            tooltipFormatter={(v) => `${v} ใบงาน`}
+            legendValueFormatter={(v) => String(v)}
+            centerValue={String(totalRequestCount)}
+            centerLabel="ใบงานทั้งหมด"
+          />
         </ChartCard>
 
         <ChartCard icon={Wallet} title="ลูกค้าที่มีมูลค่ารวมสูงสุด" subtitle="Top 8 เรียงตามมูลค่า (บาท)" accentBg="bg-emerald-100" accentColor="text-emerald-600">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={topCustomersByValue} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false}
-                tickFormatter={(v: string) => v.length > 16 ? v.slice(0, 16) + '…' : v} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
-              <Bar dataKey="value" fill="#10b981" radius={[0, 6, 6, 0]} maxBarSize={18} />
-            </BarChart>
-          </ResponsiveContainer>
+          <DonutWithLegend
+            data={topCustomersByValue}
+            colors={PALETTE}
+            tooltipFormatter={(v) => `${v.toLocaleString('th-TH')} บาท`}
+            legendValueFormatter={formatBahtCompact}
+            centerValue={formatBahtCompact(totalRequestValue)}
+            centerLabel="มูลค่ารวมทั้งหมด"
+          />
         </ChartCard>
       </div>
 
       {/* ── 4) มูลค่าสะสมแยกตาม request_type รายเดือน/ปี ── */}
       <ChartCard
-        icon={Wallet} title="มูลค่าตามประเภทคำร้อง" subtitle="มูลค่ารวมแยกตามประเภท ต่อช่วงเวลา"
+        icon={Wallet} title="มูลค่าตามประเภทคำร้อง" subtitle="มูลค่ารวมแยกตามประเภท — เริ่มแสดงจากช่วงที่เริ่มมีข้อมูลจริง"
         accentBg="bg-indigo-100" accentColor="text-indigo-600"
         rightSlot={<PeriodToggle mode={valuePeriodMode} onChange={setValuePeriodMode} />}
       >
+        {/* ── แถบสรุปมูลค่ารวมต่อประเภท — อ่านตัวเลขรวมได้ทันทีไม่ต้องชี้ดู tooltip ทีละแท่ง ── */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {valueByTypeTotals.map(({ type, value }) => (
+            <span key={type} className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: REQUEST_TYPE_COLORS[type] ?? DEFAULT_TYPE_COLOR }} />
+              <span className="text-slate-600">{type}</span>
+              <span className="text-slate-800 font-bold">{value.toLocaleString('th-TH')} บาท</span>
+            </span>
+          ))}
+        </div>
         <ResponsiveContainer width="100%" height={280}>
           <BarChart data={valueByTypeTrend} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
             <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
               tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
-            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${Number(v).toLocaleString('th-TH')} บาท`, '']} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {requestTypes.map((type) => (
               <Bar key={type} dataKey={type} stackId="value" fill={REQUEST_TYPE_COLORS[type] ?? DEFAULT_TYPE_COLOR}
-                radius={requestTypes.indexOf(type) === requestTypes.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]} maxBarSize={36} />
+                radius={requestTypes.indexOf(type) === requestTypes.length - 1 ? [6, 6, 0, 0] : [0, 0, 0, 0]} maxBarSize={64} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -534,7 +650,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
               <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                 tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
               <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11, fill: '#475569' }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`฿${Number(v).toLocaleString('th-TH')}`, '']} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} formatter={(v) => [`${Number(v).toLocaleString('th-TH')} บาท`, '']} />
               <Bar dataKey="value" fill="#f97316" radius={[0, 6, 6, 0]} maxBarSize={18} />
             </BarChart>
           </ResponsiveContainer>

@@ -48,7 +48,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function formatCurrency(n: number) {
-  return `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
+  return `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`;
 }
 
 export default function CsrReportsPage() {

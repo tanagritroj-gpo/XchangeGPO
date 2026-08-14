@@ -250,7 +250,7 @@ export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLo
  *  ย้อนหลัง 12 เดือนแบบเต็ม (กิน token เยอะเกินจำเป็นสำหรับคำถามทั่วไป) */
 export function summarizeManagerStatsForChatbot(requests: RequestRow[], statusLogs: StatusLogRow[]): string {
   const s = computeManagerStats(requests, statusLogs);
-  const fmtBaht = (n: number) => `฿${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })}`;
+  const fmtBaht = (n: number) => `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`;
 
   const lines: string[] = [];
   lines.push(`ใบงานทั้งหมด: ${s.totalRequests.toLocaleString('th-TH')} ใบ`);

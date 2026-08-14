@@ -175,7 +175,7 @@ if (status === 'success') {
           ))}
           <div className="flex justify-between items-center pt-3.5 mt-1 border-t-2 border-dashed border-slate-100">
             <span className="text-sm font-black text-muted-foreground uppercase tracking-widest">รวมมูลค่า</span>
-            <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ฿</span>
+            <span className="text-xl font-black text-teal-600">{totalValue?.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท</span>
           </div>
         </div>
       </div>

@@ -412,7 +412,7 @@ function RequestListSection({
                               <Pill size={13} className="text-[#6B6698]" strokeWidth={2.5} />
                               <span className="text-[#6B6698]">มูลค่ารวม:</span>
                               <span className="font-bold text-[#2E2B7A]">
-                                ฿{(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                                {(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
                               </span>
                             </div>
                           </div>
@@ -522,7 +522,7 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
           ))}
           {totalValue > 0 && (
             <p className="text-right text-[10.5px] font-bold text-[#2E2B7A] pt-0.5">
-              ฿{totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+              {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
         </div>
