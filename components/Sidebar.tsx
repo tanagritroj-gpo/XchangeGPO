@@ -65,7 +65,9 @@ export default function Sidebar({ customer }: { customer: CustomerSessionInfo | 
         </div>
       )}
 
-      <nav className="flex-1 space-y-1.5">
+      {/* ★ ระยะห่างระหว่างหัวข้อ — เดิม space-y-1.5 เท่ากันทั้งมือถือ/desktop ผู้ใช้บอกว่าฝั่ง
+          desktop ดูติดกันเกินไป (มือถือพอดีอยู่แล้ว ไม่แตะ) เพิ่มเฉพาะ md: ขึ้นไป */}
+      <nav className="flex-1 space-y-1.5 md:space-y-3">
         {navItems.map(({ href, label, icon: Icon, tint }) => {
           const isActive = pathname === href || pathname?.startsWith(`${href}/`);
           const t = tintClasses[tint];

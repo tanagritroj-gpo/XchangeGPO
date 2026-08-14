@@ -12,6 +12,7 @@ import {
   Printer,
   RefreshCw,
   Pill,
+  PackageSearch,
 } from 'lucide-react';
 import {
   STAGES,
@@ -37,6 +38,9 @@ function TrackingContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // ★ กันหน้าโล่งเปล่าๆ ก่อนค้นหาครั้งแรก — pattern เดียวกับ TrackingDetailView.tsx
+  // (ฝั่ง /customer/tracking ที่ต้อง login) ตกแต่งด้วย empty state แทน
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async (targetRef: string) => {
     const cleaned = targetRef.trim();
@@ -46,6 +50,7 @@ function TrackingContent() {
       return;
     }
 
+    setHasSearched(true);
     setLoading(true);
     setError(null);
     setData(null);
@@ -141,6 +146,18 @@ function TrackingContent() {
       </form>
 
       {error && <p className="text-red-500 font-bold text-center py-4">{error}</p>}
+
+      {/* Empty state — ก่อนค้นหาครั้งแรก ไม่ปล่อยพื้นที่ว่างเปล่าไว้เฉยๆ (ดีไซน์เดียวกับ
+          TrackingDetailView.tsx ฝั่งที่ต้อง login) */}
+      {!hasSearched && !loading && (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-white/60 py-16 text-center print:hidden">
+          <PackageSearch className="h-9 w-9 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
+          <p className="text-sm font-bold text-muted-foreground">กรอกเลขอ้างอิงด้านบนเพื่อติดตามสถานะ</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            เลขอ้างอิง (Ref ID) จะได้รับทางอีเมลทันทีหลังยื่นคำร้องคืนสินค้าสำเร็จ
+          </p>
+        </div>
+      )}
 
       {loading && !data && (
         <div className="space-y-4 animate-pulse">
