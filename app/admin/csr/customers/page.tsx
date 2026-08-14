@@ -52,6 +52,8 @@ const ACCESS_ACTION_LABEL: Record<AccessHistoryEntry['action'], string> = {
   reactivated: 'เปิดใช้งานอีกครั้ง',
 };
 
+const ACCESS_PAGE_SIZE = 10;
+
 function formatThaiDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 }
@@ -248,6 +250,11 @@ export default function CSRCustomersPage() {
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessLoaded, setAccessLoaded] = useState(false);
   const [accessProcessingIds, setAccessProcessingIds] = useState<Set<number>>(new Set());
+  // แยกลูกค้าที่ถูกยกเลิกออกจากลูกค้าที่ใช้งานอยู่อย่างชัดเจน (เดิมปนอยู่ในลิสต์เดียวกัน
+  // เรียงตามวันหมดอายุ — ลูกค้าที่วันหมดอายุใกล้กันมากจะอยู่ติดกัน เสี่ยงกดผิดแถวหลังยกเลิก
+  // ไปแล้วรายการนั้นควรหายไปจากมุมมองหลักทันที ไม่ใช่ปนอยู่เรื่อยๆ)
+  const [accessFilter, setAccessFilter] = useState<'active' | 'cancelled'>('active');
+  const [accessPage, setAccessPage] = useState(1);
   // แถวที่กำลังกางดูประวัติอยู่ — เก็บแคชผลไว้ต่อ id กันโหลดซ้ำถ้าปิดแล้วเปิดใหม่
   const [openHistoryId, setOpenHistoryId] = useState<number | null>(null);
   const [historyById, setHistoryById] = useState<Record<number, AccessHistoryEntry[]>>({});
@@ -466,12 +473,12 @@ export default function CSRCustomersPage() {
             active={tab === 'pending'} onClick={() => setTab('pending')}
           />
           <SubTabButton
-            icon={Search} label="ค้นหาลูกค้าในระบบ"
-            active={tab === 'search'} onClick={() => setTab('search')}
-          />
-          <SubTabButton
             icon={CalendarClock} label="การต่ออายุเข้าใช้ระบบ"
             active={tab === 'access'} onClick={() => setTab('access')}
+          />
+          <SubTabButton
+            icon={Search} label="ค้นหาลูกค้าในระบบ"
+            active={tab === 'search'} onClick={() => setTab('search')}
           />
           <SubTabButton
             icon={FileSpreadsheet} label="Export"
@@ -622,19 +629,58 @@ export default function CSRCustomersPage() {
               </div>
             </div>
 
-            <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm overflow-hidden">
-              {accessLoading ? (
-                <div className="py-12 text-center">
-                  <Loader2 className="w-6 h-6 text-[#6B6698] animate-spin mx-auto" />
-                </div>
-              ) : accessCustomers.length === 0 ? (
-                <div className="py-12 text-center">
-                  <CalendarClock className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
-                  <p className="text-sm text-[#6B6698] font-medium">ยังไม่มีลูกค้าที่อนุมัติแล้วในระบบ</p>
-                </div>
-              ) : (
+            {(() => {
+              const activeList = accessCustomers.filter((c) => !c.cancelled_at);
+              const cancelledList = accessCustomers.filter((c) => !!c.cancelled_at);
+              const currentList = accessFilter === 'active' ? activeList : cancelledList;
+              const totalPages = Math.max(1, Math.ceil(currentList.length / ACCESS_PAGE_SIZE));
+              const pageSafe = Math.min(accessPage, totalPages);
+              const paginatedList = currentList.slice((pageSafe - 1) * ACCESS_PAGE_SIZE, pageSafe * ACCESS_PAGE_SIZE);
+
+              const switchFilter = (f: 'active' | 'cancelled') => {
+                setAccessFilter(f);
+                setAccessPage(1);
+              };
+
+              return (
+                <>
+                  {/* ── ตัวกรองใช้งานอยู่ / ถูกยกเลิก — แยกให้ชัดเจน ไม่ปนกันเหมือนเดิม ── */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <button
+                      onClick={() => switchFilter('active')}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                        accessFilter === 'active' ? 'bg-[#241F5E] text-white shadow-sm' : 'bg-white/70 text-[#6B6698] border border-white/60 hover:bg-white'
+                      }`}
+                    >
+                      ใช้งานอยู่
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${accessFilter === 'active' ? 'bg-white/20' : 'bg-[#ECEAF6] text-[#2E2B7A]'}`}>{activeList.length}</span>
+                    </button>
+                    <button
+                      onClick={() => switchFilter('cancelled')}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                        accessFilter === 'cancelled' ? 'bg-slate-700 text-white shadow-sm' : 'bg-white/70 text-[#6B6698] border border-white/60 hover:bg-white'
+                      }`}
+                    >
+                      <Ban size={12} strokeWidth={2.5} /> ถูกยกเลิก
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${accessFilter === 'cancelled' ? 'bg-white/20' : 'bg-slate-200 text-slate-600'}`}>{cancelledList.length}</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm overflow-hidden">
+                    {accessLoading ? (
+                      <div className="py-12 text-center">
+                        <Loader2 className="w-6 h-6 text-[#6B6698] animate-spin mx-auto" />
+                      </div>
+                    ) : currentList.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <CalendarClock className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
+                        <p className="text-sm text-[#6B6698] font-medium">
+                          {accessFilter === 'active' ? 'ยังไม่มีลูกค้าที่ใช้งานอยู่ในระบบ' : 'ยังไม่มีลูกค้าที่ถูกยกเลิก'}
+                        </p>
+                      </div>
+                    ) : (
                 <div className="divide-y divide-[#EADFAF]/60">
-                  {accessCustomers.map((c) => {
+                  {paginatedList.map((c) => {
                     const isCancelled = !!c.cancelled_at;
                     const isExpired = !isCancelled && new Date(c.access_expires_at) < new Date();
                     const isProcessing = accessProcessingIds.has(c.id);
@@ -646,7 +692,12 @@ export default function CSRCustomersPage() {
                     const historyRows = historyById[c.id];
 
                     return (
-                      <div key={c.id} className="px-4 md:px-6 py-3.5 md:py-4 hover:bg-[#FBF6E8]/60 transition-colors">
+                      <div
+                        key={c.id}
+                        className={`px-4 md:px-6 py-3.5 md:py-4 transition-colors ${
+                          isProcessing ? 'opacity-50 pointer-events-none' : 'hover:bg-[#FBF6E8]/60'
+                        }`}
+                      >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -721,8 +772,32 @@ export default function CSRCustomersPage() {
                     );
                   })}
                 </div>
-              )}
-            </div>
+                    )}
+
+                    {/* ── Pagination — หน้าละ 10 รายการ ── */}
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between gap-3 px-4 md:px-6 py-3 border-t border-[#EADFAF]/60">
+                        <button
+                          onClick={() => setAccessPage((p) => Math.max(1, p - 1))}
+                          disabled={pageSafe <= 1}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#6B6698] hover:text-[#241F5E] hover:bg-[#ECEAF6] transition-all disabled:opacity-30 disabled:pointer-events-none"
+                        >
+                          ← ก่อนหน้า
+                        </button>
+                        <span className="text-xs font-semibold text-[#6B6698]">หน้า {pageSafe} จาก {totalPages}</span>
+                        <button
+                          onClick={() => setAccessPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={pageSafe >= totalPages}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#6B6698] hover:text-[#241F5E] hover:bg-[#ECEAF6] transition-all disabled:opacity-30 disabled:pointer-events-none"
+                        >
+                          ถัดไป →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </section>
         )}
 
