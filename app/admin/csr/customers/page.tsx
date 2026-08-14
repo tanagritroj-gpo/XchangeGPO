@@ -1,8 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet, LogOut, Sparkles } from 'lucide-react';
-import { getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail, getRegistrationDocumentUrl, updateCustomerOrgType, searchOrganizations } from '@/app/actions/csr-actions';
+import { ArrowLeft, Building2, MapPin, Check, X, CheckCheck, Loader2, Search, Clock, FileText, Download, Pencil, FileSpreadsheet, LogOut, Sparkles, CalendarClock, RefreshCw, Ban, History, ShieldOff } from 'lucide-react';
+import {
+  getCSRDashboardData, reviewClient, getCustomerRequestHistory, getStaffRequestDetail,
+  getRegistrationDocumentUrl, updateCustomerOrgType, searchOrganizations,
+  getCustomersAccessStatus, renewCustomerAccess, cancelCustomerAccess, reactivateCustomerAccess, getCustomerAccessHistory,
+} from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import CustomerPicker from '../form/components/CustomerPicker';
@@ -20,6 +24,36 @@ interface Customer {
   email: string;
   customer_code: string | null;
   org_type?: string | null;
+}
+
+interface AccessCustomer {
+  id: number;
+  contact_name: string | null;
+  email: string;
+  access_expires_at: string;
+  cancelled_at: string | null;
+  hospital_name: string | null;
+  customer_code: string | null;
+}
+
+interface AccessHistoryEntry {
+  id: string;
+  action: 'approved_initial' | 'renewed' | 'cancelled' | 'reactivated';
+  previous_expires_at: string | null;
+  new_expires_at: string | null;
+  created_at: string;
+  staff_name: string | null;
+}
+
+const ACCESS_ACTION_LABEL: Record<AccessHistoryEntry['action'], string> = {
+  approved_initial: 'อนุมัติครั้งแรก',
+  renewed: 'ต่ออายุ',
+  cancelled: 'ยกเลิกลูกค้า',
+  reactivated: 'เปิดใช้งานอีกครั้ง',
+};
+
+function formatThaiDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 // แก้ไขประเภทหน่วยงานของลูกค้าที่อนุมัติไปแล้ว — จำเป็นสำหรับลูกค้าเก่าที่ org_type
@@ -191,7 +225,7 @@ export default function CSRCustomersPage() {
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [tab, setTab] = useState<'pending' | 'search' | 'export'>('pending');
+  const [tab, setTab] = useState<'pending' | 'search' | 'access' | 'export'>('pending');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // รหัสลูกค้าที่ CSR พิมพ์เอง ก่อนกดอนุมัติ — เก็บแยกตาม client.id เพราะมีหลายแถวพร้อมกัน
   const [customerCodes, setCustomerCodes] = useState<Record<string, string>>({});
@@ -208,6 +242,16 @@ export default function CSRCustomersPage() {
   // client.id ที่กำลังส่งคำขออนุมัติ/ปฏิเสธอยู่ — กันกดซ้ำระหว่างรอผล (ก่อนหน้านี้ไม่มี
   // guard ทำให้กดรัวจนคำขอซ้อนกันชน unique constraint ฝั่ง server ได้)
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
+
+  // ── แท็บ "การต่ออายุเข้าใช้ระบบ" ──
+  const [accessCustomers, setAccessCustomers] = useState<AccessCustomer[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessLoaded, setAccessLoaded] = useState(false);
+  const [accessProcessingIds, setAccessProcessingIds] = useState<Set<number>>(new Set());
+  // แถวที่กำลังกางดูประวัติอยู่ — เก็บแคชผลไว้ต่อ id กันโหลดซ้ำถ้าปิดแล้วเปิดใหม่
+  const [openHistoryId, setOpenHistoryId] = useState<number | null>(null);
+  const [historyById, setHistoryById] = useState<Record<number, AccessHistoryEntry[]>>({});
+  const [historyLoadingId, setHistoryLoadingId] = useState<number | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -295,6 +339,70 @@ export default function CSRCustomersPage() {
     }
   };
 
+  // ── แท็บ "การต่ออายุเข้าใช้ระบบ" — โหลดครั้งแรกที่สลับมาแท็บนี้เท่านั้น (ไม่ต้องรอตอนโหลด
+  // หน้าแรกเหมือนแท็บ "รออนุมัติ" เพราะไม่ใช่ข้อมูลที่ต้องเห็นทันที) ──
+  const fetchAccessData = async () => {
+    setAccessLoading(true);
+    const res = await getCustomersAccessStatus();
+    if (res.success && 'data' in res) setAccessCustomers(res.data ?? []);
+    setAccessLoading(false);
+    setAccessLoaded(true);
+  };
+
+  useEffect(() => {
+    if (tab === 'access' && !accessLoaded) fetchAccessData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  const handleRenew = async (id: number) => {
+    if (accessProcessingIds.has(id)) return;
+    if (!confirm('ยืนยันต่ออายุการใช้งาน 2 ปี นับจากวันนี้?')) return;
+    setAccessProcessingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await renewCustomerAccess(id);
+      if (res.success) { alert('ต่ออายุเรียบร้อย'); fetchAccessData(); }
+      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+    } finally {
+      setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
+  const handleCancelAccess = async (id: number) => {
+    if (accessProcessingIds.has(id)) return;
+    if (!confirm('ยืนยันยกเลิกสิทธิ์การเข้าใช้งานของลูกค้ารายนี้? ลูกค้าจะไม่สามารถเข้าสู่ระบบได้ทันที')) return;
+    setAccessProcessingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await cancelCustomerAccess(id);
+      if (res.success) { alert('ยกเลิกสิทธิ์เรียบร้อย'); fetchAccessData(); }
+      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+    } finally {
+      setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
+  const handleReactivate = async (id: number) => {
+    if (accessProcessingIds.has(id)) return;
+    if (!confirm('ยืนยันเปิดใช้งานลูกค้ารายนี้อีกครั้ง?')) return;
+    setAccessProcessingIds((prev) => new Set(prev).add(id));
+    try {
+      const res = await reactivateCustomerAccess(id);
+      if (res.success) { alert('เปิดใช้งานเรียบร้อย'); fetchAccessData(); }
+      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+    } finally {
+      setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    }
+  };
+
+  const handleToggleHistory = async (id: number) => {
+    if (openHistoryId === id) { setOpenHistoryId(null); return; }
+    setOpenHistoryId(id);
+    if (historyById[id]) return; // แคชไว้แล้ว ไม่ต้องโหลดซ้ำ
+    setHistoryLoadingId(id);
+    const res = await getCustomerAccessHistory(id);
+    if (res.success && 'data' in res) setHistoryById((prev) => ({ ...prev, [id]: res.data ?? [] }));
+    setHistoryLoadingId(null);
+  };
+
   if (isLoading) return (
     <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
       <SkeletonTopBar />
@@ -360,6 +468,10 @@ export default function CSRCustomersPage() {
           <SubTabButton
             icon={Search} label="ค้นหาลูกค้าในระบบ"
             active={tab === 'search'} onClick={() => setTab('search')}
+          />
+          <SubTabButton
+            icon={CalendarClock} label="การต่ออายุเข้าใช้ระบบ"
+            active={tab === 'access'} onClick={() => setTab('access')}
           />
           <SubTabButton
             icon={FileSpreadsheet} label="Export"
@@ -495,6 +607,123 @@ export default function CSRCustomersPage() {
               </section>
             )}
           </div>
+        )}
+
+        {/* ── Tab: การต่ออายุเข้าใช้ระบบ — อายุการใช้งานบัญชี 2 ปีนับจากวันอนุมัติ ── */}
+        {tab === 'access' && (
+          <section>
+            <div className="flex items-center gap-2.5 mb-3 px-1">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] flex items-center justify-center shrink-0">
+                <CalendarClock size={16} className="text-[#241F5E]" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-[#241F5E]">การต่ออายุเข้าใช้ระบบ</h2>
+                <p className="text-[11px] text-[#6B6698]">อายุการใช้งานบัญชี 2 ปี นับจากวันที่อนุมัติ — เรียงจากใกล้หมดอายุที่สุดก่อน</p>
+              </div>
+            </div>
+
+            <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm overflow-hidden">
+              {accessLoading ? (
+                <div className="py-12 text-center">
+                  <Loader2 className="w-6 h-6 text-[#6B6698] animate-spin mx-auto" />
+                </div>
+              ) : accessCustomers.length === 0 ? (
+                <div className="py-12 text-center">
+                  <CalendarClock className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
+                  <p className="text-sm text-[#6B6698] font-medium">ยังไม่มีลูกค้าที่อนุมัติแล้วในระบบ</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#EADFAF]/60">
+                  {accessCustomers.map((c) => {
+                    const isCancelled = !!c.cancelled_at;
+                    const isExpired = !isCancelled && new Date(c.access_expires_at) < new Date();
+                    const isProcessing = accessProcessingIds.has(c.id);
+                    const badge = isCancelled
+                      ? { label: 'ถูกยกเลิก', className: 'bg-slate-200 text-slate-600' }
+                      : isExpired
+                        ? { label: 'หมดอายุ', className: 'bg-red-100 text-red-700' }
+                        : { label: 'ปกติ', className: 'bg-emerald-100 text-emerald-700' };
+                    const historyRows = historyById[c.id];
+
+                    return (
+                      <div key={c.id} className="px-4 md:px-6 py-3.5 md:py-4 hover:bg-[#FBF6E8]/60 transition-colors">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-[#241F5E]">{c.hospital_name ?? '-'}</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badge.className}`}>{badge.label}</span>
+                            </div>
+                            <p className="text-xs text-[#6B6698] mt-0.5">{c.contact_name ?? '-'} · {c.customer_code ?? 'ไม่มีรหัสลูกค้า'}</p>
+                            <p className="text-xs text-[#6B6698] mt-1 flex items-center gap-1">
+                              <Clock size={11} strokeWidth={2.5} />
+                              {isCancelled ? `ยกเลิกเมื่อ ${formatThaiDate(c.cancelled_at!)}` : `หมดอายุ ${formatThaiDate(c.access_expires_at)}`}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => handleToggleHistory(c.id)}
+                              className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-[#6B6698] hover:text-[#241F5E] hover:bg-[#ECEAF6] transition-all"
+                            >
+                              <History size={13} strokeWidth={2.5} /> ประวัติ
+                            </button>
+                            {isCancelled ? (
+                              <button
+                                onClick={() => handleReactivate(c.id)}
+                                disabled={isProcessing}
+                                className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-40"
+                              >
+                                {isProcessing ? <Loader2 size={14} className="animate-spin" strokeWidth={3} /> : <RefreshCw size={14} strokeWidth={3} />} เปิดใช้งาน
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleRenew(c.id)}
+                                  disabled={isProcessing}
+                                  className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition-all disabled:opacity-40"
+                                >
+                                  {isProcessing ? <Loader2 size={14} className="animate-spin" strokeWidth={3} /> : <RefreshCw size={14} strokeWidth={3} />} ต่ออายุ
+                                </button>
+                                <button
+                                  onClick={() => handleCancelAccess(c.id)}
+                                  disabled={isProcessing}
+                                  className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-100 transition-all disabled:opacity-40"
+                                >
+                                  <Ban size={14} strokeWidth={2.5} /> ยกเลิกลูกค้า
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {openHistoryId === c.id && (
+                          <div className="mt-3 ml-1 pl-3 border-l-2 border-[#EADFAF]">
+                            {historyLoadingId === c.id ? (
+                              <p className="text-xs text-[#6B6698] py-2">กำลังโหลดประวัติ...</p>
+                            ) : !historyRows || historyRows.length === 0 ? (
+                              <p className="text-xs text-[#6B6698] py-2 flex items-center gap-1.5">
+                                <ShieldOff size={12} strokeWidth={2.5} /> ยังไม่มีประวัติ
+                              </p>
+                            ) : (
+                              <div className="space-y-1.5 py-1.5">
+                                {historyRows.map((h) => (
+                                  <p key={h.id} className="text-xs text-[#6B6698]">
+                                    <span className="font-semibold text-[#241F5E]">{ACCESS_ACTION_LABEL[h.action]}</span>
+                                    {' โดย '}{h.staff_name ?? 'ไม่ทราบชื่อ'}
+                                    {' · '}{formatThaiDate(h.created_at)}
+                                    {h.new_expires_at && ` · หมดอายุใหม่ ${formatThaiDate(h.new_expires_at)}`}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
         {/* ── Tab: Export รายชื่อลูกค้าทั้งหมดเป็น Excel ── */}

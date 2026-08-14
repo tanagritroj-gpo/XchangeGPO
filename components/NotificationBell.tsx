@@ -106,6 +106,9 @@ const TYPE_DOT_COLOR: Record<NotificationLogRow['type'], string> = {
   // โทนเดียวกับ getCardTone ใน components/history/ExchangeHistoryView.tsx — อำพัน=เตือน, แดง=เกินกำหนด
   sla_warning: 'bg-amber-500',
   sla_breach: 'bg-red-500',
+  // ลูกค้าใกล้หมดอายุการใช้งาน (เหลือ ≤30 วัน) — ยิงจาก check_customer_expiry_notifications()
+  // cron รายวัน ดู supabase/migrations/20260814105007_add_customer_access_expiry.sql
+  customer_expiring: 'bg-amber-500',
 };
 
 // วันที่ + เวลาแบบเต็ม (ไม่ใช่ relative time) — รายการล่าสุด 10 อันอาจย้อนไปหลายวัน relative
@@ -132,6 +135,8 @@ function renderNotificationText(n: NotificationLogRow) {
       return <>ใบงาน <span className="font-mono">{n.ref_id}</span> ใกล้ครบกำหนด SLA</>;
     case 'sla_breach':
       return <>ใบงาน <span className="font-mono">{n.ref_id}</span> เกินกำหนด SLA แล้ว</>;
+    case 'customer_expiring':
+      return <>{n.contact_name} จาก {n.hospital_name} ใกล้หมดอายุการใช้งานระบบ (เหลือไม่เกิน 30 วัน)</>;
   }
 }
 

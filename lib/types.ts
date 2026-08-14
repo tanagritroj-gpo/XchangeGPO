@@ -141,7 +141,7 @@ export interface UnansweredQuestionRow {
 // เรียก) ไม่ใช่คอลัมน์จริงในตาราง — กันไม่ให้ raw timestamp หลุดออกมาฝั่ง client โดยไม่จำเป็น
 export interface NotificationLogRow {
   id: string;
-  type: 'ping' | 'new_request' | 'new_client' | 'sla_warning' | 'sla_breach';
+  type: 'ping' | 'new_request' | 'new_client' | 'sla_warning' | 'sla_breach' | 'customer_expiring';
   request_id: number | null;
   ref_id: string | null;
   contact_name: string | null;
