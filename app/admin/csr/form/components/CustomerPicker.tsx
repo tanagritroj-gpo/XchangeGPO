@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Check, Phone } from 'lucide-react';
+import { Check, Phone, Mail, User } from 'lucide-react';
 import { searchB2BCustomers } from '@/app/actions/staff-form-actions';
 
 interface Customer {
@@ -141,10 +141,23 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
               onClick={() => handleSelect(c)}
               className="w-full text-left px-4 py-3 hover:bg-teal-50 border-b border-slate-50 last:border-0 transition-colors"
             >
-              <p className="text-base font-black text-slate-800">{c.hospital_name}</p>
-              {c.customer_code && (
-                <p className="text-sm text-muted-foreground mt-0.5">รหัส {c.customer_code}</p>
-              )}
+              {/* ★ ชื่อหน่วยงานซ้ำกันได้ (หลายผู้ติดต่อจากหน่วยงานเดียวกัน) — เพิ่มชื่อผู้ติดต่อ/
+                  อีเมล/เบอร์โทรให้แยกแยะแต่ละรายการออกจากกันได้ ไม่ใช่แค่ชื่อหน่วยงาน+รหัสซ้ำๆ กัน */}
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-base font-black text-slate-800">{c.hospital_name}</p>
+                {c.customer_code && (
+                  <span className="shrink-0 text-xs font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">รหัส {c.customer_code}</span>
+                )}
+              </div>
+              <p className="text-sm font-semibold text-slate-600 mt-1 flex items-center gap-1">
+                <User size={12} className="shrink-0" />
+                {c.contact_name ?? 'ไม่ระบุชื่อผู้ติดต่อ'}
+                {c.position && <span className="font-normal text-muted-foreground">· {c.position}</span>}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
+                <span className="inline-flex items-center gap-1"><Mail size={11} className="shrink-0" />{c.email}</span>
+                {c.phone && <span className="inline-flex items-center gap-1"><Phone size={11} className="shrink-0" />{c.phone}</span>}
+              </p>
             </button>
           ))}
         </div>

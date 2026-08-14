@@ -63,7 +63,7 @@ function DrugCard({ item, index, onRemove }: { item: DrugItemEntry; index: numbe
           <div className="flex items-center gap-1"><Package size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">{item.qty}</span> {item.unit}</div>
           <div className="flex items-center gap-1"><Calendar size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">Exp:</span> {item.exp}</div>
           <div className="flex items-center gap-1"><Tag size={13} className="text-muted-foreground" /><span className="font-bold text-slate-700">Lot:</span> {item.lot}</div>
-          <div className="flex items-center gap-1 font-black text-teal-600"><Banknote size={14} /> {parseFloat(item.val || '0').toLocaleString()} ฿</div>
+          <div className="flex items-center gap-1 font-black text-teal-600"><Banknote size={14} /> {parseFloat(item.val || '0').toLocaleString()} บาท</div>
         </div>
       </div>
     </div>
@@ -171,11 +171,11 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
           {/* ราคาต่อหน่วย + มูลค่ารวม (คำนวณอัตโนมัติ) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <FieldLabel>ราคาต่อหน่วย (฿)</FieldLabel>
+              <FieldLabel>ราคาต่อหน่วย (บาท)</FieldLabel>
               <input type="number" min="0" step="0.01" value={temp.unitPrice} onChange={e => set('unitPrice', e.target.value)} placeholder="0.00" className={fieldStyle} />
             </div>
             <div>
-              <FieldLabel>มูลค่ารวม (฿)</FieldLabel>
+              <FieldLabel>มูลค่ารวม (บาท)</FieldLabel>
               <input
                 type="text"
                 readOnly
@@ -220,7 +220,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
               <ClipboardList size={15} className="text-teal-500" /> รายการที่เพิ่มแล้ว
             </p>
             <p className="text-sm font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full">
-              รวม {totalValuePreview.toLocaleString()} ฿
+              รวม {totalValuePreview.toLocaleString()} บาท
             </p>
           </div>
           <div className="space-y-3">

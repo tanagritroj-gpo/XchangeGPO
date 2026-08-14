@@ -252,7 +252,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
             // ไม่งั้นบัญชีที่เพิ่งอนุมัติจะ login ไม่ได้เพราะ b2b_customers.password_hash เป็น null
             password_hash: client.password_hash,
           })
-          .select('id')
+          .select('id, access_expires_at')
           .single();
 
         if (insertErr) {
@@ -268,6 +268,16 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
           .update({ b2b_customer_id: newCustomer.id })
           .eq('id', clientId);
 
+        // จุดเริ่มต้นของ audit trail อายุการใช้งานบัญชี — access_expires_at ถูกตั้งอัตโนมัติ
+        // จาก DB default (now() + 2 ปี) ตอน insert ข้างบนแล้ว บันทึกแค่ log ไว้เป็นหลักฐานว่า
+        // ใครอนุมัติเมื่อไหร่ (เป็น side-effect เสริมเหมือนเอกสาร/อีเมลด้านล่าง ไม่ throw ถ้าพัง)
+        await supabaseAdmin.from('customer_access_log').insert({
+          b2b_customer_id: newCustomer.id,
+          action: 'approved_initial',
+          staff_id: session.id,
+          new_expires_at: newCustomer.access_expires_at,
+        });
+
         // เอกสารยืนยันการลงทะเบียน + อีเมลแจ้งลูกค้า — เป็น side-effect เสริม ไม่ใช่ตัว
         // การอนุมัติเอง จึงต้อง "ไม่บล็อกผลลัพธ์" การอนุมัติแม้จะล้มเหลว (เช่น Resend
         // ล่มชั่วคราว) เพราะ customer_code ผูกกับ b2b_customers สำเร็จไปแล้วข้างบนนี้ —
@@ -276,7 +286,7 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
         // promise ที่ไม่ได้ await ค้างไม่จบ (CSR ยังกดสร้าง/ส่งเอกสารซ้ำได้ทีหลังผ่าน
         // getRegistrationDocumentUrl() ถ้ารอบนี้พลาด)
         try {
-          await generateRegistrationDocument(client, organization.customer_code, session);
+          await generateRegistrationDocument(client, organization.customer_code, session, newCustomer.access_expires_at);
         } catch (docErr) {
           console.error('generateRegistrationDocument failed (non-blocking):', docErr);
           Sentry.captureException(docErr, { level: 'warning', tags: { area: 'registration-document' } });
@@ -307,11 +317,18 @@ export async function reviewClient(clientId: string, action: 'approved' | 'rejec
 // สร้าง PDF ยืนยันการลงทะเบียน อัปโหลดเก็บไว้ใน bucket + document_attachments แล้วส่ง
 // อีเมลแจ้งลูกค้า — เรียกจาก reviewClient() เฉพาะตอนอนุมัติเท่านั้น ไม่ throw ออกไปเอง
 // (caller เป็นคนคุม try/catch ไม่ให้กระทบผลอนุมัติ)
-async function generateRegistrationDocument(client: ClientRow, customerCode: string, session: StaffSessionInfo) {
+async function generateRegistrationDocument(client: ClientRow, customerCode: string, session: StaffSessionInfo, accessExpiresAt: string) {
   let signaturePng: Uint8Array | null = null;
   if (client.signature_url) {
     const { data: sigBlob } = await supabaseAdmin.storage.from('signatures').download(client.signature_url);
     if (sigBlob) signaturePng = new Uint8Array(await sigBlob.arrayBuffer());
+  }
+
+  // ลายเซ็นของพนักงานที่กดอนุมัติ — ฝังในช่อง "ลงชื่อ (พนักงาน GPO)" ของเอกสาร
+  let staffSignaturePng: Uint8Array | null = null;
+  if (session.signature_url) {
+    const { data: staffSigBlob } = await supabaseAdmin.storage.from('signatures').download(session.signature_url);
+    if (staffSigBlob) staffSignaturePng = new Uint8Array(await staffSigBlob.arrayBuffer());
   }
 
   const decidedAt = new Date().toISOString();
@@ -326,9 +343,11 @@ async function generateRegistrationDocument(client: ClientRow, customerCode: str
     customer_code: customerCode,
     registered_at: client.pdpa_consented_at,
     customer_signature_png: signaturePng,
+    staff_signature_png: staffSignaturePng,
     staff_full_name: session.full_name ?? session.username,
     staff_action: 'approved',
     decided_at: decidedAt,
+    access_expires_at: accessExpiresAt,
   });
 
   const filePath = `registration/${client.id}.pdf`;
@@ -425,6 +444,139 @@ export async function updateCustomerOrgType(b2bCustomerId: number, orgType: stri
 
     if (error) return { success: false, error: 'บันทึกไม่สำเร็จ' };
     return { success: true };
+  });
+}
+
+// ══ อายุการใช้งานบัญชีลูกค้า (2 ปีนับจากวันอนุมัติ) — แท็บ "การต่ออายุเข้าใช้ระบบ" ══
+
+// รายชื่อลูกค้าที่อนุมัติแล้วทั้งหมด พร้อมสถานะอายุการใช้งาน — เรียงใกล้หมดอายุสุดขึ้นก่อน
+// ให้ CSR เห็นรายที่ต้องจัดการก่อนโดยไม่ต้องเลื่อนหา (join organizations แบบเดียวกับ
+// searchB2BCustomers ใน staff-form-actions.ts เพราะ hospital_name/customer_code ตัวจริง
+// อยู่ที่ organizations ไม่ใช่คอลัมน์ mirror บน b2b_customers)
+export async function getCustomersAccessStatus() {
+  return withCSRAuth(async () => {
+    const { data, error } = await supabaseAdmin
+      .from('b2b_customers')
+      .select('id, contact_name, email, access_expires_at, cancelled_at, organizations!inner(hospital_name, customer_code)')
+      .order('access_expires_at', { ascending: true });
+
+    if (error) return { success: false, error: 'ดึงข้อมูลไม่สำเร็จ' };
+
+    const flattened = (data ?? []).map((row) => {
+      const org = Array.isArray(row.organizations) ? row.organizations[0] : row.organizations;
+      const { organizations: _omit, ...rest } = row;
+      return {
+        ...rest,
+        hospital_name: org?.hospital_name ?? null,
+        customer_code: org?.customer_code ?? null,
+      };
+    });
+
+    return { success: true, data: flattened };
+  });
+}
+
+// ต่ออายุ 2 ปี นับจากวันนี้เสมอ (ไม่ใช่นับต่อจากวันหมดอายุเดิม) — ผู้ใช้ยืนยันแล้วว่าต้องการ
+// แบบนี้ ง่ายและคาดเดาผลได้ตรงไปตรงมาที่สุด ไม่มีเคส edge case ต้องกัน (เช่นต่ออายุช้ามาก
+// จนวันหมดอายุใหม่ยังเป็นอดีตอยู่แบบวิธีนับต่อจากวันเดิม)
+export async function renewCustomerAccess(b2bCustomerId: number) {
+  return withCSRAuth(async (session) => {
+    const { data: current } = await supabaseAdmin
+      .from('b2b_customers')
+      .select('access_expires_at')
+      .eq('id', b2bCustomerId)
+      .maybeSingle();
+
+    if (!current) return { success: false, error: 'ไม่พบข้อมูลลูกค้ารายนี้' };
+
+    const newExpiresAt = new Date(Date.now() + 2 * 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    // reset expiry_warned_at กลับเป็น null — ให้ cron แจ้งเตือนล่วงหน้าได้อีกครั้งตอนใกล้ครบ
+    // กำหนดรอบใหม่ (ไม่งั้นจะไม่แจ้งเตือนอีกเลยเพราะเงื่อนไข "ยังไม่เคยแจ้ง" เป็นเท็จค้างตลอด)
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ access_expires_at: newExpiresAt, expiry_warned_at: null })
+      .eq('id', b2bCustomerId);
+
+    if (error) return { success: false, error: 'ต่ออายุไม่สำเร็จ' };
+
+    await supabaseAdmin.from('customer_access_log').insert({
+      b2b_customer_id: b2bCustomerId,
+      action: 'renewed',
+      staff_id: session.id,
+      previous_expires_at: current.access_expires_at,
+      new_expires_at: newExpiresAt,
+    });
+
+    return { success: true };
+  });
+}
+
+// ยกเลิกสิทธิ์เข้าใช้งาน — แยกอิสระจากวันหมดอายุ (CSR เปิด-ปิดเองได้ทุกเมื่อ) ต้องลบ session
+// ที่ค้างอยู่ทันทีด้วย ไม่งั้นลูกค้าที่ล็อกอินค้างอยู่แล้วจะยังใช้งานต่อได้จนกว่า session
+// หมดอายุเอง (สูงสุด 1 ชม. ตาม createCustomerSession) getCustomerSession() เช็คซ้ำทุกครั้ง
+// อยู่แล้วก็จริง แต่ไม่ควรรอให้ครั้งถัดไปที่โหลดหน้าค่อยตัด ควรตัดทันทีที่ CSR กด
+export async function cancelCustomerAccess(b2bCustomerId: number) {
+  return withCSRAuth(async (session) => {
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ cancelled_at: new Date().toISOString() })
+      .eq('id', b2bCustomerId);
+
+    if (error) return { success: false, error: 'ยกเลิกไม่สำเร็จ' };
+
+    await supabaseAdmin.from('sessions').delete().eq('customer_id', b2bCustomerId).eq('actor_type', 'customer');
+
+    await supabaseAdmin.from('customer_access_log').insert({
+      b2b_customer_id: b2bCustomerId,
+      action: 'cancelled',
+      staff_id: session.id,
+    });
+
+    return { success: true };
+  });
+}
+
+// เปิดใช้งานลูกค้าที่เคยถูกยกเลิกกลับมาใหม่ — ไม่แตะ access_expires_at เลย (ถ้าหมดอายุไปแล้ว
+// ด้วยระหว่างที่ถูกยกเลิก ต้องกดต่ออายุแยกต่างหากอีกที ไม่ auto-renew ให้ตอนเปิดใช้งาน)
+export async function reactivateCustomerAccess(b2bCustomerId: number) {
+  return withCSRAuth(async (session) => {
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ cancelled_at: null })
+      .eq('id', b2bCustomerId);
+
+    if (error) return { success: false, error: 'เปิดใช้งานไม่สำเร็จ' };
+
+    await supabaseAdmin.from('customer_access_log').insert({
+      b2b_customer_id: b2bCustomerId,
+      action: 'reactivated',
+      staff_id: session.id,
+    });
+
+    return { success: true };
+  });
+}
+
+// ประวัติการอนุมัติ/ต่ออายุ/ยกเลิก/เปิดใช้งานใหม่ ของลูกค้ารายเดียว — ใช้แสดงในส่วน "ดูประวัติ"
+// ของแท็บ "การต่ออายุเข้าใช้ระบบ"
+export async function getCustomerAccessHistory(b2bCustomerId: number) {
+  return withCSRAuth(async () => {
+    const { data, error } = await supabaseAdmin
+      .from('customer_access_log')
+      .select('id, action, previous_expires_at, new_expires_at, created_at, staff_users(full_name, username)')
+      .eq('b2b_customer_id', b2bCustomerId)
+      .order('created_at', { ascending: false });
+
+    if (error) return { success: false, error: 'ดึงประวัติไม่สำเร็จ' };
+
+    const flattened = (data ?? []).map((row) => {
+      const staff = Array.isArray(row.staff_users) ? row.staff_users[0] : row.staff_users;
+      const { staff_users: _omit, ...rest } = row;
+      return { ...rest, staff_name: staff?.full_name ?? staff?.username ?? null };
+    });
+
+    return { success: true, data: flattened };
   });
 }
 

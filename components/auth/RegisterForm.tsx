@@ -9,6 +9,7 @@ import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
 import { PasswordInput } from '@/components/ui/password-input';
 import { SOUTHERN_PROVINCES, ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { UserPlus, Sparkles, Building2, AlertCircle, User, CheckCircle2, PenLine, Check, ArrowLeft } from 'lucide-react';
 
 // หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
 // ลูกค้าค้างอยู่หน้าลงทะเบียนเดิมแล้วงงว่าต้องทำอะไรต่อ (เดิมใช้ alert() เฉยๆ
@@ -99,8 +100,10 @@ export function RegisterForm() {
       <div className="w-full max-w-lg relative z-10 my-4">
         <div className="text-center mb-7">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl mb-4 shadow-xl relative" style={{ background: 'linear-gradient(135deg, #0f5132 0%, #1a7a45 60%, #2dd4bf 120%)', boxShadow: '0 12px 30px -8px rgba(15,81,50,0.45)' }}>
-            <span className="text-4xl drop-shadow-sm">📝</span>
-            <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md text-sm">✨</div>
+            <UserPlus className="w-9 h-9 text-white drop-shadow-sm" strokeWidth={2.2} />
+            <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-white flex items-center justify-center shadow-md">
+              <Sparkles className="w-3.5 h-3.5 text-teal-500" />
+            </div>
           </div>
           <h1 className="text-2xl font-black text-foreground tracking-tight">ลงทะเบียนใช้งานระบบ</h1>
           <p className="text-xs text-muted-foreground mt-1.5 flex items-center justify-center gap-1.5">
@@ -114,7 +117,7 @@ export function RegisterForm() {
           
           <div>
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>🏥</div>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}><Building2 className="w-4 h-4 text-teal-700" /></div>
               <h2 className="text-sm font-black text-foreground">ข้อมูลหน่วยงาน</h2>
             </div>
             <label className={labelStyle}>ประเภทหน่วยงาน</label>
@@ -122,11 +125,11 @@ export function RegisterForm() {
               <option value="">เลือกประเภทหน่วยงาน</option>
               {ORG_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            {errors.org_type && <p className={errorStyle}>⚠ {errors.org_type.message as string}</p>}
+            {errors.org_type && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.org_type.message as string}</p>}
             <div className="mt-4">
               <label className={labelStyle}>ชื่อหน่วยงาน / โรงพยาบาล</label>
               <input {...register("hospital_name")} placeholder="เช่น โรงพยาบาลส่งเสริมสุขภาพ..." className={inputStyle} />
-              {errors.hospital_name && <p className={errorStyle}>⚠ {errors.hospital_name.message as string}</p>}
+              {errors.hospital_name && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.hospital_name.message as string}</p>}
             </div>
             <div className="mt-4">
               <label className={labelStyle}>จังหวัด</label>
@@ -134,47 +137,47 @@ export function RegisterForm() {
                 <option value="">เลือกจังหวัด</option>
                 {SOUTHERN_PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
-              {errors.province && <p className={errorStyle}>⚠ {errors.province.message as string}</p>}
+              {errors.province && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.province.message as string}</p>}
             </div>
           </div>
 
           <div className="pt-5 border-t border-dashed border-border">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}>👤</div>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: 'linear-gradient(135deg,#dbeafe,#bfdbfe)' }}><User className="w-4 h-4 text-blue-700" /></div>
               <h2 className="text-sm font-black text-foreground">ข้อมูลผู้ติดต่อ</h2>
             </div>
             <label className={labelStyle}>ชื่อ-นามสกุล ผู้ติดต่อ</label>
             <input {...register("contact_name")} placeholder="ชื่อ-นามสกุล" className={inputStyle} />
-            {errors.contact_name && <p className={errorStyle}>⚠ {errors.contact_name.message as string}</p>}
+            {errors.contact_name && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.contact_name.message as string}</p>}
             <div className="mt-4">
               <label className={labelStyle}>ตำแหน่ง</label>
               <select {...register("position")} className={`${inputStyle} appearance-none pr-10 cursor-pointer`}>
                 <option value="">เลือกตำแหน่ง</option>
                 {POSITION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-              {errors.position && <p className={errorStyle}>⚠ {errors.position.message as string}</p>}
+              {errors.position && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.position.message as string}</p>}
             </div>
             {selectedPosition === POSITION_OTHER_VALUE && (
               <div className="mt-4">
                 <label className={labelStyle}>ระบุตำแหน่ง</label>
                 <input {...register("position_other")} placeholder="ระบุตำแหน่ง" className={inputStyle} />
-                {errors.position_other && <p className={errorStyle}>⚠ {errors.position_other.message as string}</p>}
+                {errors.position_other && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.position_other.message as string}</p>}
               </div>
             )}
             <div className="mt-4">
               <label className={labelStyle}>อีเมล (ใช้เป็น Username สำหรับเข้าสู่ระบบ)</label>
               <input {...register("email")} placeholder="example@email.com" className={inputStyle} />
-              {errors.email && <p className={errorStyle}>⚠ {errors.email.message as string}</p>}
+              {errors.email && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.email.message as string}</p>}
             </div>
             <div className="mt-4">
               <label className={labelStyle}>ตั้งรหัสผ่าน</label>
               <PasswordInput {...register("password")} placeholder="อย่างน้อย 6 ตัวอักษร" className={inputStyle} />
-              {errors.password && <p className={errorStyle}>⚠ {errors.password.message as string}</p>}
+              {errors.password && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.password.message as string}</p>}
             </div>
             <div className="mt-4">
               <label className={labelStyle}>เบอร์โทรศัพท์</label>
               <input {...register("phone")} placeholder="0XX-XXX-XXXX" className={inputStyle} />
-              {errors.phone && <p className={errorStyle}>⚠ {errors.phone.message as string}</p>}
+              {errors.phone && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.phone.message as string}</p>}
             </div>
           </div>
 
@@ -191,12 +194,12 @@ export function RegisterForm() {
                 ตามนโยบายคุ้มครองข้อมูลส่วนบุคคล
               </span>
             </label>
-            {errors.pdpa_consent && <p className={errorStyle}>⚠ {errors.pdpa_consent.message as string}</p>}
+            {errors.pdpa_consent && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.pdpa_consent.message as string}</p>}
           </div>
 
           <div className="pt-5 border-t border-dashed border-border">
             <div className="flex items-center gap-2.5 mb-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow-sm" style={{ background: isSigned ? 'linear-gradient(135deg,#d1fae5,#99f6e4)' : 'linear-gradient(135deg,#fef3c7,#fde68a)' }}>{isSigned ? '✅' : '✍️'}</div>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm" style={{ background: isSigned ? 'linear-gradient(135deg,#d1fae5,#99f6e4)' : 'linear-gradient(135deg,#fef3c7,#fde68a)' }}>{isSigned ? <CheckCircle2 className="w-4 h-4 text-emerald-700" /> : <PenLine className="w-4 h-4 text-amber-700" />}</div>
               <h2 className="text-sm font-black text-foreground">{isSigned ? "ยืนยันลายเซ็นต์สำเร็จ" : "ลายเซ็นต์ผู้มีอำนาจลงนาม"}</h2>
             </div>
             <div className="rounded-2xl border-2 border-dashed border-border p-2 bg-gradient-to-br from-slate-50 to-white">
@@ -210,13 +213,14 @@ export function RegisterForm() {
                   setSignature("");
                   setIsSigned(false);
                 }}
+                onEmpty={() => setSignatureError("กรุณาลงลายเซ็นต์ก่อนกดยืนยัน")}
               />
             </div>
-            {signatureError && <p className={errorStyle}>⚠ {signatureError}</p>}
+            {signatureError && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{signatureError}</p>}
           </div>
 
-          <button type="submit" disabled={loading} className="w-full py-4 rounded-2xl font-bold text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-60" style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg, #0f5132 0%, #1a7a45 60%, #16a085 100%)' }}>
-            {loading ? "กำลังดำเนินการ..." : "✓ ยืนยันการลงทะเบียน"}
+          <button type="submit" disabled={loading} className="w-full py-4 rounded-2xl font-bold text-white text-sm shadow-xl transition-all duration-200 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2" style={{ background: loading ? '#94a3b8' : 'linear-gradient(135deg, #0f5132 0%, #1a7a45 60%, #16a085 100%)' }}>
+            {loading ? "กำลังดำเนินการ..." : <><Check className="w-4 h-4" /> ยืนยันการลงทะเบียน</>}
           </button>
 
           <button
@@ -224,7 +228,7 @@ type="button"
 onClick={() => window.location.href = '/'}
 className="w-full py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-slate-100 hover:bg-white hover:border-border hover:text-slate-700 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
 >
-← กลับหน้าหลัก
+<ArrowLeft className="w-4 h-4" /> กลับหน้าหลัก
 </button>
 </form>
 
@@ -238,7 +242,7 @@ className="w-full py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
     <div className="relative w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 p-8 text-center">
       <div className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#d1fae5,#99f6e4)' }}>
-        <span className="text-3xl">✅</span>
+        <CheckCircle2 className="w-9 h-9 text-emerald-600" />
       </div>
       <h3 className="text-lg font-black text-foreground mb-2">ลงทะเบียนสำเร็จ</h3>
       <p className="text-sm text-muted-foreground leading-relaxed mb-6">รอดำเนินการใน 1-2 วัน</p>

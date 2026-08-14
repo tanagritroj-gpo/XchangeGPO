@@ -31,9 +31,11 @@ export type RegistrationDocumentInput = {
   customer_code: string;
   registered_at: string; // pdpa_consented_at
   customer_signature_png: Uint8Array | null;
+  staff_signature_png: Uint8Array | null;
   staff_full_name: string;
   staff_action: 'approved' | 'rejected';
   decided_at: string;
+  access_expires_at: string;
 };
 
 function formatThaiDate(iso: string) {
@@ -216,6 +218,11 @@ export async function buildRegistrationConfirmationPdf(data: RegistrationDocumen
   text(data.customer_code, MARGIN_X + 16, 16, ACCENT);
   y = codeBoxTop - codeBoxHeight - 14;
 
+  // ── อายุการใช้งาน 2 ปีนับจากวันอนุมัติ — แจ้งลูกค้าไว้ในเอกสารตั้งแต่ต้น ต่ออายุ/
+  // ตรวจสอบสถานะได้ที่แท็บ "การต่ออายุเข้าใช้ระบบ" ฝั่ง CSR (csr-actions.ts) ──
+  text(`การลงทะเบียนนี้มีอายุการใช้งาน 2 ปี นับจากวันที่อนุมัติ — หมดอายุวันที่ ${formatThaiDate(data.access_expires_at)}`, MARGIN_X, 9, MUTED);
+  y -= 16;
+
   // ── checkbox/ฟิลด์/ลายเซ็นฝั่งพนักงาน — ย้ายมาชิดขอบขวาเหมือนฝั่งลูกค้า
   // ใช้คอลัมน์ความกว้างเดียวกับ sigBlockLeft/sigBlockWidth ให้แนวขอบขวาตรงกันหมด ──
   const checkbox = (x: number, checked: boolean, label: string) => {
@@ -243,9 +250,24 @@ export async function buildRegistrationConfirmationPdf(data: RegistrationDocumen
   text(formatThaiDate(data.decided_at), sigBlockLeft, 11.5, INK);
   y -= 22;
 
-  // ── ช่องเซ็นกำกับด้วยลายมือจริงบนกระดาษ (ไม่ใช่ digital signature) — เหมือนฝั่งลูกค้า ──
+  // ── ลายเซ็นพนักงาน GPO ผู้ดำเนินการ — ฝังภาพลายเซ็นดิจิทัลของพนักงานที่กดอนุมัติ/ไม่อนุมัติ
+  // (เดิมเป็นช่องเซ็นกำกับด้วยลายมือจริงบนกระดาษเปล่าๆ) เหมือนฝั่งลูกค้า ──
   text('ลงชื่อ (พนักงาน GPO)', sigBlockLeft, 10.5, MUTED);
-  y -= 30;
+  y -= 8;
+
+  if (data.staff_signature_png) {
+    try {
+      const staffSigImage = await pdfDoc.embedPng(data.staff_signature_png);
+      const staffSigDims = staffSigImage.scale(0.35);
+      const staffSigX = sigBlockLeft + (sigBlockWidth - staffSigDims.width) / 2;
+      page.drawImage(staffSigImage, { x: staffSigX, y: y - staffSigDims.height, width: staffSigDims.width, height: staffSigDims.height });
+      y -= staffSigDims.height + 6;
+    } catch {
+      y -= 40;
+    }
+  } else {
+    y -= 40;
+  }
   page.drawLine({ start: { x: sigBlockLeft, y }, end: { x: sigBlockLeft + sigBlockWidth, y }, thickness: 0.75, color: BORDER });
   y -= 14;
   const staffNameWidth = thaiTextWidth(font, data.staff_full_name, 9.5);

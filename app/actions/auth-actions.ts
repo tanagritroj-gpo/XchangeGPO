@@ -73,10 +73,20 @@ export async function loginCustomerByVerifiedEmail(email: string) {
   const cleanEmail = parsedEmail.data;
 
   const { data: customer } = await supabaseAdmin
-    .from('b2b_customers').select('id').eq('email', cleanEmail).maybeSingle();
+    .from('b2b_customers').select('id, access_expires_at, cancelled_at').eq('email', cleanEmail).maybeSingle();
 
   if (!customer) {
     return { success: false, error: 'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมลนี้ กรุณาลงทะเบียนหรือเข้าสู่ระบบด้วยรหัสผ่านก่อน' };
+  }
+
+  // ★ อายุการใช้งานบัญชี 2 ปีนับจากวันอนุมัติ + สวิตช์ "ยกเลิกลูกค้า" ที่ CSR คุมเอง — เช็คก่อน
+  // สร้าง session เสมอ ไม่ว่าจะ login ทางไหน (คู่กับเช็คเดียวกันใน loginCustomerAction ด้านล่าง
+  // และ getCustomerSession() ที่เช็คซ้ำทุกครั้งที่โหลดหน้า กัน session เก่าที่ออกไปก่อนหมดอายุ)
+  if (customer.cancelled_at) {
+    return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อเจ้าหน้าที่' };
+  }
+  if (new Date(customer.access_expires_at) < new Date()) {
+    return { success: false, error: 'บัญชีหมดอายุการใช้งาน กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุ' };
   }
 
   const created = await createCustomerSession(customer.id);
@@ -113,7 +123,7 @@ export async function loginCustomerAction(payload: { email: string; password: st
 
   const { data: customer, error } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, password_hash')
+    .select('id, password_hash, access_expires_at, cancelled_at')
     .eq('email', cleanEmail)
     .maybeSingle();
 
@@ -124,6 +134,17 @@ export async function loginCustomerAction(payload: { email: string; password: st
 
   const isMatch = await bcrypt.compare(payload.password, customer.password_hash);
   if (!isMatch) return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+
+  // ★ อายุการใช้งานบัญชี 2 ปีนับจากวันอนุมัติ + สวิตช์ "ยกเลิกลูกค้า" ที่ CSR คุมเอง — เช็คหลัง
+  // ยืนยันรหัสผ่านถูกต้องแล้วเท่านั้น (ไม่เปิดช่องให้เดาได้ว่าอีเมลนี้มีบัญชีอยู่ไหมจากข้อความ
+  // error ที่ต่างกัน) คู่กับเช็คเดียวกันใน loginCustomerByVerifiedEmail ด้านบน และ
+  // getCustomerSession() ที่เช็คซ้ำทุกครั้งที่โหลดหน้า
+  if (customer.cancelled_at) {
+    return { success: false, error: 'บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อเจ้าหน้าที่' };
+  }
+  if (new Date(customer.access_expires_at) < new Date()) {
+    return { success: false, error: 'บัญชีหมดอายุการใช้งาน กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุ' };
+  }
 
   const created = await createCustomerSession(customer.id);
   if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
@@ -237,7 +258,7 @@ export async function getCustomerSession() {
   // ระดับหน่วยงานตัวจริง) ไม่ได้อ่านคอลัมน์ที่ mirror ไว้บน b2b_customers ตรงๆ อีกต่อไป
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, b2b_customers!inner(id, email, contact_name, phone, position, organizations!inner(hospital_name, customer_code, province))')
+    .select('expires_at, b2b_customers!inner(id, email, contact_name, phone, position, access_expires_at, cancelled_at, organizations!inner(hospital_name, customer_code, province))')
     .eq('token', token)
     .eq('actor_type', 'customer')
     .maybeSingle();
@@ -265,6 +286,15 @@ export async function getCustomerSession() {
     : data.b2b_customers;
 
   if (!customerRow) return null;
+
+  // ★ อายุการใช้งานบัญชี 2 ปีนับจากวันอนุมัติ + สวิตช์ "ยกเลิกลูกค้า" ที่ CSR คุมเอง — เช็คซ้ำ
+  // ทุกครั้งที่โหลดหน้า/เรียก server action (จุดเดียวที่ทุกอย่างฝั่งลูกค้าวิ่งผ่าน) เหมือนที่
+  // getStaffSession() เช็ค is_approved ซ้ำทุกครั้ง — กัน session เก่าที่ login ไว้ก่อนหมดอายุ/
+  // ก่อนถูกยกเลิกใช้งานต่อได้ทั้งที่ไม่ควรแล้ว
+  if (customerRow.cancelled_at || new Date(customerRow.access_expires_at) < new Date()) {
+    await logoutCustomer();
+    return null;
+  }
 
   // แบน organizations ที่ join มาให้เป็น field เดิม (hospital_name/customer_code/province)
   // เพื่อไม่ต้องแก้ shape ที่ทุกหน้าฝั่งลูกค้าคาดหวังไว้จาก session นี้
