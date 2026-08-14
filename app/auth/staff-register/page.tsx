@@ -1,5 +1,6 @@
 'use client';
 import { StaffSignUpForm } from "@/components/auth/StaffSignUpForm";
+import { IdCard, Building2, KeyRound, Clock } from "lucide-react";
 
 export default function StaffRegisterPage() {
   return (
@@ -30,14 +31,16 @@ export default function StaffRegisterPage() {
           <div className="space-y-4 md:space-y-6 pt-2 md:pt-4">
             <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
             {[
-              { title: "ระบุรหัสพนักงานและชื่อจริง", icon: "🆔", color: "text-teal-600" },
-              { title: "เลือกฝ่ายงานที่สังกัดให้ถูกต้อง", icon: "🏢", color: "text-teal-600" },
-              { title: "ตั้งค่า Username และรหัสผ่าน", icon: "🔐", color: "text-teal-600" },
-              { title: "รออนุมัติสิทธิ์จากผู้จัดการ", icon: "⏳", color: "text-teal-600" }
+              { title: "ระบุรหัสพนักงานและชื่อจริง", icon: IdCard, color: "text-teal-600" },
+              { title: "เลือกฝ่ายงานที่สังกัดให้ถูกต้อง", icon: Building2, color: "text-teal-600" },
+              { title: "ตั้งค่า Username และรหัสผ่าน", icon: KeyRound, color: "text-teal-600" },
+              { title: "รออนุมัติสิทธิ์จากผู้จัดการ", icon: Clock, color: "text-teal-600" }
             ].map((step, i) => (
               <div key={i} className="flex items-start gap-4">
-                <div className="text-xl mt-0.5">{step.icon}</div>
-                <p className={`text-sm md:text-base font-semibold leading-snug ${step.color}`}>{step.title}</p>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-teal-50 text-teal-700">
+                  <step.icon className="w-4 h-4" />
+                </div>
+                <p className={`text-sm md:text-base font-semibold leading-snug mt-1 ${step.color}`}>{step.title}</p>
               </div>
             ))}
           </div>

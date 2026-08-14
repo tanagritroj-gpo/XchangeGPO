@@ -32,6 +32,10 @@ interface StaffRegisterPayload {
   // ★ ทุกแผนกต้องกรอก — ใช้ทั้งส่ง OTP ตอน "ลืมรหัสผ่าน" (requestStaffPasswordReset) และ
   // แจ้งเตือน sale เมื่อลูกค้าในเขตที่ดูแลส่งใบงานเข้ามา
   email: string;
+  // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL — ตรวจ + upload
+  // ฝั่ง server เอง (pattern เดียวกับ registerCustomer ใน auth.ts) นำไปฝังในเอกสารยืนยัน
+  // การลงทะเบียนของลูกค้าตอนพนักงานคนนี้กดอนุมัติ
+  signature_url: string;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -44,6 +48,26 @@ export async function registerStaff(payload: StaffRegisterPayload) {
     const email = payload.email?.trim();
     if (!email || !EMAIL_RE.test(email)) {
       return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+    }
+
+    if (!payload.signature_url?.startsWith('data:image/png;base64,')) {
+      return { success: false, error: 'กรุณาลงลายเซ็นก่อนดำเนินการต่อ' };
+    }
+    const sigBase64 = payload.signature_url.split(',')[1] ?? '';
+    const sigBuffer = Buffer.from(sigBase64, 'base64');
+    if (sigBuffer.length === 0 || sigBuffer.length > 2 * 1024 * 1024) {
+      return { success: false, error: 'ไฟล์ลายเซ็นไม่ถูกต้องหรือมีขนาดใหญ่เกินไป' };
+    }
+
+    const signaturePath = `staff/${crypto.randomUUID()}.png`;
+    const { error: sigUploadErr } = await supabaseAdmin.storage
+      .from('signatures')
+      .upload(signaturePath, sigBuffer, { contentType: 'image/png' });
+
+    if (sigUploadErr) {
+      console.error('Staff signature upload failed:', sigUploadErr);
+      Sentry.captureException(sigUploadErr, { tags: { area: 'staff-signature-upload' } });
+      return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -72,6 +96,7 @@ export async function registerStaff(payload: StaffRegisterPayload) {
           sale_customer_types: saleCustomerTypes,
           sale_provinces: saleProvinces,
           email,
+          signature_url: signaturePath,
         }
       ]);
 
@@ -203,7 +228,7 @@ export async function getStaffSession() {
 
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved, sale_customer_types, sale_provinces, email)')
+    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved, sale_customer_types, sale_provinces, email, signature_url)')
     .eq('token', token)
     .eq('actor_type', 'staff')
     .maybeSingle();
@@ -232,6 +257,7 @@ export async function getStaffSession() {
     sale_customer_types: staffUser.sale_customer_types as string[] | null,
     sale_provinces: staffUser.sale_provinces as string[] | null,
     email: staffUser.email as string | null,
+    signature_url: staffUser.signature_url as string | null,
   };
 }
 

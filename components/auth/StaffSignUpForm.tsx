@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
 import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { PasswordInput } from '@/components/ui/password-input';
+import { SignaturePad } from '@/components/auth/SignaturePad';
+import { CheckCircle2, PenLine, ArrowLeft } from 'lucide-react';
 
 interface StaffSignUpFormValues {
   employee_id: string;
@@ -24,6 +26,9 @@ export function StaffSignUpForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [signature, setSignature] = useState('');
+  const [isSigned, setIsSigned] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
   const { register, handleSubmit, watch, formState: { errors } } = useForm<StaffSignUpFormValues>();
   const department = watch('department');
   const isSale = department === 'sale';
@@ -35,9 +40,13 @@ export function StaffSignUpForm() {
       if (types.length === 0) { alert('กรุณาเลือกประเภทลูกค้าที่ดูแลอย่างน้อย 1 รายการ'); return; }
       if (provinces.length === 0) { alert('กรุณาเลือกจังหวัดที่ดูแลอย่างน้อย 1 จังหวัด'); return; }
     }
+    if (!signature) {
+      setSignatureError('กรุณาลงลายเซ็นก่อนดำเนินการต่อ');
+      return;
+    }
     setLoading(true);
-    const result = await registerStaff(data);
-    
+    const result = await registerStaff({ ...data, signature_url: signature });
+
     if (result.success) {
       setShowModal(true); // เปลี่ยนเป็นการแสดง Modal แทน
     } else {
@@ -144,6 +153,31 @@ export function StaffSignUpForm() {
           </div>
         )}
 
+        {/* ลายเซ็นดิจิทัล — ใช้ยืนยันตัวตนพนักงาน และฝังในเอกสารยืนยันการลงทะเบียนของลูกค้า
+            ตอนพนักงานคนนี้กดอนุมัติ (component เดียวกับที่ลูกค้าใช้ตอนลงทะเบียน) — ต้องมี
+            isSigned สลับ label/ไอคอนเหมือนหน้าลงทะเบียนลูกค้า ไม่งั้นกดยืนยันแล้วไม่มีอะไร
+            เปลี่ยนแปลงให้เห็นเลย ผู้ใช้จะเข้าใจผิดว่าปุ่มไม่ทำงาน (ทั้งที่ setSignature
+            สำเร็จจริง) */}
+        <div>
+          <label className={`${labelStyle} flex items-center gap-1.5`}>
+            {isSigned ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <PenLine className="w-3.5 h-3.5 text-amber-600" />}
+            {isSigned ? 'ยืนยันลายเซ็นต์สำเร็จ' : 'ลายเซ็นต์'}
+          </label>
+          <SignaturePad
+            onSave={(data) => {
+              setSignature(data);
+              setIsSigned(true);
+              setSignatureError('');
+            }}
+            onClear={() => {
+              setSignature('');
+              setIsSigned(false);
+            }}
+            onEmpty={() => setSignatureError('กรุณาลงลายเซ็นก่อนกดยืนยัน')}
+          />
+          {signatureError && <p className={errorStyle}>{signatureError}</p>}
+        </div>
+
         <button
           type="submit"
           disabled={loading}
@@ -156,9 +190,9 @@ export function StaffSignUpForm() {
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-teal-700 transition-colors"
+          className="w-full py-3 text-sm font-semibold text-muted-foreground hover:text-teal-700 transition-colors flex items-center justify-center gap-2"
         >
-          ← กลับหน้าหลัก
+          <ArrowLeft className="w-4 h-4" /> กลับหน้าหลัก
         </button>
       </form>
 
@@ -176,7 +210,9 @@ export function StaffSignUpForm() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl border border-slate-100">
-            <div className="text-4xl mb-4">✅</div>
+            <div className="flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600" />
+            </div>
             <h3 className="text-xl font-black text-foreground mb-2">ลงทะเบียนเรียบร้อยแล้ว</h3>
             <p className="text-slate-600 mb-6 text-sm">กรุณารอการอนุมัติสิทธิ์จากผู้จัดการสาขาภาคใต้ หลังจากได้รับการอนุมัติ ท่านจึงจะสามารถเข้าใช้งานระบบได้</p>
             <button 

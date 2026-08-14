@@ -314,6 +314,13 @@ async function generateRegistrationDocument(client: ClientRow, customerCode: str
     if (sigBlob) signaturePng = new Uint8Array(await sigBlob.arrayBuffer());
   }
 
+  // ลายเซ็นของพนักงานที่กดอนุมัติ — ฝังในช่อง "ลงชื่อ (พนักงาน GPO)" ของเอกสาร
+  let staffSignaturePng: Uint8Array | null = null;
+  if (session.signature_url) {
+    const { data: staffSigBlob } = await supabaseAdmin.storage.from('signatures').download(session.signature_url);
+    if (staffSigBlob) staffSignaturePng = new Uint8Array(await staffSigBlob.arrayBuffer());
+  }
+
   const decidedAt = new Date().toISOString();
 
   const pdfBytes = await buildRegistrationConfirmationPdf({
@@ -326,6 +333,7 @@ async function generateRegistrationDocument(client: ClientRow, customerCode: str
     customer_code: customerCode,
     registered_at: client.pdpa_consented_at,
     customer_signature_png: signaturePng,
+    staff_signature_png: staffSignaturePng,
     staff_full_name: session.full_name ?? session.username,
     staff_action: 'approved',
     decided_at: decidedAt,

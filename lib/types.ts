@@ -95,6 +95,7 @@ export interface StaffSessionInfo {
   sale_customer_types: string[] | null;
   sale_provinces: string[] | null;
   email: string | null;
+  signature_url: string | null;
 }
 
 export interface ClientRow {

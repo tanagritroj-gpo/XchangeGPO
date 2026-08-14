@@ -1,5 +1,6 @@
 'use client';
 import { RegisterForm } from "@/components/auth/RegisterForm";
+import { UserPlus, Building2, PenLine, Clock } from "lucide-react";
 
 export default function RegisterPage() {
   return (
@@ -30,14 +31,16 @@ export default function RegisterPage() {
           <div className="space-y-4 md:space-y-6 pt-2 md:pt-4">
             <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">ขั้นตอนการลงทะเบียน</h3>
             {[
-              { title: "ลงทะเบียนขอเข้าใช้ระบบ ครั้งแรกและครั้งเดียว", icon: "1️⃣" },
-              { title: "กรอกข้อมูลหน่วยงานและผู้ประสานงาน", icon: "2️⃣" },
-              { title: "ลงลายมือชื่อดิจิทัลและยินยอม PDPA", icon: "3️⃣" },
-              { title: "รอเจ้าหน้าที่อนุมัติ 1–2 วันทำการ", icon: "4️⃣" }
+              { title: "ลงทะเบียนขอเข้าใช้ระบบ ครั้งแรกและครั้งเดียว", icon: UserPlus },
+              { title: "กรอกข้อมูลหน่วยงานและผู้ประสานงาน", icon: Building2 },
+              { title: "ลงลายมือชื่อดิจิทัลและยินยอม PDPA", icon: PenLine },
+              { title: "รอเจ้าหน้าที่อนุมัติ 1–2 วันทำการ", icon: Clock }
             ].map((step, i) => (
               <div key={i} className="flex items-start gap-4">
-                <div className="text-xl mt-0.5">{step.icon}</div>
-                <p className="text-sm md:text-base text-slate-700 font-semibold leading-snug">{step.title}</p>
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-teal-50 text-teal-700">
+                  <step.icon className="w-4 h-4" />
+                </div>
+                <p className="text-sm md:text-base text-slate-700 font-semibold leading-snug mt-1">{step.title}</p>
               </div>
             ))}
           </div>
