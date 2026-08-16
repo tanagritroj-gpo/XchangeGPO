@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getSaleCustomerHistory } from '@/app/actions/sale-actions';
 import Link from 'next/link';
-import { TrendingUp, User, MapPin, History, Eye, ArrowRight, LogOut, Loader2, BarChart3, Receipt, ArrowLeftRight } from 'lucide-react';
+import { TrendingUp, User, MapPin, History, Eye, ArrowRight, LogOut, Loader2, BarChart3, Receipt, ArrowLeftRight, ClipboardCheck, PackageSearch, Truck, Warehouse, CheckCircle2 } from 'lucide-react';
 import { SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import type { StaffSessionInfo } from '@/lib/types';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -231,6 +231,24 @@ export default function SaleHubPage() {
                 </div>
                 <h2 className="text-sm font-black text-[#241F5E]">Active Workflow</h2>
                 <p className="text-xs text-[#6B6698] mt-1">ใบงานกำลังดำเนินการในพื้นที่ดูแลของคุณ</p>
+
+                {/* แถบไอคอนขั้นตอนเป็นของตกแต่งล้วนๆ (ไม่ใช่ stepper ที่คำนวณสถานะจริง) — แสดง
+                     ภาพรวม pipeline ตั้งแต่รับคำร้องจนอนุมัติ ให้การ์ดดูมีชีวิตชีวาขึ้น ตามที่
+                     ผู้ใช้ขอ (แนบภาพตัวอย่างมา) ปรับโทนสีให้เข้ากับ indigo ของการ์ดนี้แทนโทนทีล
+                     ในภาพตัวอย่าง ให้เข้ากับส่วนอื่นของหน้า */}
+                <div className="flex items-center justify-center gap-0.5 my-4">
+                  {[ClipboardCheck, PackageSearch, Truck, Warehouse, CheckCircle2].map((Icon, i, arr) => (
+                    <div key={i} className="flex items-center">
+                      <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center ring-1 ring-indigo-100 shadow-sm shrink-0">
+                        <Icon className="w-3.5 h-3.5 text-indigo-600" strokeWidth={2.5} />
+                      </div>
+                      {i < arr.length - 1 && (
+                        <div className="w-2.5 sm:w-3 h-0 border-t-2 border-dotted border-indigo-200 mx-0.5 shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+
                 <span className="mt-auto text-xs font-bold text-indigo-600 flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูภาพรวมใบงาน <ArrowRight className="w-3.5 h-3.5" />
                 </span>

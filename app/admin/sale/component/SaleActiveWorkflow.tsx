@@ -41,6 +41,8 @@ function SkeletonWorkflowBoard() {
 // ★ exchanging กับ credit_note รวมเป็นช่องเดียวโดยตั้งใจ (ตามที่ผู้ใช้ขอ) เพราะทั้งคู่คือผลลัพธ์
 // ทางเลือกของ action เดียวกัน (startExchangeProcess ใน csr-actions.ts เลือกสถานะใดสถานะหนึ่งตาม
 // request_type) เป็นสาระเดียวกันคือ "กำลังดำเนินการ" ขั้นตอนนี้ ไม่ใช่คนละขั้นตอนจริงๆ
+// ★ out_for_delivery ย้ายมาไว้หลัง completed โดยตั้งใจ (ตามที่ผู้ใช้ขอ) — ไม่ตรงกับลำดับ
+// pipeline จริงทุกกระเบียดนิ้วแล้ว แต่เป็นลำดับการแสดงผลที่ผู้ใช้ต้องการ
 type StageGroup = { key: string; statuses: string[]; label: string; icon: LucideIcon; bg: string; fg: string };
 
 const EXCHANGING_OR_CREDIT_NOTE: StageGroup = {
@@ -65,8 +67,8 @@ const WORKFLOW_STAGE_GROUPS: StageGroup[] = [
   singleStatusGroup('checked_in'),
   singleStatusGroup('receiving'),
   EXCHANGING_OR_CREDIT_NOTE,
-  singleStatusGroup('out_for_delivery'),
   singleStatusGroup('completed'),
+  singleStatusGroup('out_for_delivery'),
   singleStatusGroup('rejected'),
 ];
 
