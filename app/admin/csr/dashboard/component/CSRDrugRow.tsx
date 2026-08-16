@@ -85,6 +85,22 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
     setActionModal(action);
   };
 
+  // ── "รับคืนแลกเปลี่ยน" เท่านั้น: หลังเลือกประเภทแล้วผล "เกณฑ์" (status.pass) คำนวณ
+  // อัตโนมัติเสมอ (ดู handleTypeChange) ไม่ต้องให้ csr เลือกอนุมัติ/ปฏิเสธเองซ้ำอีกชั้น —
+  // ปุ่ม "ยืนยัน" เดียวเปิด modal เดิม โดยเลือก action ให้ตรงกับผลเกณฑ์ที่คำนวณไว้แล้ว
+  // (pass=true -> approve, pass=false -> reject พร้อม prefill เหตุผลจาก status.msg)
+  const openConfirmModal = () => {
+    if (status.pass === false) {
+      setReasonCode('other');
+      setRemark(status.msg || '');
+      setActionModal('reject');
+    } else {
+      setRemark('');
+      setReasonCode('');
+      setActionModal('approve');
+    }
+  };
+
   const submitAction = async () => {
     if (!actionModal) return;
     setIsSubmitting(true);
@@ -219,18 +235,30 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         {/* Actions — ซ่อนทั้งหมดเมื่อ readOnly (ใช้กับ "ประวัติใบงาน" ที่เป็นแค่ดูข้อมูล) */}
         <div className="md:col-span-3 flex justify-end gap-2 pt-1 md:pt-0 border-t border-[#EADFAF] md:border-0">
           {!readOnly && localStatus === 'pending_review' ? (
-            <>
-              <button onClick={() => openActionModal('approve')}
+            isExchangeRequest ? (
+              // ★ รับคืนแลกเปลี่ยน: เหลือปุ่มเดียว — ผล อนุมัติ/ปฏิเสธ มาจากผล "เกณฑ์" ที่คำนวณ
+              // อัตโนมัติตอนเลือกประเภทแล้ว (ดู openConfirmModal) ไม่ให้ csr เลือกเองอีกชั้น
+              <button onClick={openConfirmModal}
                 disabled={missingProductType}
-                title={missingProductType ? 'กรุณาเลือกประเภทสินค้าก่อนอนุมัติ' : undefined}
-                className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600">
-                อนุมัติ
+                title={missingProductType ? 'กรุณาเลือกประเภทสินค้าก่อนยืนยัน' : undefined}
+                className={`flex-1 md:flex-none px-3 py-2 md:py-1.5 text-white rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                  ${status.pass === false ? 'bg-red-500 hover:bg-red-600 disabled:hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-700 disabled:hover:bg-emerald-600'}`}>
+                ยืนยัน
               </button>
-              <button onClick={() => openActionModal('reject')}
-                className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-red-600 transition-all">
-                ปฏิเสธ
-              </button>
-            </>
+            ) : (
+              <>
+                <button onClick={() => openActionModal('approve')}
+                  disabled={missingProductType}
+                  title={missingProductType ? 'กรุณาเลือกประเภทสินค้าก่อนอนุมัติ' : undefined}
+                  className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-emerald-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-emerald-600">
+                  อนุมัติ
+                </button>
+                <button onClick={() => openActionModal('reject')}
+                  className="flex-1 md:flex-none px-3 py-2 md:py-1.5 bg-red-500 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-red-600 transition-all">
+                  ปฏิเสธ
+                </button>
+              </>
+            )
           ) : localStatus === 'pending_review' ? (
             <span className="text-xs font-bold text-amber-600">รอตรวจสอบ</span>
           ) : (
@@ -275,7 +303,26 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                 </div>
               </div>
 
-              {actionModal === 'reject' ? (
+              {actionModal === 'reject' && isExchangeRequest ? (
+                // ★ เหตุผลมาจากผล "เกณฑ์" อัตโนมัติแล้ว (ดู openConfirmModal) — ไม่ให้เลือก
+                // เหตุผลปฏิเสธเองซ้ำเหมือน flow ปกติ แค่โชว์ผลที่คำนวณได้ + แก้หมายเหตุเพิ่มได้
+                <>
+                  <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-100">
+                    <p className="text-[11px] font-bold text-red-700 uppercase tracking-wide mb-1">เหตุผล (จากผลเกณฑ์อัตโนมัติ)</p>
+                    <p className="text-sm text-red-800">{status.msg || 'ไม่ผ่านเกณฑ์'}</p>
+                  </div>
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest block mb-1.5">
+                    หมายเหตุเพิ่มเติม
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none mb-6"
+                  />
+                </>
+              ) : actionModal === 'reject' ? (
                 <ReasonSelectFields
                   label="เหตุผลที่ปฏิเสธ"
                   options={REJECTION_REASONS}

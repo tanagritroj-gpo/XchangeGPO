@@ -2,6 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { getManagerSession, getManagerOrCsrSession } from './manager-actions';
 import { getSaleCoverage } from './sale-actions';
 import { getErrorMessage } from '@/lib/error-message';
@@ -81,11 +82,7 @@ async function getSessionForScope(scope: UnfilteredScope) {
 
   // log/wh — ตรงกับ layout ของแต่ละโซน: department ตรง หรือ role เป็น manager
   const session = await getStaffSession();
-  if (!session) throw new Error('ไม่ได้ Login');
-  if (session.role !== 'manager' && session.department !== scope) {
-    throw new Error('คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
-  }
-  return session;
+  return assertDepartmentAccess(session, scope);
 }
 
 async function getUnreadCount(scope: UnfilteredScope) {

@@ -5,12 +5,17 @@ import * as Sentry from '@sentry/nextjs';
 import { buildReturnFormPdf } from '../services/pdf-service';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { z } from 'zod';
+import { parseOrError, positiveIntId } from '@/lib/validate-input';
 
 type ActionResult =
   | { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null }
   | { success: false; error: string };
 
 export async function generatePdfAction(requestId: number): Promise<ActionResult> {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false, error: parsed.error };
+
   // ★ 1. Identity มาจาก session ที่ verify กับ DB เท่านั้น ไม่ parse cookie เอง
   const session = await getCustomerSession();
   if (!session) {

@@ -2,22 +2,24 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { revalidatePath } from 'next/cache';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 import { updateRequestCurrentStatus } from '@/lib/sla';
+import { z } from 'zod';
+import { parseOrError, positiveIntId, remarkText } from '@/lib/validate-input';
 
 // ดึง Session เพื่อเช็คว่าเป็น Warehouse หรือ Manager
 async function getWHSession() {
   const session = await getStaffSession();
-  if (!session) throw new Error("ไม่ได้ Login");
-
-  if (session.department !== 'wh' && session.role !== 'manager') {
-    throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
-  }
-  return session;
+  return assertDepartmentAccess(session, 'wh');
 }
+
+// จำนวนแถวสูงสุดที่ยอมดึงต่อครั้ง — กันเคส full-table scan ไม่จำกัดถ้าข้อมูลโตเกินคาด
+// ในอนาคต (ปัจจุบันคิวงานจริงมีหลักสิบแถว) ไม่ใช่ pagination จริง แค่ safety net วงกว้าง
+const DASHBOARD_ROW_LIMIT = 1000;
 
 // ── 1. ดึงข้อมูลใบงานที่ WH ต้องรับผิดชอบ ──────────────────────
 export async function getWHData() {
@@ -28,7 +30,8 @@ export async function getWHData() {
       .from('requests')
       .select(`*, drug_items (*)`)
       .in('current_status', ['at_warehouse', 'checked_in'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(DASHBOARD_ROW_LIMIT);
 
     if (error) {
       console.error("Error fetching WH data:", error);
@@ -59,6 +62,8 @@ export async function stampCheckedIn(
   itemId: number,
   remark: string
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseOrError(z.object({ itemId: positiveIntId, remark: remarkText }), { itemId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getWHSession();
 
@@ -111,6 +116,8 @@ export async function confirmCheckedInBatch(
   requestId: number,
   remark: string
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId, remark: remarkText }), { requestId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getWHSession();
 
@@ -163,6 +170,8 @@ export async function stampReceiving(
   itemId: number,
   remark: string
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseOrError(z.object({ itemId: positiveIntId, remark: remarkText }), { itemId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getWHSession();
 
@@ -217,6 +226,11 @@ export async function rejectWHItem(
   reasonCode: string,
   detail: string = ''
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseOrError(
+    z.object({ itemId: positiveIntId, reasonCode: z.string(), detail: z.string().max(2000) }),
+    { itemId, reasonCode, detail }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     if (!isRejectionReasonCode(reasonCode)) {
       return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };

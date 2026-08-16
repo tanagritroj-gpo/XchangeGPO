@@ -2,8 +2,11 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
+import { z } from 'zod';
+import { parseOrError } from '@/lib/validate-input';
 
 // เช็คสิทธิ์เฉพาะ role 'manager' เท่านั้น (เข้มกว่า getCSRSession ที่อนุญาต department 'csr' ด้วย)
 // export ออกมาให้ route อื่น (เช่น downloads-export) เรียกใช้ตรวจสิทธิ์แบบเดียวกันได้
@@ -24,11 +27,7 @@ export async function getManagerSession() {
 // เช็คสิทธิ์แบบเดียวกัน (manager หรือ csr) import ไปใช้ได้ ไม่ต้องเขียนซ้ำ
 export async function getManagerOrCsrSession() {
   const session = await getStaffSession();
-  if (!session) throw new Error("ไม่ได้ Login");
-  if (session.role !== 'manager' && session.department !== 'csr') {
-    throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
-  }
-  return session;
+  return assertDepartmentAccess(session, 'csr');
 }
 
 // ตัวเลขสรุปสำหรับ tile บนหน้า hub ของ manager (รออนุมัติ/ใบงานทั้งหมด) — ใช้
@@ -116,6 +115,8 @@ export async function getB2BCustomerOrgLinks() {
 // ไฟล์นี้เหมือนเดิม — เปลี่ยนแค่เกตสิทธิ์เป็น getManagerOrCsrSession() ให้ CSR เรียกได้ด้วย
 // (pattern เดียวกับ getManagerStatusLogs ด้านล่าง ที่ CSR เรียกใช้อยู่แล้ว)
 export async function getUnansweredChatbotQuestions(limit: number = 50) {
+  const parsed = parseOrError(z.object({ limit: z.number().int().positive().max(500) }), { limit });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     await getManagerOrCsrSession();
 
@@ -193,6 +194,11 @@ export async function getManagerStatusLogs() {
 // ManagerInsights/staff-chat พึ่งพา shape เดิมอยู่แล้ว (กันไม่ให้กระทบจุดอื่น)
 // requestIds === undefined -> ทุกใบงาน, ระบุ array (แม้ว่าง) -> กรองเฉพาะ id ที่ให้มาเท่านั้น
 export async function getManagerStatusLogsDetailed(requestIds?: number[]) {
+  const parsed = parseOrError(
+    z.object({ requestIds: z.array(z.number().int().positive()).optional() }),
+    { requestIds }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     await getManagerSession();
 

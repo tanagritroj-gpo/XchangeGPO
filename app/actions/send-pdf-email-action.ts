@@ -8,8 +8,12 @@ import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
 import { sendPdfDocumentEmail } from '@/lib/email-service';
 import { getAssignedSaleRepsForCustomer } from './sale-lookup-actions';
+import { z } from 'zod';
+import { parseOrError, positiveIntId } from '@/lib/validate-input';
 
 export async function sendPdfEmailAction(requestId: number) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     // ★ 1. Identity มาจาก session ที่ verify กับ DB เท่านั้น
     const session = await getCustomerSession();

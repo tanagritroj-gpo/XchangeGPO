@@ -7,6 +7,8 @@ import { getCustomerSession } from './auth-actions';
 import { getManagerOrCsrSession } from './manager-actions';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
+import { z } from 'zod';
+import { parseOrError } from '@/lib/validate-input';
 
 function getClientIp(headerList: Headers): string {
   // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
@@ -96,6 +98,9 @@ export async function getTrackingTimeline(refId: string) {
 
 // ── Private: ต้อง login ────────────────────────────────────
 export async function trackMyRequestByRefId(refId: string) {
+  const parsed = parseOrError(z.object({ refId: z.string().trim().min(1).max(50) }), { refId });
+  if (!parsed.ok) return { success: false, error: parsed.error };
+
   const session = await getCustomerSession();
   if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
 

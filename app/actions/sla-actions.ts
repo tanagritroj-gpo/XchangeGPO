@@ -2,10 +2,13 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { getManagerSession } from './manager-actions';
 import { getErrorMessage } from '@/lib/error-message';
 import { STATUS_OWNER_DEPARTMENT, SCOPE_TO_DEPARTMENT } from '@/lib/sla';
 import type { SlaQueueRow, SlaRuleRow } from '@/lib/types';
+import { z } from 'zod';
+import { parseOrError } from '@/lib/validate-input';
 
 type StaffSlaScope = 'csr' | 'log' | 'wh';
 
@@ -33,11 +36,7 @@ for (const [status, dept] of Object.entries(STATUS_OWNER_DEPARTMENT)) {
 
 async function getSessionForSlaScope(scope: StaffSlaScope) {
   const session = await getStaffSession();
-  if (!session) throw new Error('ไม่ได้ Login');
-  if (session.role !== 'manager' && session.department !== scope) {
-    throw new Error('คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้');
-  }
-  return session;
+  return assertDepartmentAccess(session, scope);
 }
 
 const SLA_QUEUE_COLUMNS = 'id, ref_id, hospital_name, contact_name, current_status, status_due_at, status_warn_at';
@@ -197,6 +196,8 @@ export async function updateSlaRule(
   statusName: string,
   fields: { slaDays: number; warningDays: number }
 ) {
+  const parsed = parseOrError(z.object({ statusName: z.string().min(1).max(100) }), { statusName });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getManagerSession();
     if (!Number.isInteger(fields.slaDays) || fields.slaDays <= 0) {

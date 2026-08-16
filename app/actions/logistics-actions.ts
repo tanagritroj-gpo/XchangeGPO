@@ -2,22 +2,24 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { revalidatePath } from 'next/cache';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 import { isRejectionReasonCode, buildRejectionRemark } from '@/lib/rejection-reasons';
 import { updateRequestCurrentStatus } from '@/lib/sla';
+import { z } from 'zod';
+import { parseOrError, positiveIntId, remarkText } from '@/lib/validate-input';
 
 // ดึง Session เพื่อเช็คว่าเป็น Logistics หรือ Manager
 async function getLogisticsSession() {
   const session = await getStaffSession();
-  if (!session) throw new Error("ไม่ได้ Login");
-
-  if (session.department !== 'log' && session.role !== 'manager') {
-    throw new Error("คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้");
-  }
-  return session;
+  return assertDepartmentAccess(session, 'log');
 }
+
+// จำนวนแถวสูงสุดที่ยอมดึงต่อครั้ง — กันเคส full-table scan ไม่จำกัดถ้าข้อมูลโตเกินคาด
+// ในอนาคต (ปัจจุบันคิวงานจริงมีหลักสิบแถว) ไม่ใช่ pagination จริง แค่ safety net วงกว้าง
+const DASHBOARD_ROW_LIMIT = 1000;
 
 export async function getLogisticsDashboardData() {
   try {
@@ -27,7 +29,8 @@ export async function getLogisticsDashboardData() {
       .from('requests')
       .select(`*, drug_items (*)`)
       .in('current_status', ['approved', 'in_transit'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(DASHBOARD_ROW_LIMIT);
 
     if (error) {
       console.error("Error fetching logistics data:", error);
@@ -54,6 +57,11 @@ export async function updateLogisticsStatus(
   newStatus: 'in_transit' | 'at_warehouse',
   remark: string
 ): Promise<{ success: boolean; error?: string }> {
+  const parsed = parseOrError(
+    z.object({ requestId: positiveIntId, newStatus: z.enum(['in_transit', 'at_warehouse']), remark: remarkText }),
+    { requestId, newStatus, remark }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getLogisticsSession();
 
@@ -110,6 +118,11 @@ export async function updateItemStatus(
   nextStatus: 'at_warehouse',
   remark: string
 ) {
+  const parsed = parseOrError(
+    z.object({ itemId: positiveIntId, nextStatus: z.literal('at_warehouse'), remark: remarkText }),
+    { itemId, nextStatus, remark }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getLogisticsSession();
 
@@ -158,6 +171,11 @@ export async function rejectItemStatus(
   reasonCode: string,
   detail: string = ''
 ) {
+  const parsed = parseOrError(
+    z.object({ itemId: positiveIntId, reasonCode: z.string(), detail: z.string().max(2000) }),
+    { itemId, reasonCode, detail }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     if (!isRejectionReasonCode(reasonCode)) {
       return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
@@ -209,10 +227,22 @@ export async function rejectItemStatus(
   }
 }
 
+const batchActionSchema = z.object({
+  itemId: positiveIntId,
+  status: z.enum(['at_warehouse', 'rejected']),
+  remark: remarkText,
+  reasonCode: z.string().optional(),
+});
+
 export async function confirmLogisticsBatch(
   requestId: number,
   actions: { itemId: number, status: 'at_warehouse' | 'rejected', remark: string, reasonCode?: string }[]
 ) {
+  const parsed = parseOrError(
+    z.object({ requestId: positiveIntId, actions: z.array(batchActionSchema) }),
+    { requestId, actions }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getLogisticsSession();
 
