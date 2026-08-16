@@ -452,6 +452,37 @@ export async function getRegistrationDocumentUrl(b2bCustomerId: number) {
   });
 }
 
+// รูปถ่ายใบส่งของที่ลูกค้าแนบมาตอนกรอกฟอร์มเอง (Step2Items.tsx, allowDeliveryPhoto) — ★ ระดับ
+// คำร้อง ไม่ใช่ระดับรายการยา (ใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง) คืน signed URL ทุกรูปของ
+// ใบงานนี้ ให้ badge ใน "CSR Workflow" (RequestListSection ใน dashboard/page.tsx) เปิดดูได้ —
+// TTL 300s (5 นาที) สั้นเหมือน getRegistrationDocumentUrl เพราะเปิดดูสดในแอปทันที ไม่ใช่ลิงก์
+// ที่ต้องอยู่ทนแบบส่งอีเมล
+export async function getDeliveryNotePhotoUrls(requestId: number) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false as const, error: parsed.error };
+
+  return withCSRAuth(async () => {
+    const { data: request, error } = await supabaseAdmin
+      .from('requests')
+      .select('delivery_note_photo_paths')
+      .eq('id', requestId)
+      .maybeSingle();
+
+    if (error) return { success: false, error: error.message };
+    const paths = request?.delivery_note_photo_paths as string[] | null;
+    if (!paths || paths.length === 0) return { success: true, photos: [] };
+
+    const photos = await Promise.all(paths.map(async (path, index) => {
+      const { data: signed } = await supabaseAdmin.storage
+        .from('return-documents')
+        .createSignedUrl(path, 300);
+      return { index, url: signed?.signedUrl ?? null };
+    }));
+
+    return { success: true, photos: photos.filter((p): p is { index: number; url: string } => !!p.url) };
+  });
+}
+
 // แก้ไขประเภทหน่วยงานของลูกค้าที่อนุมัติไปแล้วก่อนหน้านี้ — จำเป็นสำหรับลูกค้าเก่า
 // ที่ลงทะเบียนก่อนมีฟีเจอร์นี้ (org_type เป็น NULL) เพื่อให้พนักงาน sale จับคู่ขอบเขต
 // ดูแลกับลูกค้าเก่าได้ ลูกค้าใหม่ที่ลงทะเบียนหลังจากนี้จะมี org_type มาตั้งแต่แรกอยู่แล้ว

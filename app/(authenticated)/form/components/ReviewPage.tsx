@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, Pill, Package, Tag, Calendar, PenLine, ArrowLeft, Loader2, CheckCircle2, AlertTriangle, Check } from 'lucide-react';
+import { ClipboardList, Pill, Package, Tag, Calendar, PenLine, ArrowLeft, Loader2, CheckCircle2, AlertTriangle, Check, Camera } from 'lucide-react';
 import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult, type OrgContactsResult } from './ReviewSuccessCard';
 import type { ReturnFormData } from '../form-types';
 import { getErrorMessage } from '@/lib/error-message';
@@ -84,7 +84,8 @@ export default function ReviewPage({
   const {
     sender, items, totalValue, return_reason, delivery_type,
     addr_street, addr_sub, addr_district, addr_province, agent_info, agent_appointment_note,
-    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other
+    signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other,
+    deliveryNotePhotoUrls,
   } = formData;
 
   // ★ ไม่มี step เซ็น (ฝั่ง staff) → signer_name/signer_position ไม่มีค่า
@@ -179,6 +180,29 @@ if (status === 'success') {
           </div>
         </div>
       </div>
+
+      {/* ══ รูปใบส่งของ — โชว์เฉพาะตอนมีรูปแนบมา (ระดับคำร้อง ไม่ใช่ระดับรายการยา ตามการ์ดใน
+          Step2Items.tsx) ให้ลูกค้าตรวจรูปซ้ำก่อนกดส่งจริง เผื่อแนบรูปผิด/เบลอ จะได้ย้อนกลับไป
+          แก้ก่อนส่ง ไม่ใช่มารู้ตัวทีหลัง ══ */}
+      {deliveryNotePhotoUrls && deliveryNotePhotoUrls.length > 0 && (
+        <ReviewCard
+          title={<><Camera size={17} /> รูปใบส่งของ<span className="ml-auto bg-white/20 px-2.5 py-0.5 rounded-full text-xs">{deliveryNotePhotoUrls.length} รูป</span></>}
+          gradient="linear-gradient(90deg,#1d4ed8,#3b82f6)"
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
+            {deliveryNotePhotoUrls.map((url, i) => (
+              // base64 data URI จาก canvas compression (Step2Items.tsx) ไม่ใช่ network fetch เหมือนลายเซ็นด้านล่าง
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={url}
+                alt={`รูปใบส่งของ ${i + 1}`}
+                className="w-full h-28 object-cover rounded-xl border border-slate-100"
+              />
+            ))}
+          </div>
+        </ReviewCard>
+      )}
 
       {/* ══ เหตุผลและวิธีส่งคืน ══ */}
       <ReviewCard title={<><Package size={17} /> เหตุผลและวิธีส่งคืน</>} gradient="linear-gradient(90deg,#6d28d9,#9333ea)">

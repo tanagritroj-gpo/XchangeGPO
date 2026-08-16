@@ -7,6 +7,18 @@ const nextConfig: NextConfig = {
   // experimental: {
   //   cacheComponents: true,
   // },
+
+  experimental: {
+    // ★ default 1MB ไม่พอสำหรับ createReturnRequest ที่ตอนนี้แนบได้ทั้งลายเซ็น (base64
+    // สูงสุด ~2.7MB) + รูปใบส่งของสูงสุด 5 รูป (บีบอัดฝั่ง client แล้วเหลือ ~2MB/รูปดิบเป็น
+    // safety net ดู lib/delivery-photo-limits.ts) — base64 encode เพิ่ม overhead ~33% ทำให้
+    // worst case จริงคือ 2.7MB (ลายเซ็น) + 5 × ~2.7MB (รูป, 2MB ดิบ→base64) ≈ 16.0MB ซึ่งชนขอบ
+    // 16mb เดิมพอดี (แทบไม่มี margin) — ตั้ง 24mb ให้มี headroom จริงจาก worst case ที่คำนวณได้
+    // โดยไม่ปล่อยเปิดกว้างเกินจำเป็น
+    serverActions: {
+      bodySizeLimit: '24mb',
+    },
+  },
 };
 
 // authToken มาจาก SENTRY_AUTH_TOKEN ที่ยังไม่ได้ตั้ง (ข้ามไว้ก่อนตามที่ตกลงกัน) — ไม่มี

@@ -60,6 +60,10 @@ export interface RequestRow {
   created_by_staff_id: string | null;
   submission_channel: 'customer_portal' | 'csr_manual';
   drug_items?: DrugItemRow[];
+  // path ภายใน bucket return-documents ของรูปถ่ายใบส่งของที่ลูกค้าแนบมา (nullable/array —
+  // ไม่บังคับแนบ, ระดับคำร้องไม่ใช่ระดับรายการยา เพราะใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง
+  // ไม่ใช่ 1 ใบต่อยา 1 รายการ, เฉพาะฝั่งฟอร์มลูกค้ากรอกเอง ดู Step2Items.tsx)
+  delivery_note_photo_paths?: string[] | null;
 }
 
 // รูปแบบย่อของ requests ที่ history RPC/query หลายจุดคืนมา (ไม่ใช่ select('*') เต็ม

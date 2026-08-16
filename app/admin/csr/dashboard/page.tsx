@@ -38,6 +38,7 @@ import {
 } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import CSRDrugRow from './component/CSRDrugRow';
+import DeliveryPhotoBadge from './component/DeliveryPhotoBadge';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
@@ -280,7 +281,7 @@ function RequestListSection({
                       {req.hospital_name && <p className="text-xs text-[#6B6698] mt-0.5 truncate">{req.hospital_name}</p>}
                     </div>
                     <div className="col-span-2"><StatusBadge status={req.current_status} /></div>
-                    <div className="col-span-5">
+                    <div className="col-span-5 flex items-center gap-3">
                       <button
                         onClick={() => setExpandedReq(isExpanded ? null : req.id)}
                         className="flex items-center gap-2 text-xs text-[#6B6698] hover:text-[#2E2B7A] font-medium transition-colors group"
@@ -291,6 +292,7 @@ function RequestListSection({
                         รายการสินค้า
                         <ChevronDown size={14} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                       </button>
+                      <DeliveryPhotoBadge req={req} />
                     </div>
                     <div className="col-span-2 flex flex-col items-end gap-2">
                       {!readOnly && req.current_status === 'pending_review' && (
@@ -345,6 +347,8 @@ function RequestListSection({
                       รายการสินค้า
                       <ChevronDown size={14} strokeWidth={2.5} className={`ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                     </button>
+
+                    <DeliveryPhotoBadge req={req} />
 
                     {!readOnly && (
                       <div className="flex gap-2">
