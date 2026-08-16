@@ -80,7 +80,7 @@ export default function SaleHistoryPage() {
             <History size={19} className="text-[#E1592A]" strokeWidth={2.5} />
           </div>
           <div>
-            <h1 className="text-base font-bold text-[#241F5E]">ประวัติการแลกเปลี่ยน</h1>
+            <h1 className="text-base font-bold text-[#241F5E]">ประวัติใบงาน</h1>
             <p className="text-xs text-[#6B6698]">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
           </div>
         </div>

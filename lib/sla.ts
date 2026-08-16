@@ -4,26 +4,10 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 // สถานะ terminal — ไม่มี SLA clock (ดู 06-sla-monitoring-design.md หัวข้อ 4)
 export const TERMINAL_STATUSES = ['rejected', 'completed'] as const;
 
-// แผนกเจ้าของงาน ณ แต่ละ current_status — ★ ต้องตรงกับ CASE ใน public.check_sla_notifications()
-// (supabase/migrations/20260810120500_add_check_sla_notifications_cron.sql) เป๊ะ ไม่มีจุดเดียวที่
-// เป็น source of truth ร่วมกันระหว่าง SQL กับ TypeScript — แก้ที่นี่ต้องแก้ที่นั่นด้วยเสมอ
-export const STATUS_OWNER_DEPARTMENT: Record<string, 'csr' | 'logistics' | 'warehouse'> = {
-  pending_review: 'csr',
-  receiving: 'csr',
-  exchanging: 'csr',
-  credit_note: 'csr',
-  approved: 'logistics',
-  in_transit: 'logistics',
-  out_for_delivery: 'logistics',
-  at_warehouse: 'warehouse',
-  checked_in: 'warehouse',
-};
-
-// staff_users.department/session/NotificationBell scope ใช้คำย่อ (csr/log/wh) แต่
-// status_logs.department และ notification_log.department ใช้คำเต็ม (csr/logistics/warehouse)
-// — สองคำศัพท์นี้มีอยู่แล้วในระบบเดิม ไม่ตรงกัน ต้องแปลงผ่าน map นี้ทุกจุดที่เจอกัน
-export const SCOPE_TO_DEPARTMENT = { csr: 'csr', log: 'logistics', wh: 'warehouse' } as const;
-export const DEPARTMENT_TO_SCOPE = { csr: 'csr', logistics: 'log', warehouse: 'wh' } as const;
+// ย้ายไป lib/status-department.ts แล้ว (เป็นแค่ data mapping ไม่มี side effect ต่างจากไฟล์นี้ที่
+// import 'server-only' — client component ต้อง import ตรงจากที่นั่นแทน ไม่งั้นจะลากไฟล์นี้ทั้งไฟล์
+// เข้า client bundle ไปด้วย) — export ต่อที่นี่เพื่อไม่ให้ import เดิมของ sla-actions.ts พัง
+export { STATUS_OWNER_DEPARTMENT, SCOPE_TO_DEPARTMENT, DEPARTMENT_TO_SCOPE } from '@/lib/status-department';
 
 function isWeekend(d: Date) {
   const day = d.getDay();
