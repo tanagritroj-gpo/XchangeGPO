@@ -189,26 +189,34 @@ export default function SaleHubPage() {
               <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] shadow-sm shadow-[#EAD94C]/40 ring-1 ring-white/50 shrink-0 mt-0.5 mx-auto md:mx-0">
                 <MapPin className="w-4 h-4 text-[#241F5E]" strokeWidth={2.5} />
               </div>
-              <div className="min-w-0 flex-1 flex flex-col justify-center gap-1.5">
+              <div className="min-w-0 flex-1 flex flex-col justify-center gap-2">
                 {/* ★ โชว์ครบทุกรายการ ไม่ตัด +N แล้ว (ตามที่ผู้ใช้ขอ) — customerTypeLabels
                      มีได้สูงสุดแค่ 2 ค่าอยู่แล้วจริงๆ (ดู SALE_CUSTOMER_TYPE_OPTIONS ใน
                      lib/sale-coverage.ts) ส่วน provinces อาจมีหลายจังหวัดจึงเป็นตัวที่ยาวได้
-                     จริง — โทนเหลืองตามที่ผู้ใช้ขอ (เดิม indigo ให้ตัดกับ "จังหวัด" โทนส้ม) */}
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mr-1">ประเภท</span>
-                  {customerTypeLabels.length > 0 ? (
-                    customerTypeLabels.map((label: string) => (
-                      <span key={label} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md">{label}</span>
-                    ))
-                  ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
+                     จริง — โทนเหลืองตามที่ผู้ใช้ขอ (เดิม indigo ให้ตัดกับ "จังหวัด" โทนส้ม)
+                     ★ label แยกขึ้นบรรทัดของตัวเองแทนการวางรวมไว้ในแถว flex-wrap เดียวกับชิป
+                     (เดิม label กับชิปตัวแรกๆ แย่งพื้นที่บรรทัดแรกกัน พอชิปเยอะ/จอแคบ (มือถือ)
+                     จะ wrap ไม่สม่ำเสมอ ดูไม่เป็นระเบียบ ตามที่ผู้ใช้ทักมา) — แยกบรรทัดแล้วให้
+                     ชิปทุกตัว wrap ชิดซ้ายเป็นบล็อกของตัวเอง อ่านง่ายกว่าทุกความกว้างจอ */}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mb-1">ประเภท</p>
+                  <div className="flex flex-wrap gap-1">
+                    {customerTypeLabels.length > 0 ? (
+                      customerTypeLabels.map((label: string) => (
+                        <span key={label} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md">{label}</span>
+                      ))
+                    ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-1">
-                  <span className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mr-1">จังหวัด</span>
-                  {provinces.length > 0 ? (
-                    provinces.map((p) => (
-                      <span key={p} className="text-[10px] font-bold bg-[#FBEFE6] text-[#E1592A] px-1.5 py-0.5 rounded-md">{p}</span>
-                    ))
-                  ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mb-1">จังหวัด</p>
+                  <div className="flex flex-wrap gap-1">
+                    {provinces.length > 0 ? (
+                      provinces.map((p) => (
+                        <span key={p} className="text-[10px] font-bold bg-[#FBEFE6] text-[#E1592A] px-1.5 py-0.5 rounded-md">{p}</span>
+                      ))
+                    ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
+                  </div>
                 </div>
               </div>
             </div>
