@@ -36,13 +36,8 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # Not blocking yet: the codebase has ~200 pre-existing lint errors
-      # (mostly @typescript-eslint/no-explicit-any) unrelated to any single
-      # PR. Surfaced here for visibility; flip continue-on-error off once
-      # that backlog is cleaned up.
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
       - name: Build
         run: npm run build

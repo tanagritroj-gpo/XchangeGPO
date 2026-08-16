@@ -5,6 +5,8 @@ import { getStaffSession } from './auth-staff';
 import { expandToOrgTypes } from '@/lib/sale-coverage';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
+import { z } from 'zod';
+import { parseOrError, positiveIntId } from '@/lib/validate-input';
 
 // ตรวจ session + ขยายขอบเขตดูแลของ sale เป็น org_type ดิบ — ใช้ร่วมกันทั้งดึงรายการ
 // และดึงรายละเอียดใบงานเดี่ยว คืน null ถ้าไม่ใช่ sale หรือยังไม่ได้กำหนดขอบเขต
@@ -46,6 +48,8 @@ export async function getSaleCustomerHistory() {
 // ที่ระบุมาตรงๆ ส่วน sale ไม่รู้จัก customer ล่วงหน้า จึงต้อง join ไปดู org_type/
 // province ของลูกค้าเจ้าของใบงานแล้วเทียบกับขอบเขตที่ sale คนนี้ดูแลแทน
 export async function getSaleRequestDetail(requestId: number) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const coverage = await getSaleCoverage();
     if (!coverage) throw new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลนี้');

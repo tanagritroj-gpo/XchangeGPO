@@ -12,7 +12,20 @@ import { getErrorMessage } from '@/lib/error-message';
 import { updateRequestCurrentStatus } from '@/lib/sla';
 import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
 import { sendRegistrationApprovedEmail } from '@/lib/email-service';
+import { z } from 'zod';
+import { parseOrError, positiveIntId, remarkText as remarkTextRequired } from '@/lib/validate-input';
 
+// จำนวนแถวสูงสุดที่ยอมดึงต่อครั้ง — กันเคส full-table scan ไม่จำกัดถ้าข้อมูลโตเกินคาด
+// ในอนาคต (ปัจจุบันคำร้องสะสมทั้งระบบมีหลักสิบแถว) ไม่ใช่ pagination จริง แค่ safety net
+// วงกว้าง (getCSRDashboardData ดึงคำร้อง "ทั้งหมด" ไม่กรองสถานะเหมือน WH/logistics
+// จึงเป็นจุดที่โตไม่มีเพดานเร็วที่สุดถ้าไม่มี guard นี้)
+const DASHBOARD_ROW_LIMIT = 1000;
+const remarkText = remarkTextRequired.optional();
+
+// ★ getCSRSession เช็คจาก department ล้วนๆ โดยตั้งใจไม่สนใจ role (ต่างจาก
+// assertDepartmentAccess ใน lib/staff-permissions.ts ที่ wh/logistics/sla/notification ใช้ร่วมกัน) —
+// ดูคอมเมนต์ "authorization guard uses department, not role" ใน csr-actions.test.ts จึงไม่
+// ย้ายมาใช้ helper กลางตรงนี้ เพื่อไม่ให้พฤติกรรมเปลี่ยน
 async function getCSRSession() {
   const session = await getStaffSession();
   if (!session) throw new Error("ไม่ได้ Login");
@@ -44,12 +57,14 @@ export async function getCSRDashboardData() {
       .from('clients')
       .select('id, created_at, hospital_name, province, contact_name, position, phone, email, signature_url, pdpa_consented_at, status, b2b_customer_id, auth_user_id, org_type')
       .eq('status', 'pending')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(DASHBOARD_ROW_LIMIT);
 
     const { data: requests, error: reqErr } = await supabaseAdmin
       .from('requests')
       .select(`*, drug_items (*)`)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(DASHBOARD_ROW_LIMIT);
 
     if (clientErr || reqErr) {
       throw new Error("ดึงข้อมูลพลาด: " + (clientErr?.message || reqErr?.message));
@@ -150,6 +165,15 @@ export async function searchOrganizations(query: string) {
 // เฉพาะตอน approved เท่านั้น เพราะเป็นค่าเดียวที่จะถูกเก็บลง b2b_customers.customer_code
 // (เดิมคอลัมน์นี้ไม่เคยถูกเซ็ตเลยตอน insert ทำให้ลูกค้าที่อนุมัติแล้วทุกรายมีค่าว่าง)
 export async function reviewClient(clientId: string, action: 'approved' | 'rejected', customerCode?: string) {
+  const parsed = parseOrError(
+    z.object({
+      clientId: z.string().min(1),
+      action: z.enum(['approved', 'rejected']),
+      customerCode: z.string().max(200).optional(),
+    }),
+    { clientId, action, customerCode }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await getCSRSession();
 
@@ -602,6 +626,8 @@ export async function approveDrugItem(drugItemId: number, requestId: number, rem
 }
 
 export async function approveRequest(requestId: number, remark?: string) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId, remark: remarkText }), { requestId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   return withCSRAuth(async (session) => {
     const { data: items } = await supabaseAdmin.from('drug_items').select('id, current_status').eq('request_id', requestId);
     const pendingItems = (items ?? []).filter((i) => i.current_status === 'pending_review');
@@ -630,6 +656,11 @@ export async function approveRequest(requestId: number, remark?: string) {
 }
 
 export async function rejectDrugItem(drugItemId: number, requestId: number, reasonCode: string, detail: string = '') {
+  const parsed = parseOrError(
+    z.object({ drugItemId: positiveIntId, requestId: positiveIntId, reasonCode: z.string(), detail: z.string().max(2000) }),
+    { drugItemId, requestId, reasonCode, detail }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   return withCSRAuth(async (session) => {
     if (!isRejectionReasonCode(reasonCode)) {
       return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
@@ -642,6 +673,11 @@ export async function rejectDrugItem(drugItemId: number, requestId: number, reas
 }
 
 export async function rejectRequest(requestId: number, reasonCode: string, detail: string = '') {
+  const parsed = parseOrError(
+    z.object({ requestId: positiveIntId, reasonCode: z.string(), detail: z.string().max(2000) }),
+    { requestId, reasonCode, detail }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   return withCSRAuth(async (session) => {
     if (!isRejectionReasonCode(reasonCode)) {
       return { success: false, error: "กรุณาเลือกเหตุผลที่ปฏิเสธ" };
@@ -658,6 +694,8 @@ export async function rejectRequest(requestId: number, reasonCode: string, detai
 }
 
 export async function startExchangeProcess(requestId: number, remark?: string) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId, remark: remarkText }), { requestId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   return withCSRAuth(async (session) => {
     // ใบงานประเภท "รับคืนแลกเปลี่ยน" เท่านั้นที่เข้าสถานะ exchanging — ประเภทอื่น (รับคืนลดหนี้/รับคืน CCR)
     // ไม่มีการแลกเปลี่ยนสินค้าจริง จึงใช้สถานะ credit_note (กำลังลดหนี้) แทน
@@ -691,6 +729,8 @@ export async function startExchangeProcess(requestId: number, remark?: string) {
 }
 
 export async function completeRequest(requestId: number, remark?: string) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId, remark: remarkText }), { requestId, remark });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   return withCSRAuth(async (session) => {
     // ★ กันไว้อีกชั้นเผื่อรายการยาถูกปฏิเสธไปหมดแล้วทุกตัวหลังเข้า exchanging/credit_note
     // มาแล้ว — ไม่ควรปิดใบงานเป็น completed ถ้าไม่มีสินค้าเหลือสักรายการ (pattern เดียวกับ

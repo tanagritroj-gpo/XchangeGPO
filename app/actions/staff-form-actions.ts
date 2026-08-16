@@ -11,6 +11,8 @@ import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form
 import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
 import { sendPdfDocumentEmail } from '@/lib/email-service';
+import { z } from 'zod';
+import { parseOrError, positiveIntId } from '@/lib/validate-input';
 
 const sanitizeDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -242,6 +244,8 @@ type PdfActionResult =
   | { success: false; error: string };
 
 export async function generateStaffPdfAction(requestId: number): Promise<PdfActionResult> {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false, error: parsed.error };
   const session = await requireCsrSession();
 
   const allowed = await checkRateLimit(`pdf-staff:${session.id}`, 5, 60);
@@ -382,6 +386,8 @@ async function fetchOrgContactsForRequest(requestId: number) {
 }
 
 export async function getOrgContactsForRequest(requestId: number) {
+  const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
+  if (!parsed.ok) return { success: false as const, error: parsed.error };
   await requireCsrSession();
   return fetchOrgContactsForRequest(requestId);
 }
@@ -393,6 +399,11 @@ export async function getOrgContactsForRequest(requestId: number) {
 // (recipientEmails ว่าง/undefined = fallback ไปใช้ requests.customer_email เดิม เผื่อคำร้อง
 // เก่าก่อนเปลี่ยน flow นี้ที่ยังมีค่านั้นติดอยู่)
 export async function sendStaffPdfEmailAction(requestId: number, recipientEmails?: string[]) {
+  const parsed = parseOrError(
+    z.object({ requestId: positiveIntId, recipientEmails: z.array(z.string()).optional() }),
+    { requestId, recipientEmails }
+  );
+  if (!parsed.ok) return { success: false, error: parsed.error };
   try {
     const session = await requireCsrSession();
 
