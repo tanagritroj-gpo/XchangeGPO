@@ -1,14 +1,65 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { X, Package, Calendar, Tag, Banknote, Pill, ClipboardList, PackageOpen, ChevronDown, Plus, ArrowLeft, ArrowRight } from 'lucide-react';
+import { X, Package, Calendar, Tag, Banknote, Pill, ClipboardList, PackageOpen, ChevronDown, Plus, ArrowLeft, ArrowRight, Camera, ImagePlus } from 'lucide-react';
 import type { ReturnFormData, DrugItemEntry } from '../form-types';
+import { MAX_DELIVERY_PHOTOS as MAX_PHOTOS, MAX_DELIVERY_PHOTO_BYTES as MAX_PHOTO_BYTES } from '@/lib/delivery-photo-limits';
 
 interface StepProps {
   next:       () => void;
   back:       () => void;
   updateData: React.Dispatch<React.SetStateAction<ReturnFormData>>;
   formData:   ReturnFormData;
+  // ★ เปิดตัวเลือก "ถ่าย/แนบรูปใบส่งของ" (ระดับคำร้อง ไม่ใช่ระดับรายการยา — ดูการ์ด
+  // "แนบรูปใบส่งของ" ท้ายไฟล์) — เฉพาะฟอร์มที่ลูกค้ากรอกเอง (app/(authenticated)/form/
+  // FormWizardPage.tsx ส่ง true) ฟอร์มที่ CSR กรอกแทนลูกค้า (app/admin/csr/form/
+  // FormWizardPageStaff.tsx) ไม่ส่ง prop นี้เลย จึงปิดอยู่โดย default — ไม่กระทบ flow ของ
+  // CSR แม้แต่น้อยตามที่ผู้ใช้ขอ
+  allowDeliveryPhoto?: boolean;
+}
+
+const PHOTO_MAX_DIMENSION = 1600; // px — ด้านยาวสุด พอสำหรับอ่านตัวหนังสือบนใบส่งของ
+const PHOTO_JPEG_QUALITY = 0.75;
+
+function fileToDataUri(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// บีบอัดรูป (resize ด้านยาวสุดไม่เกิน PHOTO_MAX_DIMENSION + re-encode เป็น JPEG) ก่อนแปลงเป็น
+// base64 — รูปถ่ายจากกล้องมือถือจริงมักมีขนาดหลาย MB/ความละเอียดสูงเกินความจำเป็นสำหรับแค่
+// อ่านตัวหนังสือบนเอกสาร บีบอัดแล้วมักเหลือแค่หลักร้อย KB ต่อรูป — ล้ม (เช่น decode HEIC บาง
+// เบราว์เซอร์ไม่ได้) ให้ throw แล้ว caller ไปโชว์ error แทนที่จะเงียบส่งรูปดิบไม่บีบอัดออกไป
+async function compressImageToDataUri(file: File): Promise<string> {
+  const rawDataUri = await fileToDataUri(file);
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > PHOTO_MAX_DIMENSION || height > PHOTO_MAX_DIMENSION) {
+        if (width > height) {
+          height = Math.round((height * PHOTO_MAX_DIMENSION) / width);
+          width = PHOTO_MAX_DIMENSION;
+        } else {
+          width = Math.round((width * PHOTO_MAX_DIMENSION) / height);
+          height = PHOTO_MAX_DIMENSION;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return reject(new Error('canvas ไม่รองรับ'));
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY));
+    };
+    img.onerror = () => reject(new Error('โหลดรูปไม่สำเร็จ'));
+    img.src = rawDataUri;
+  });
 }
 
 const UNITS = ['แผง', 'กล่อง', 'ขวด', 'amp', 'ลัง'] as const;
@@ -70,14 +121,61 @@ function DrugCard({ item, index, onRemove }: { item: DrugItemEntry; index: numbe
   );
 }
 
-export default function Step2Items({ next, back, updateData, formData }: StepProps) {
+export default function Step2Items({ next, back, updateData, formData, allowDeliveryPhoto }: StepProps) {
   const [items, setItems] = useState<DrugItemEntry[]>(formData?.items || []);
   const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', unitPrice: '', val: '', inv: '' });
   const drugNameInputRef = useRef<HTMLInputElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  // ★ รูปใบส่งของ — ระดับคำร้อง ไม่ใช่ระดับรายการยา (ใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง
+  // ไม่ใช่ 1 ใบต่อยา 1 รายการ) แนบครั้งเดียวใช้กับทุกรายการในคำร้องนี้ รองรับได้สูงสุด
+  // MAX_PHOTOS รูป (เผื่อหน้า-หลัง/หลายแผ่น) เฉพาะ allowDeliveryPhoto เท่านั้น
+  const [photos, setPhotos] = useState<string[]>(formData?.deliveryNotePhotoUrls || []);
+  const [photoError, setPhotoError] = useState('');
 
   const canProceed = items.length > 0;
 
   const set = (field: string, value: string) => setTemp(prev => ({ ...prev, [field]: value }));
+
+  // เลือกรูปจากคลัง/ถ่ายจากกล้อง (capture="environment" เปิดกล้องหลังตรงๆ บนมือถือ) แปลงเป็น
+  // base64 data URI เก็บไว้ใน state แล้วค่อยอัปโหลดจริงฝั่ง server ตอน submit (pattern
+  // เดียวกับ SignaturePad/Step4Sign)
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // กันเลือกไฟล์เดิมซ้ำแล้วไม่ trigger onChange
+    if (!file) return;
+    setPhotoError('');
+    if (photos.length >= MAX_PHOTOS) {
+      setPhotoError(`แนบได้สูงสุด ${MAX_PHOTOS} รูป`);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setPhotoError('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+      return;
+    }
+    // เช็คไฟล์ดิบแบบกว้างๆ ก่อน (กันไฟล์ประหลาดขนาดหลักร้อย MB โหลดเข้า memory/canvas โดยตรง)
+    // ขนาดจริงที่อัปโหลดจะเช็คอีกทีหลังบีบอัดด้านล่าง ไม่ใช่จุดนี้
+    if (file.size > 20 * 1024 * 1024) {
+      setPhotoError('ไฟล์รูปใหญ่เกินไป กรุณาเลือกไฟล์อื่น');
+      return;
+    }
+    try {
+      const dataUri = await compressImageToDataUri(file);
+      const approxBytes = Math.ceil((dataUri.length - dataUri.indexOf(',') - 1) * 0.75);
+      if (approxBytes > MAX_PHOTO_BYTES) {
+        setPhotoError('บีบอัดรูปแล้วยังมีขนาดใหญ่เกินไป กรุณาลองรูปอื่น');
+        return;
+      }
+      setPhotos((prev) => [...prev, dataUri]);
+    } catch {
+      setPhotoError('ประมวลผลรูปไม่สำเร็จ กรุณาลองใหม่หรือเลือกรูปอื่น');
+    }
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+    setPhotoError('');
+  };
 
   // มูลค่ารวม = จำนวน × ราคาต่อหน่วย — คำนวณอัตโนมัติ ไม่ให้พิมพ์เองแล้ว
   const tempComputedVal = (parseFloat(temp.qty) || 0) * (parseFloat(temp.unitPrice) || 0);
@@ -98,7 +196,7 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
   const handleNext = () => {
     if (items.length === 0) return alert('กรุณาเพิ่มรายการยาอย่างน้อย 1 รายการ');
     const totalValue = items.reduce((s, i) => s + parseFloat(i.val || '0'), 0);
-    updateData((prev) => ({ ...prev, items, totalValue }));
+    updateData((prev) => ({ ...prev, items, totalValue, deliveryNotePhotoUrls: photos }));
     next();
   };
 
@@ -233,6 +331,55 @@ export default function Step2Items({ next, back, updateData, formData }: StepPro
               />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ══ แนบรูปใบส่งของ — ระดับคำร้อง (ครั้งเดียว ใช้กับทุกรายการ) เฉพาะ allowDeliveryPhoto
+          และหลังมีรายการยาอย่างน้อย 1 รายการแล้ว (แนบเป็นหลักฐานคู่กับรายการที่กรอกไปแล้ว) ══ */}
+      {allowDeliveryPhoto && items.length > 0 && (
+        <div className="bg-teal-50/60 border-2 border-teal-100 rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Camera size={16} className="text-teal-600" />
+            <p className="text-sm font-black text-teal-800">แนบรูปใบส่งของ</p>
+            <span className="ml-auto text-[10px] font-bold text-teal-600 bg-white px-2 py-0.5 rounded-full shrink-0">ไม่บังคับ</span>
+          </div>
+          <p className="text-xs text-teal-700/80 mb-3.5 leading-relaxed">
+            แนบครั้งเดียวสำหรับคำร้องนี้ ไม่ต้องแนบซ้ำต่อรายการยา (อัปโหลดได้สูงสุด {MAX_PHOTOS} รูป)
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            {photos.map((url, i) => (
+              <div key={i} className="relative aspect-square rounded-xl overflow-hidden border-2 border-white shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element -- preview ของ base64 data URI ที่ยังไม่ได้อัปโหลด ไม่ใช่ static asset ที่ next/image ปรับ optimize ให้ได้ */}
+                <img src={url} alt={`รูปใบส่งของ ${i + 1}`} className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => removePhoto(i)}
+                  className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-black/60 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            {photos.length < MAX_PHOTOS && (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="aspect-square rounded-xl border-2 border-dashed border-teal-200 bg-white hover:bg-teal-50 hover:border-teal-300 text-teal-500 hover:text-teal-600 flex flex-col items-center justify-center gap-1 transition-colors"
+              >
+                <ImagePlus size={20} />
+                <span className="text-[11px] font-bold">เพิ่มรูป</span>
+              </button>
+            )}
+          </div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoChange}
+            className="hidden"
+          />
+          {photoError && <p className="text-xs font-bold text-red-500 mt-2">{photoError}</p>}
         </div>
       )}
 

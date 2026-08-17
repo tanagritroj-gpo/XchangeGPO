@@ -48,4 +48,8 @@ export interface ReturnFormData {
   exchange_product_type?: string;
   exchange_product_list?: string;
   exchange_product_other?: string;
+  // base64 data URI ของรูปถ่ายใบส่งของ (data:image/...;base64,...) — ระดับคำร้อง ไม่ใช่ระดับ
+  // รายการยา (ใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง ไม่ใช่ 1 ใบต่อยา 1 รายการ) เฉพาะฝั่งฟอร์ม
+  // ลูกค้ากรอกเอง (Step2Items.tsx ต้องเปิด allowDeliveryPhoto ถึงจะมีค่านี้ได้)
+  deliveryNotePhotoUrls?: string[];
 }

@@ -26,6 +26,8 @@ class FakeQueryBuilder {
   private insertValues?: Row | Row[];
   private wantsSingle = false;
   private wantsMaybeSingle = false;
+  private wantsCount = false;
+  private projectColumns?: string[];
 
   constructor(
     private tables: Tables,
@@ -33,9 +35,21 @@ class FakeQueryBuilder {
     private nextId: (table: string) => number,
   ) {}
 
-  select(_cols?: string) {
+  // Real column projection only for plain flat lists (no '*', no '(' relationship/join
+  // syntax) — this codebase relies on that exact shape in several places to keep sensitive
+  // columns (money, invoice numbers, compliance notes) out of public-facing responses
+  // (see app/actions/tracking-actions.ts SAFE_DRUG_ITEM_COLUMNS), so it's worth this fake
+  // actually enforcing it rather than being a no-op that would hide a regression there.
+  // Anything with '*' or '(' (joins/relationships this fake doesn't resolve anyway) is left
+  // unprojected exactly as before, since seeded fixtures for those embed the joined shape
+  // directly on the row and many existing tests depend on the full row passing through.
+  select(cols?: string, opts?: { count?: string; head?: boolean }) {
     if (this.mode !== 'insert' && this.mode !== 'update' && this.mode !== 'delete') {
       this.mode = 'select';
+    }
+    if (opts?.count) this.wantsCount = true;
+    if (cols && !cols.includes('*') && !cols.includes('(')) {
+      this.projectColumns = cols.split(',').map((c) => c.trim());
     }
     return this;
   }
@@ -69,6 +83,36 @@ class FakeQueryBuilder {
 
   in(col: string, vals: any[]) {
     this.filters.push((r) => vals.includes(r[col]));
+    return this;
+  }
+
+  // IS NULL treats a genuinely missing key the same as an explicit null — matches real
+  // Postgres semantics (a column that was never set still reads as NULL), and is..(col, true/false)
+  // for anything else this codebase uses .is() for.
+  is(col: string, val: any) {
+    if (val === null) {
+      this.filters.push((r) => r[col] == null);
+    } else {
+      this.filters.push((r) => r[col] === val);
+    }
+    return this;
+  }
+
+  // Only the two shapes actually used in this codebase (grep .not( under app/actions, lib):
+  // .not(col, 'is', null) and .not(col, 'in', array) — extend if a new usage appears.
+  // 'in' accepts either a real array OR Postgrest's raw filter-string syntax
+  // '(a,b,c)' (notification-actions.ts passes SLA_NOTIFICATION_TYPES as that literal
+  // string, not an array — matches what the real supabase-js client expects here).
+  not(col: string, operator: 'is' | 'in', value: any) {
+    if (operator === 'is') {
+      this.filters.push((r) => r[col] !== value);
+    } else if (operator === 'in') {
+      const list = typeof value === 'string' ? value.replace(/^\(|\)$/g, '').split(',') : (value as any[]);
+      const excluded = new Set(list);
+      this.filters.push((r) => !excluded.has(r[col]));
+    } else {
+      throw new Error(`fakeSupabase: unsupported .not() operator "${operator}"`);
+    }
     return this;
   }
 
@@ -133,7 +177,7 @@ class FakeQueryBuilder {
 
   // Makes the builder awaitable, mirroring the real Postgrest builder.
   then(
-    resolve: (v: { data: any; error: any }) => void,
+    resolve: (v: { data: any; error: any; count?: number }) => void,
     reject?: (e: any) => void,
   ) {
     try {
@@ -151,6 +195,10 @@ class FakeQueryBuilder {
           data = rows[0] ?? null;
         } else {
           data = rows;
+        }
+        if (this.projectColumns) {
+          const project = (row: Row) => Object.fromEntries(this.projectColumns!.map((c) => [c, row[c]]));
+          data = Array.isArray(data) ? data.map(project) : (data ? project(data) : data);
         }
       } else if (this.mode === 'update') {
         const rows = this.matched();
@@ -176,13 +224,21 @@ class FakeQueryBuilder {
         const inserted = arr.map((v) => ({ id: this.nextId(this.tableName), ...v }));
         this.table().push(...inserted);
         data = this.wantsSingle ? inserted[0] : inserted;
+        // `.insert(...).select('id')` projection matters here for the same reason as plain
+        // selects — e.g. auth.ts registers a client and deliberately selects only 'id' so
+        // password_hash never round-trips back to the caller. Project against `inserted`
+        // (has the generated id) rather than the raw input values.
+        if (this.projectColumns) {
+          const project = (row: Row) => Object.fromEntries(this.projectColumns!.map((c) => [c, row[c]]));
+          data = Array.isArray(data) ? data.map(project) : project(data);
+        }
       } else if (this.mode === 'delete') {
         const rows = this.matched();
         this.tables[this.tableName] = this.table().filter((r) => !rows.includes(r));
         data = rows;
       }
 
-      resolve({ data, error: null });
+      resolve({ data, error: null, count: this.wantsCount ? this.matched().length : undefined });
     } catch (e) {
       if (reject) reject(e);
       else resolve({ data: null, error: e });
@@ -230,9 +286,19 @@ function createFakeStorage() {
   };
 }
 
+type RpcResult = { data: any; error: any };
+type RpcHandler = (params: any) => RpcResult | Promise<RpcResult>;
+
 export function createFakeAdmin() {
   let tables: Tables = {};
   const idCounters: Record<string, number> = {};
+  // Postgres RPC functions (SECURITY DEFINER stored procedures) — no generic
+  // simulation here, since their real logic lives in SQL migrations, not this
+  // file. Tests register a handler per function name via setRpcHandler(),
+  // written from the actual migration SQL (e.g. create_exchange_request in
+  // supabase/migrations/20260816150000_*.sql), so a test can still exercise
+  // real insert/error paths through fakeAdmin.client.from(...) inside it.
+  const rpcHandlers: Record<string, RpcHandler> = {};
 
   const nextId = (table: string) => {
     idCounters[table] = (idCounters[table] ?? 0) + 1;
@@ -244,6 +310,13 @@ export function createFakeAdmin() {
       return new FakeQueryBuilder(tables, tableName, nextId);
     },
     storage: createFakeStorage(),
+    async rpc(fnName: string, params?: any): Promise<RpcResult> {
+      const handler = rpcHandlers[fnName];
+      if (!handler) {
+        return { data: null, error: { message: `fakeSupabase: no rpc handler registered for "${fnName}" — call setRpcHandler() in the test first` } };
+      }
+      return handler(params);
+    },
   };
 
   return {
@@ -256,6 +329,10 @@ export function createFakeAdmin() {
     /** Read current in-memory rows for assertions. */
     rows(tableName: string): Row[] {
       return tables[tableName] ?? [];
+    },
+    /** Register (or replace) the fake implementation of a `supabaseAdmin.rpc(fnName, ...)` call. */
+    setRpcHandler(fnName: string, handler: RpcHandler) {
+      rpcHandlers[fnName] = handler;
     },
   };
 }

@@ -55,6 +55,9 @@ export default function FormWizardPage({ session }: { session?: CustomerSessionI
     try {
       const cleanData = {
         ...formData,
+        // ★ deliveryNotePhotoUrls เป็น field ระดับคำร้อง (ไม่ใช่ต่อรายการยาแล้ว) ผ่าน allowlist
+        // นี้มาอัตโนมัติจาก ...formData ด้านบนอยู่แล้ว ไม่ต้องเพิ่มในนี้ — จุดที่เคยพลาดตกหล่น
+        // (ตอนยังเป็น field ต่อรายการยา) คือ allowlist ของ items ด้านล่างนี้เท่านั้น
         items: formData.items.map((item) => ({
           drugName:  item.drugName,
           qty:       item.qty,
@@ -87,7 +90,7 @@ export default function FormWizardPage({ session }: { session?: CustomerSessionI
       {step === 1 && (
         <Step1Info next={nextStep} updateData={setFormData} initialRequestType={initialRequestType} />
       )}
-      {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
+      {step === 2 && <Step2Items next={nextStep} back={prevStep} updateData={setFormData} formData={formData} allowDeliveryPhoto />}
       {step === 3 && <Step3Reason next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
       {step === 4 && <Step4Sign next={nextStep} back={prevStep} updateData={setFormData} formData={formData} />}
       {step === 5 && <ReviewPage back={prevStep} formData={formData} onSubmit={handleSubmit} />}
