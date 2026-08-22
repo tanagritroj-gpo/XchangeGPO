@@ -36,7 +36,12 @@ adminModule.admin = fakeAdmin.client;
 const { checkRateLimit } = await import('@/lib/rate-limit');
 const mockCheckRateLimit = vi.mocked(checkRateLimit);
 
-const { requestStaffPasswordReset, resetStaffPassword, loginStaffAction } = await import('../auth-staff');
+const {
+  requestStaffPasswordReset, resetStaffPassword, loginStaffAction,
+  updateStaffUsername, updateStaffEmail, updateStaffPassword,
+} = await import('../auth-staff');
+
+const { cookies: mockedCookies } = await import('next/headers');
 
 function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
@@ -49,6 +54,51 @@ function seed(overrides: { staff_users?: any[]; otp_logs?: any[]; sessions?: any
     sessions: overrides.sessions ?? [],
   });
 }
+
+// ── helpers ใช้เฉพาะ updateStaffUsername/updateStaffEmail/updateStaffPassword — ต่างจาก
+// requestStaffPasswordReset/resetStaffPassword ด้านบนตรงที่ทั้ง 3 ฟังก์ชันนี้ authenticate
+// ผ่าน getStaffSession() (คุกกี้ + join sessions.staff_users) แทนการรับ username มาตรงๆ —
+// ต้องทั้ง seed แถว `sessions` แบบฝัง staff_users มาด้วย (fake ไม่ resolve join จริง แค่คืน
+// ตามที่ seed มาตรงๆ — ดูคอมเมนต์ FakeQueryBuilder.select) และ seed ตาราง `staff_users` แยก
+// อีกชุด (สำหรับ verifyCurrentPassword/update ที่ query ตรงๆ ไม่ผ่าน join)
+const VALID_TOKEN = '11111111-1111-1111-1111-111111111111';
+
+function seedAuthedStaff(overrides: Partial<{
+  id: string; username: string; email: string | null; password_hash: string; department: string;
+}> = {}) {
+  const staffRow = {
+    id: overrides.id ?? 's1',
+    username: overrides.username ?? 'dofcoffee',
+    full_name: 'Test Staff',
+    role: 'staff',
+    department: overrides.department ?? 'csr',
+    is_approved: true,
+    sale_customer_types: null,
+    sale_provinces: null,
+    email: overrides.email ?? 'staff@example.com',
+    signature_url: null,
+    password_hash: overrides.password_hash ?? 'unused-hash',
+  };
+  fakeAdmin.seed({
+    staff_users: [staffRow],
+    sessions: [{
+      token: VALID_TOKEN, actor_type: 'staff', staff_id: staffRow.id,
+      expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      staff_users: staffRow,
+    }],
+  });
+  return staffRow;
+}
+
+async function setSessionCookie(token: string | null) {
+  const store: any = await mockedCookies();
+  if (token) store.set('staff_session', token);
+  else store.delete('staff_session');
+}
+
+beforeEach(async () => {
+  await setSessionCookie(null);
+});
 
 beforeEach(() => {
   mockCheckRateLimit.mockReset();
@@ -242,5 +292,187 @@ describe('loginStaffAction', () => {
     const sessions = fakeAdmin.rows('sessions');
     expect(sessions).toHaveLength(1);
     expect(sessions[0]).toMatchObject({ actor_type: 'staff', staff_id: 's1' });
+  });
+});
+
+describe('updateStaffUsername', () => {
+  it('rejects when there is no session', async () => {
+    const res = await updateStaffUsername('whatever', 'newname');
+    expect(res).toEqual({ success: false, error: 'กรุณาเข้าสู่ระบบใหม่' });
+  });
+
+  it('rejects a new username shorter than 3 characters without checking the password', async () => {
+    seedAuthedStaff();
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffUsername('whatever', 'ab');
+    expect(res).toEqual({ success: false, error: 'Username ต้องมีความยาว 3-50 ตัวอักษร' });
+  });
+
+  it('rejects re-submitting the current username unchanged', async () => {
+    seedAuthedStaff({ username: 'dofcoffee' });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffUsername('whatever', 'dofcoffee');
+    expect(res).toEqual({ success: false, error: 'Username นี้เป็น Username ปัจจุบันของคุณอยู่แล้ว' });
+  });
+
+  it('rejects an incorrect current password without changing anything', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffUsername('wrongpass', 'newname');
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
+    expect(fakeAdmin.rows('staff_users')[0].username).toBe('dofcoffee');
+  });
+
+  it('rejects a username already used by another staff account', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash });
+    await setSessionCookie(VALID_TOKEN);
+    fakeAdmin.seed({
+      staff_users: [
+        ...fakeAdmin.rows('staff_users'),
+        { id: 's2', username: 'taken', password_hash: 'x' },
+      ],
+      sessions: fakeAdmin.rows('sessions'),
+    });
+    const res = await updateStaffUsername('correctpass', 'taken');
+    expect(res).toEqual({ success: false, error: 'Username นี้ถูกใช้งานแล้ว' });
+  });
+
+  it('is blocked by the shared account-update rate limiter before touching the DB', async () => {
+    mockCheckRateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+    seedAuthedStaff();
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffUsername('correctpass', 'newname');
+    expect(res).toEqual({ success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
+    expect(fakeAdmin.rows('staff_users')[0].username).toBe('dofcoffee');
+  });
+
+  it('on a correct password: updates the username and logs the change with old/new value + ip', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash, username: 'dofcoffee', email: 'staff@example.com' });
+    await setSessionCookie(VALID_TOKEN);
+
+    const res = await updateStaffUsername('correctpass', ' newname ');
+    expect(res).toEqual({ success: true });
+    expect(fakeAdmin.rows('staff_users')[0].username).toBe('newname');
+
+    const logs = fakeAdmin.rows('staff_account_change_logs');
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      staff_id: 's1', field: 'username', old_value: 'dofcoffee', new_value: 'newname', ip: '203.0.113.5',
+    });
+  });
+});
+
+describe('updateStaffEmail', () => {
+  it('rejects when there is no session', async () => {
+    const res = await updateStaffEmail('whatever', 'new@example.com');
+    expect(res).toEqual({ success: false, error: 'กรุณาเข้าสู่ระบบใหม่' });
+  });
+
+  it('rejects a malformed email without checking the password', async () => {
+    seedAuthedStaff();
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffEmail('whatever', 'not-an-email');
+    expect(res).toEqual({ success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' });
+  });
+
+  it('rejects re-submitting the current email unchanged', async () => {
+    seedAuthedStaff({ email: 'staff@example.com' });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffEmail('whatever', 'staff@example.com');
+    expect(res).toEqual({ success: false, error: 'อีเมลนี้เป็นอีเมลปัจจุบันของคุณอยู่แล้ว' });
+  });
+
+  it('rejects an incorrect current password without changing anything', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash, email: 'staff@example.com' });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffEmail('wrongpass', 'new@example.com');
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
+    expect(fakeAdmin.rows('staff_users')[0].email).toBe('staff@example.com');
+  });
+
+  it('on a correct password: updates the email and logs the change with old/new value + ip', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash, email: 'old@example.com' });
+    await setSessionCookie(VALID_TOKEN);
+
+    const res = await updateStaffEmail('correctpass', 'new@example.com');
+    expect(res).toEqual({ success: true });
+    expect(fakeAdmin.rows('staff_users')[0].email).toBe('new@example.com');
+
+    const logs = fakeAdmin.rows('staff_account_change_logs');
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({
+      staff_id: 's1', field: 'email', old_value: 'old@example.com', new_value: 'new@example.com', ip: '203.0.113.5',
+    });
+  });
+});
+
+describe('updateStaffPassword', () => {
+  it('rejects when there is no session', async () => {
+    const res = await updateStaffPassword('whatever', 'newpass123');
+    expect(res).toEqual({ success: false, error: 'กรุณาเข้าสู่ระบบใหม่' });
+  });
+
+  it('rejects a new password shorter than 6 characters without checking the current password', async () => {
+    seedAuthedStaff();
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffPassword('whatever', 'abc');
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' });
+  });
+
+  it('rejects an incorrect current password without changing the hash', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffPassword('wrongpass', 'newpass123');
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' });
+    expect(fakeAdmin.rows('staff_users')[0].password_hash).toBe(hash);
+  });
+
+  it('on a correct password: updates the hash, keeps the current session, revokes every other staff session, and logs the change without storing values', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    const staffRow = seedAuthedStaff({ password_hash: hash });
+    await setSessionCookie(VALID_TOKEN);
+    fakeAdmin.seed({
+      staff_users: [staffRow],
+      sessions: [
+        ...fakeAdmin.rows('sessions'),
+        { token: 'other-device-token', actor_type: 'staff', staff_id: 's1', expires_at: new Date(Date.now() + 3600_000).toISOString(), staff_users: staffRow },
+        { token: 'other-staff-token', actor_type: 'staff', staff_id: 's2', expires_at: new Date(Date.now() + 3600_000).toISOString() },
+        { token: 'customer-token', actor_type: 'customer', customer_id: 'c1', expires_at: new Date(Date.now() + 3600_000).toISOString() },
+      ],
+    });
+    const sessionsBefore = fakeAdmin.rows('sessions');
+    expect(sessionsBefore).toHaveLength(4);
+
+    const res = await updateStaffPassword('correctpass', 'newpass123');
+    expect(res).toEqual({ success: true });
+
+    const updatedHash = fakeAdmin.rows('staff_users')[0].password_hash;
+    expect(updatedHash).not.toBe(hash);
+
+    // เหลือ: session ปัจจุบัน (VALID_TOKEN, ไม่ถูก revoke), session ของ staff อื่น (s2, ไม่ใช่
+    // เจ้าของบัญชีนี้เลยไม่โดน filter), session ฝั่งลูกค้า (actor_type ต่างกัน) — โดน revoke
+    // แค่ "other-device-token" ที่เป็น staff เดียวกันแต่คนละ token เท่านั้น
+    const remainingTokens = fakeAdmin.rows('sessions').map((s) => s.token).sort();
+    expect(remainingTokens).toEqual(['customer-token', 'other-staff-token', VALID_TOKEN].sort());
+
+    const logs = fakeAdmin.rows('staff_account_change_logs');
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ staff_id: 's1', field: 'password', old_value: null, new_value: null, ip: '203.0.113.5' });
+  });
+
+  it('is blocked by the shared account-update rate limiter before touching the DB', async () => {
+    mockCheckRateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seedAuthedStaff({ password_hash: hash });
+    await setSessionCookie(VALID_TOKEN);
+    const res = await updateStaffPassword('correctpass', 'newpass123');
+    expect(res).toEqual({ success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' });
+    expect(fakeAdmin.rows('staff_users')[0].password_hash).toBe(hash);
   });
 });

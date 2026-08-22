@@ -60,7 +60,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   return (
     <>
       {/* ปรับ grid ให้รองรับทั้งสองขนาด */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-white rounded-xl border border-border hover:border-indigo-200 hover:bg-indigo-50/30 transition-all items-center">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-2 text-xs px-3 py-3 bg-card rounded-md border border-border hover:border-primary/30 transition-colors items-center">
 
         {/* ชื่อยา (4 ส่วนบน Desktop) */}
         <div className="col-span-1 md:col-span-4 font-semibold text-foreground truncate">
@@ -69,12 +69,12 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
 
         {/* ข้อมูลยาอื่นๆ */}
         <div className="col-span-1 md:col-span-2 text-muted-foreground font-medium">
-          <span className="md:hidden text-[10px] text-muted-foreground">จำนวน: </span>
+          <span className="md:hidden text-[11px] text-muted-foreground">จำนวน: </span>
           {item.qty} {item.unit}
         </div>
 
         <div className="col-span-1 md:col-span-2 text-muted-foreground font-mono truncate">
-          <span className="md:hidden text-[10px] text-muted-foreground">LOT: </span>
+          <span className="md:hidden text-[11px] text-muted-foreground">LOT: </span>
           {item.lot_number ?? '—'}
         </div>
 
@@ -85,38 +85,32 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
            item.current_status !== 'rejected' && (
             <>
               <button onClick={() => openActionModal('at_warehouse')}
-                className="px-2.5 py-1.5 bg-teal-600 text-white rounded-lg text-[10px] font-bold hover:bg-teal-700 transition-all">ตรวจรับ</button>
+                className="px-2.5 py-1.5 bg-teal-600 text-white rounded-md text-[11px] font-bold hover:bg-teal-700 transition-colors">ตรวจรับ</button>
               <button onClick={() => openActionModal('rejected')}
-                className="px-2.5 py-1.5 bg-red-500 text-white rounded-lg text-[10px] font-bold hover:bg-red-600 transition-all">ปฏิเสธ</button>
+                className="px-2.5 py-1.5 bg-red-600 text-white rounded-md text-[11px] font-bold hover:bg-red-700 transition-colors">ปฏิเสธ</button>
             </>
           )}
-          {item.current_status === 'at_warehouse' && <span className="text-[10px] text-teal-600 font-bold">ถึงคลังแล้ว</span>}
-          {item.current_status === 'rejected'     && <span className="text-[10px] text-red-500 font-bold">ปฏิเสธแล้ว</span>}
+          {item.current_status === 'at_warehouse' && <span className="text-[11px] text-teal-600 font-bold">ถึงคลังแล้ว</span>}
+          {item.current_status === 'rejected'     && <span className="text-[11px] text-red-600 font-bold">ปฏิเสธแล้ว</span>}
         </div>
       </div>
 
       {/* ══ Confirm Modal: ตรวจรับ/ปฏิเสธรายการยา พร้อมหมายเหตุ ══ */}
       {actionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
-            <div
-              className="h-1.5"
-              style={{
-                background: actionModal === 'at_warehouse'
-                  ? 'linear-gradient(90deg,#0d9488,#14b8a6)'
-                  : 'linear-gradient(90deg,#dc2626,#f87171)',
-              }}
-            />
+          <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className={`h-1.5 ${actionModal === 'at_warehouse' ? 'bg-teal-600' : 'bg-destructive'}`} />
 
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{ background: actionModal === 'at_warehouse' ? '#ccfbf1' : '#fee2e2' }}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                    actionModal === 'at_warehouse' ? 'bg-teal-100' : 'bg-destructive/10'
+                  }`}
                 >
                   {actionModal === 'at_warehouse'
                     ? <CheckCircle2 size={22} className="text-teal-600" strokeWidth={2.5} />
-                    : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
+                    : <AlertTriangle size={22} className="text-destructive" strokeWidth={2.5} />}
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-base font-bold text-foreground">
@@ -151,7 +145,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                   type="button"
                   onClick={() => { setActionModal(null); setDetail(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -159,12 +153,9 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
                   type="button"
                   onClick={submitAction}
                   disabled={isSubmitting || !reasonCode || (reasonCode === 'other' && !detail.trim())}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{
-                    background: actionModal === 'at_warehouse'
-                      ? 'linear-gradient(135deg,#0d9488,#14b8a6)'
-                      : 'linear-gradient(135deg,#dc2626,#f87171)',
-                  }}
+                  className={`py-3.5 rounded-md font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    actionModal === 'at_warehouse' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-destructive hover:bg-destructive/90'
+                  }`}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>

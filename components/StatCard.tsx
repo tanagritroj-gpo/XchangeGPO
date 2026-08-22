@@ -12,16 +12,16 @@ export function StatCard({ icon: Icon, value, label, iconBg, iconText, isActive,
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 rounded-2xl border bg-white p-3.5 md:p-4 shadow-sm transition-all duration-200 text-left hover:-translate-y-0.5 hover:shadow-md ${
-        isActive ? `${activeBorder} ${activeRing} shadow-md` : 'border-border'
+      className={`flex items-center gap-3 rounded-lg border bg-card p-3.5 md:p-4 transition-colors duration-200 text-left ${
+        isActive ? `${activeBorder} ${activeRing}` : 'border-border hover:border-primary/40'
       }`}
     >
-      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl ${iconBg} ${iconText}`}>
-        <Icon className="h-5 w-5" strokeWidth={2.25} />
+      <div className={`flex h-10 w-10 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-md ${iconBg} ${iconText}`}>
+        <Icon className="h-5 w-5" strokeWidth={2} />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-xl md:text-2xl font-black leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
-        <p className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="truncate text-xl md:text-2xl font-bold leading-tight text-foreground">{value.toLocaleString('th-TH')}</p>
+        <p className="truncate text-[11px] md:text-xs font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
     </button>
   );

@@ -14,20 +14,15 @@ import { AnalogClock } from '@/components/AnalogClock';
 import { MiniStat } from '@/components/MiniStat';
 
 // ── หน้า hub ของ Manager — จัดวางแบบ "bento grid" (กล่องเบนโตะ): เซลล์ขนาดต่างกันบน grid
-// เดียว ผสม hero/สถานะ/ปุ่มปฏิบัติการ/ตัวเลขสรุปไว้ในผืนเดียวกัน ต่างจาก CSR/Sale hub ที่แยก
-// hero กับ action-grid เป็นคนละส่วน — โทนสีหลักยังเป็นน้ำเงินม่วงเข้ม (เข้มกว่า hero ของ
-// CSR/Sale โดยตั้งใจ) คู่กับทอง/ม่วง/ทีล/เทาไล่ตามความสำคัญของแต่ละปลายทาง
+// เดียว ผสม hero/สถานะ/ปุ่มปฏิบัติการ/ตัวเลขสรุปไว้ในผืนเดียวกัน (โครง grid ไม่เปลี่ยนจากเดิม)
 //
-// โครง grid (lg: 6 คอลัมน์, แถวสูงคงที่ต่อหน่วย ผสม row-span 1/2 ให้เกิดมิติสูง-ต่ำแบบเบนโตะ):
-//   แถบบน: [Welcome hero กว้าง 4 คอลัมน์ สูง 2 แถว] [สถานะบัญชี 2 คอลัมน์ สูง 1 แถว]
-//                                                    [จัดการสิทธิ์พนักงาน 2 คอลัมน์ สูง 1 แถว]
-//   แถบล่าง: [ใบงานทั้งหมด 2 คอลัมน์ สูง 2 แถว] [ภาพรวม&สถิติ 2 คอลัมน์ สูง 2 แถว]
-//            [Download Center 2 คอลัมน์ สูง 1 แถว]
-//            [Track & Trace 2 คอลัมน์ สูง 1 แถว]
-// ตัวเลข (พนักงานรออนุมัติ/ใบงานทั้งหมด) ดึงจริงจาก server action เดิมที่หน้า
-// staff-approvals ใช้อยู่แล้ว ไม่ได้เพิ่ม endpoint ใหม่ — โหลดแบบ non-blocking แยกจาก session
-// (การ์ด "คำถามที่บอทตอบไม่ได้" ย้ายไปอยู่ที่ CSR hub แล้ว — app/admin/csr/page.tsx —
-// Track & Trace เข้ามาแทนที่ตำแหน่งเดิมของการ์ดนั้นในผังนี้)
+// ★ ปรับสไตล์ตาม "Option B — Institutional Green" (ดูเอกสารเสนอทิศทาง UI): เลิกให้แต่ละ tile
+// คิดสีของตัวเอง (เดิมม่วง/ทอง/ทีล/แดงปนกัน) เหลือ accent เดียวคือสีเขียวแบรนด์ผ่าน CSS
+// variable กลาง (--primary/--accent ใน globals.css) ยกเว้น SLA tile ที่แดง/destructive ไว้
+// เพราะเป็นสีเชิงความหมาย (แจ้งเตือนเกินกำหนด) ไม่ใช่การตกแต่ง — radius/shadow ลดเหลือ 2 ระดับ
+// (rounded-md/rounded-lg) แทน rounded-2xl/3xl ที่ใช้ปนกันแบบไม่มีกฎ ตัดพื้นหลัง blob ไล่เฉด,
+// noise texture, glassmorphism, และ pulse dot ที่เป็นแค่ของตกแต่งออกทั้งหมด — เนื้อหา/ลิงก์/
+// logic การโหลดข้อมูลไม่เปลี่ยนจากเดิม
 export default function ManagerHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
@@ -91,10 +86,10 @@ export default function ManagerHubPage() {
   };
 
   if (!staff) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
-        <div className="w-10 h-10 border-4 border-[#2E2B7A] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm font-medium text-[#2E2B7A]">กำลังโหลดข้อมูล...</p>
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm font-medium text-primary">กำลังโหลดข้อมูล...</p>
       </div>
     </div>
   );
@@ -102,32 +97,21 @@ export default function ManagerHubPage() {
   const fmt = (n: number) => n.toLocaleString('th-TH');
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
-
-      {/* ── พื้นหลังลูกเล่น — เหมือน CSR/Sale hub ทุกประการ (identity ของระบบร่วมกัน) ── */}
-      <div className="pointer-events-none fixed inset-0 -z-0">
-        <div className="absolute -top-16 -right-10 w-64 h-64 md:-top-24 md:-right-16 md:w-[420px] md:h-[420px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
-        <div className="absolute top-[42%] -left-16 w-56 h-56 md:top-[38%] md:-left-28 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.15] blur-3xl" />
-        <div className="absolute -bottom-20 right-[6%] w-64 h-64 md:-bottom-32 md:w-[460px] md:h-[460px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
-        <div className="absolute top-[10%] left-[8%] w-14 h-14 rounded-full bg-[#EAD94C] opacity-[0.12] blur-xl hidden sm:block" />
-        <div className="absolute top-[20%] right-[10%] w-10 h-10 rounded-full bg-white opacity-20 blur-lg hidden sm:block" />
-        <div className="absolute bottom-[22%] left-[6%] w-16 h-16 rounded-full bg-[#E1592A] opacity-[0.10] blur-xl" />
-        <div className="absolute bottom-[8%] right-[12%] w-14 h-14 rounded-full bg-[#EAD94C] opacity-[0.10] blur-xl" />
-      </div>
+    <div className="min-h-screen flex flex-col bg-background">
 
       {/* pb-24 กันเนื้อหาแถวสุดท้ายโดน bottom nav bar (มือถือเท่านั้น, fixed) บังตอนเลื่อนสุด —
            pattern เดียวกับ CSR hub */}
-      <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-6 pt-8 pb-24 md:pb-8 space-y-7">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-6 pt-8 pb-24 md:pb-8 space-y-6">
 
         {/* ── LOGO & BRAND IDENTITY ── */}
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white/45 backdrop-blur-md border border-white/50 shadow-[0_4px_20px_-6px_rgba(36,31,94,0.15)] ring-1 ring-white/60">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-card border border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#4A46B0] to-[#241F5E] text-white shadow-md shadow-[#241F5E]/40 ring-1 ring-white/20">
+            <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground">
               <Crown className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#241F5E] leading-tight">GPO Xchange</p>
-              <p className="text-[10px] text-[#6B6698] leading-tight">Staff Portal · Manager</p>
+              <p className="text-sm font-bold text-foreground leading-tight">GPO Xchange</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">Staff Portal · Manager</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -135,7 +119,7 @@ export default function ManagerHubPage() {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary border border-border px-3.5 py-2 rounded-md transition-colors disabled:opacity-60 disabled:pointer-events-none"
             >
               {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
               ออกจากระบบ
@@ -148,100 +132,127 @@ export default function ManagerHubPage() {
              auto-rows คงที่ + row-span 1/2 ต่อ tile คือหัวใจของเลย์เอาต์นี้ */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 md:auto-rows-[128px]">
 
-          {/* Tile: Welcome hero — ใหญ่สุด กว้าง 4/สูง 2 หน่วย โทนน้ำเงินม่วงเข้ม */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#241F5E] via-[#1A1740] to-[#0D0B21] p-6 md:p-7 text-white shadow-2xl shadow-[#0D0B21]/60 ring-1 ring-white/10 md:col-span-4 md:row-span-2">
-            <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)] bg-[length:16px_16px]" />
-            <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.08] to-transparent" />
-            <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_70%)] opacity-50 blur-sm" />
-            <div className="absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-[radial-gradient(circle,_#6D28D9_0%,_transparent_70%)] opacity-50 blur-sm" />
+          {/* Tile: Welcome hero — ใหญ่สุด กว้าง 4/สูง 2 หน่วย พื้นสีเขียวแบรนด์ทึบ (accent เดียว
+               ของทั้งหน้า ไม่ใช่ gradient เฉพาะจุด) — glow วงกลมเดียวโทนเดียวกับพื้นมุมขวาบน
+               ให้มีมิติ + แถบสรุปตัวเลขด่วนด้านล่าง (ดึงจาก counts ที่ fetch ไว้แล้วสำหรับ tile
+               อื่นอยู่แล้ว) กันพื้นที่ว่างโล่งเกินไปตอนการ์ดสูง 2 หน่วยแต่มีแค่ข้อความทักทาย */}
+          <div className="relative overflow-hidden rounded-lg bg-primary p-6 md:p-7 text-primary-foreground md:col-span-4 md:row-span-2">
+            <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary-foreground/10 blur-2xl pointer-events-none" />
             <div className="relative h-full flex flex-col justify-center">
-              <p className="text-[#EAD94C] text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#EAD94C] shadow-[0_0_8px_2px_rgba(234,217,76,0.6)] animate-pulse" /> ยินดีต้อนรับ
+              <p className="text-primary-foreground/70 text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground/70" /> ยินดีต้อนรับ
               </p>
-              <h1 className="text-2xl md:text-3xl font-black leading-tight tracking-tight flex items-center gap-2 drop-shadow-sm">
+              <h1 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight flex items-center gap-2">
                 สวัสดีคุณ {staff.full_name || staff.username}
                 <User className="w-6 h-6 opacity-80" />
               </h1>
-              <p className="text-white/85 mt-1.5 flex items-center gap-1.5 text-sm">
+              <p className="text-primary-foreground/85 mt-1.5 flex items-center gap-1.5 text-sm">
                 <ShieldCheck className="w-4 h-4" /> ทีมบริหาร (Manager)
               </p>
-              <p className="text-white/75 mt-3 text-sm leading-relaxed">
+              <p className="text-primary-foreground/75 mt-3 text-sm leading-relaxed">
                 ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
               </p>
-            </div>
-          </div>
 
-          {/* Tile: สถานะบัญชี — ปรับให้เหมือน CSR hub (app/admin/csr/page.tsx): นาฬิกาเข็ม +
-               เวลาดิจิทัล + จุดสถานะแบบ "ping ring" โทนทีล แทนจุด pulse เขียวมรกตตันแบบเดิม
-               (เหตุผลเดียวกับ CSR — ping ring ดูตั้งใจ/สะอาดกว่า, ทีลเข้ากับโทนน้ำเงินม่วง/ทอง
-               ของแอปมากกว่าเขียวมรกตที่เป็นสีแปลกปลอม) กว้าง 2/สูง 1 หน่วย
-               min-h-[112px] md:min-h-0 — กันการ์ดนี้ (สูงขึ้นเพราะมีนาฬิกาเข็ม 64px) กับการ์ด
-               "จัดการสิทธิ์พนักงาน" ข้างๆ สูงไม่เท่ากันตอนเรียงบนมือถือ (ปัญหาเดียวกับที่เจอใน
-               CSR hub, แก้ด้วย pattern เดียวกัน) */}
-          <div className="rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.15)] ring-1 ring-white/40 p-5 flex items-center justify-between gap-3 min-h-[112px] md:min-h-0 md:col-span-2 md:row-span-1">
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6B6698] mb-1.5">สถานะบัญชี</p>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-teal-500" />
-                </span>
-                <span className="text-[#241F5E] font-black text-lg">Active</span>
+              <div className="mt-6 pt-5 border-t border-primary-foreground/15 flex items-center gap-6 md:gap-8">
+                <div>
+                  <p className="text-2xl md:text-3xl font-bold tabular-nums leading-none">
+                    {counts ? fmt(counts.totalRequests) : '—'}
+                  </p>
+                  <p className="text-[11px] text-primary-foreground/70 uppercase tracking-wide mt-1">ใบงานทั้งหมดในระบบ</p>
+                </div>
+                <div className="w-px h-9 bg-primary-foreground/20 shrink-0" />
+                <div>
+                  <p className="text-2xl md:text-3xl font-bold tabular-nums leading-none">
+                    {counts ? fmt(counts.pendingStaff) : '—'}
+                  </p>
+                  <p className="text-[11px] text-primary-foreground/70 uppercase tracking-wide mt-1">พนักงานรออนุมัติ</p>
+                </div>
+                <Link
+                  href="/admin/manager/staff-approvals?tab=all"
+                  className="ml-auto hidden sm:flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/90 hover:text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3.5 py-2 rounded-md transition-colors shrink-0"
+                >
+                  ดูภาพรวม <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
-              <p className="text-[11px] text-[#A7A2C4] mt-1.5 font-mono tabular-nums">
-                {now ? now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--'} น.
-              </p>
             </div>
-            <AnalogClock now={now} />
           </div>
 
-          {/* Tile: จัดการสิทธิ์พนักงาน — เน้นตัวเลขรออนุมัติ กว้าง 2/สูง 1 หน่วย โทนน้ำเงินม่วง
-               (featured) — min-h เหมือน "สถานะบัญชี" ข้างๆ เพื่อความสูงเท่ากันบนมือถือ */}
+          {/* Tile คู่: สถานะบัญชี + บัญชีผู้ใช้ — เดิมเป็นการ์ดเดียว (นาฬิกาเข็ม + เวลาดิจิทัล +
+               จุด ping สื่อสถานะจริง เปลี่ยนสีจากทีลเป็น primary ให้ตรงชุดเดียวกับทั้งหน้า) แยก
+               เป็น 2 การ์ดวางติดกันแบบเดียวกับที่ทำให้ CSR hub แล้ว (app/admin/csr/page.tsx) */}
+          <div className="flex items-stretch gap-3 min-h-[112px] md:min-h-0 md:col-span-2 md:row-span-1">
+            {/* Card: สถานะบัญชี — justify-center + gap คงที่ กันไม่ให้ข้อความ/นาฬิกาถูกดันไปสุด
+                 ขอบการ์ดตอนการ์ด flex-1 กว้างขึ้น (บทเรียนจากตอนแก้ CSR: justify-between เดิมทำ
+                 ให้ช่องว่างตรงกลางยืดจนดูแปลกเมื่อมีการ์ด username แคบๆ อยู่ข้างๆ) */}
+            <div className="flex-1 min-w-0 rounded-lg bg-card border border-border p-4 flex items-center justify-center gap-4 md:gap-6">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">สถานะบัญชี</p>
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+                  </span>
+                  <span className="text-foreground font-bold text-lg">Active</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
+                  {now ? now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--'} น.
+                </p>
+              </div>
+              <AnalogClock now={now} />
+            </div>
+
+            {/* Card: บัญชีผู้ใช้ — username จาก session ที่ fetch ไว้แล้ว (ไม่ query เพิ่ม) —
+                 w-28 บนมือถือ กันตัดคำ username ยาว (เช่น "@Csr_staff" ที่ font-mono 12px กว้าง
+                 ~75px), md:w-32 บนจอ desktop — กดเข้าไปจัดการบัญชีได้ (เปลี่ยน username/อีเมล/
+                 รหัสผ่าน) ที่หน้ากลาง /admin/account เหมือนที่ทำให้ CSR hub แล้ว */}
+            <Link
+              href="/admin/account"
+              className="group flex flex-col items-center justify-center gap-1.5 w-28 md:w-32 shrink-0 rounded-lg bg-card border border-border p-3 text-center hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+            >
+              <User className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+              <p className="text-xs font-mono font-semibold text-foreground truncate w-full">@{staff.username}</p>
+              <p className="text-[11px] text-muted-foreground">บัญชีผู้ใช้</p>
+            </Link>
+          </div>
+
+          {/* Tile: จัดการสิทธิ์พนักงาน — เดิมเป็น tile เดียวที่พื้นทึบสีม่วง featured แยกจากใบอื่น
+               ตอนนี้ใช้การ์ดขอบเดียวกับ tile อื่นทั้งหมด ให้ลำดับความสำคัญมาจากขนาดตัวเลขแทน */}
           <Link href="/admin/manager/staff-approvals?tab=staff" className="group block md:col-span-2 md:row-span-1">
-            <div className="relative h-full min-h-[112px] md:min-h-0 rounded-3xl bg-gradient-to-br from-[#4A42B8] via-[#3B37A0] to-[#171335] shadow-md shadow-[#3B37A0]/30 hover:shadow-[0_16px_40px_-12px_rgba(59,55,160,0.55)] transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center justify-between gap-3">
+            <div className="relative h-full min-h-[112px] md:min-h-0 rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70 mb-1 flex items-center gap-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5" /> รออนุมัติ
                 </p>
                 {counts ? (
-                  <p className="text-white font-black text-3xl leading-none tabular-nums">{fmt(counts.pendingStaff)}</p>
+                  <p className="text-foreground font-bold text-3xl leading-none tabular-nums">{fmt(counts.pendingStaff)}</p>
                 ) : (
-                  <Skeleton className="h-8 w-12 bg-white/25" />
+                  <Skeleton className="h-8 w-12" />
                 )}
-                <p className="text-white/70 text-xs mt-1">จัดการสิทธิ์พนักงาน</p>
+                <p className="text-muted-foreground text-xs mt-1">จัดการสิทธิ์พนักงาน</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-white/60 group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all shrink-0" />
             </div>
           </Link>
 
-          {/* Tile: ใบงานทั้งหมด — ขยายจาก 2×2 เป็น 4×2 (ตาม pattern เดียวกับ "CSR Dashboard"
-               ในหน้า CSR hub) — "ภาพรวม & สถิติ" ถัดไปเลยไหลไปอยู่ข้างการ์ดนี้แทน (grid
-               auto-place จัดให้เองจากการขยาย col-span ไม่ต้องกำหนดตำแหน่งเอง) ผลพลอยได้: แถว
-               ถัดไป (Download Center/Track & Trace/SLA) พอดี 3 การ์ด × col-span-2 = 6 คอลัมน์
-               เต็มแถว เรียงสวยเป็นแถวเดียวที่จอกว้าง แทนที่จะเบียดเป็นคอลัมน์แคบข้าง 2 การ์ด
-               ใหญ่แบบเดิม
-               ★ เพิ่มแถบมินิสถิติ 5 ช่อง (ทั้งหมด/รอตรวจสอบ/กำลังดำเนินการ/เสร็จสิ้น/ถูกปฏิเสธ)
-               แบบเดียวกับ tile "CSR Dashboard" ของ CSR hub (ใช้ MiniStat component กลางร่วมกัน
-               — ดู components/MiniStat.tsx) ตัวเลขหลักเดี่ยวๆ + คำอธิบายยาวแบบเดิมตัดออก
-               เพราะข้อมูลซ้ำกับแถบใหม่แล้ว (รอตรวจสอบ ⊂ แถบใหม่) ประหยัดพื้นที่แนวตั้งให้พอ
-               ใส่แถบสถิติได้โดยไม่ล้น */}
+          {/* Tile: ใบงานทั้งหมด — ขยาย 4×2 แถบสี border-left แทนแถบ gradient ลอยเดิม + ไอคอนพื้น
+               สีเขียวแบรนด์ทึบ (เดิมไล่เฉดม่วง) MiniStat 5 ช่องยังใช้สี semantic ของแต่ละสถานะ
+               (เหลือง/ฟ้า/เขียว/แดง) เหมือนเดิม เพราะสื่อความหมายจริง ไม่ใช่การตกแต่งสุ่ม */}
           <Link href="/admin/manager/staff-approvals?tab=all" className="group block md:col-span-4 md:row-span-2">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(109,40,217,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(109,40,217,0.4)] hover:border-[#6D28D9]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-[#6D28D9] via-[#8B5CF6] to-[#6D28D9] shadow-[0_0_10px_rgba(139,92,246,0.6)]" />
+            <div className="relative h-full flex flex-col bg-card rounded-lg border border-border border-l-[3px] border-l-primary hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9] shadow-md shadow-[#6D28D9]/30 ring-1 ring-white/20 shrink-0">
-                    <ClipboardList className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground shadow-sm shadow-primary/30 shrink-0">
+                    <ClipboardList className="w-5 h-5" />
                   </div>
                   <div className="min-w-0">
-                    <h2 className="text-sm font-black text-[#241F5E]">ใบงานทั้งหมด</h2>
-                    <p className="text-xs text-[#6B6698] truncate">ภาพรวมใบงานทุกสถานะ ทุกแผนก</p>
+                    <h2 className="text-sm font-bold text-foreground">ใบงานทั้งหมด</h2>
+                    <p className="text-xs text-muted-foreground truncate">ภาพรวมใบงานทุกสถานะ ทุกแผนก</p>
                   </div>
                 </div>
 
                 {counts ? (
                   <div className="grid grid-cols-5 gap-2 mb-4">
-                    <MiniStat icon={ClipboardList} value={counts.totalRequests} label="ใบงานรวม" iconBg="bg-[#EDEBFB]" iconText="text-[#6D28D9]" />
+                    <MiniStat icon={ClipboardList} value={counts.totalRequests} label="ใบงานรวม" iconBg="bg-accent" iconText="text-accent-foreground" />
                     <MiniStat icon={Clock} value={counts.pendingReview} label="รอตรวจสอบ" iconBg="bg-amber-50" iconText="text-amber-600" />
                     <MiniStat
                       icon={RefreshCw}
@@ -253,84 +264,80 @@ export default function ManagerHubPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-5 gap-2 mb-4">
-                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[76px] rounded-xl" />)}
+                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[76px] rounded-md" />)}
                   </div>
                 )}
 
-                <span className="mt-auto text-xs font-bold text-[#6D28D9] flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                <span className="mt-auto text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูใบงานทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
             </div>
           </Link>
 
-          {/* Tile: ภาพรวม & สถิติ — กว้าง 2/สูง 2 หน่วย โทนทอง/มัสตาร์ด */}
+          {/* Tile: ภาพรวม & สถิติ — เดิมโทนทอง/มัสตาร์ด ตอนนี้ใช้ชุดเดียวกับ tile อื่น */}
           <Link href="/admin/manager/staff-approvals?tab=insights" className="group block md:col-span-2 md:row-span-2">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(138,116,32,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(234,217,76,0.4)] hover:border-[#EAD94C]/60 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#F4E27E] to-[#EAD94C] shadow-[0_0_10px_rgba(234,217,76,0.6)]" />
+            <div className="relative h-full flex flex-col bg-card rounded-lg border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
-                <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] shadow-md shadow-[#EAD94C]/30 ring-1 ring-white/40 mb-3">
-                  <BarChart3 className="w-5 h-5 text-[#241F5E]" />
+                <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 mb-3">
+                  <BarChart3 className="w-5 h-5" />
                 </div>
-                <h2 className="text-sm font-black text-[#241F5E] mb-1">ภาพรวม & สถิติ</h2>
-                <p className="text-xs text-[#6B6698] mb-4">กราฟสรุปผลการดำเนินงานทุกแผนก + คุยกับ chatbot วิเคราะห์ข้อมูล</p>
-                <span className="mt-auto text-xs font-bold text-[#8A7420] flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                <h2 className="text-sm font-bold text-foreground mb-1">ภาพรวม & สถิติ</h2>
+                <p className="text-xs text-muted-foreground mb-4">กราฟสรุปผลการดำเนินงานทุกแผนก + คุยกับ chatbot วิเคราะห์ข้อมูล</p>
+                <span className="mt-auto text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูภาพรวม & สถิติ <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
             </div>
           </Link>
 
-          {/* Tile: Download Center — กว้าง 2/สูง 1 หน่วย โทนทีล — hidden md:block: ตามที่ผู้ใช้
-               ขอ ย้ายไปเป็น bottom nav bar บนมือถือแทน (ดูท้ายไฟล์) จอกว้างยังเห็น tile ปกติ */}
+          {/* Tile: Download Center — เดิมโทนทีล ตอนนี้ใช้ชุดเดียวกับ tile อื่น — hidden md:block:
+               ย้ายไปเป็น bottom nav bar บนมือถือแทน (ดูท้ายไฟล์) */}
           <Link href="/admin/manager/staff-approvals?tab=downloads" className="hidden md:block group md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(13,148,136,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(13,148,136,0.4)] hover:border-teal-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-400 to-teal-600 shadow-md shadow-teal-600/30 ring-1 ring-white/30 shrink-0">
-                <FileSpreadsheet className="w-5 h-5 text-white" />
+            <div className="relative h-full rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 shrink-0">
+                <FileSpreadsheet className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-black text-[#241F5E]">รายงานผู้บริหาร</h2>
-                <p className="text-xs text-[#6B6698] truncate">รายงาน Excel ในแต่ละส่วนงาน</p>
+                <h2 className="text-sm font-bold text-foreground">รายงานผู้บริหาร</h2>
+                <p className="text-xs text-muted-foreground truncate">รายงาน Excel ในแต่ละส่วนงาน</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-teal-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all shrink-0" />
             </div>
           </Link>
 
-          {/* Tile: Track & Trace — กว้าง 2/สูง 1 หน่วย โทนทีล เข้าชุดกับหน้าติดตามสถานะฝั่งลูกค้า
-              (เดียวกับ Download Center — ไม่มีตัวเลขสรุปเพราะเป็นเครื่องมือค้นหา ไม่ใช่รายการค้าง)
-              เข้ามาแทนที่ตำแหน่งเดิมของการ์ด "คำถามที่บอทตอบไม่ได้" ซึ่งย้ายไป CSR hub แล้ว —
-              hidden md:block: ย้ายไปเป็น bottom nav bar บนมือถือแทนเช่นกัน */}
+          {/* Tile: Track & Trace — เดิมโทนทีล ตอนนี้ใช้ชุดเดียวกับ tile อื่น — hidden md:block:
+               ย้ายไปเป็น bottom nav bar บนมือถือแทนเช่นกัน */}
           <Link href="/admin/manager/tracking" className="hidden md:block group md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(13,148,136,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(13,148,136,0.4)] hover:border-teal-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-teal-400 to-teal-600 shadow-md shadow-teal-600/30 ring-1 ring-white/30 shrink-0">
-                <Search className="w-5 h-5 text-white" />
+            <div className="relative h-full rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 shrink-0">
+                <Search className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-black text-[#241F5E]">Track & Trace</h2>
-                <p className="text-xs text-[#6B6698] truncate">ติดตามสถานะคำร้องของลูกค้าได้ทุกราย</p>
+                <h2 className="text-sm font-bold text-foreground">Track & Trace</h2>
+                <p className="text-xs text-muted-foreground truncate">ติดตามสถานะคำร้องของลูกค้าได้ทุกราย</p>
               </div>
-              <ArrowRight className="w-4 h-4 text-teal-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all shrink-0" />
             </div>
           </Link>
 
-          {/* Tile: SLA Monitoring System — กว้าง 2/สูง 1 หน่วย โทนแดง/ส้ม (แยกจาก teal ที่ใช้ไป
-              2 จุดแล้ว เพื่อให้เด่นเป็นสัญญาณเร่งด่วน) รวม dashboard SLA ทุกแผนก, ตั้งค่ากฎ
-              sla_rules, และ Audit Trail Report ที่ย้ายมาจาก Download Center — ตัวเลข badge
-              คือจำนวนใบงานเกินกำหนดที่ manager ยังไม่เคยเห็น (sla_breach, department is null,
-              ดู app/actions/sla-actions.ts getManagerSlaBadgeCount) — hidden md:block: ย้ายไป
-              เป็น bottom nav bar บนมือถือแทนเช่นกัน (พร้อม badge ตัวเลขเดียวกัน) */}
+          {/* Tile: SLA Monitoring System — สีแดง/destructive ยังคงไว้ตามเดิม เพราะเป็นสีเชิง
+               ความหมาย (แจ้งเตือนใบงานเกิน SLA) ไม่ใช่การไล่สีตกแต่งแบบ tile อื่นที่ตัดออกแล้ว —
+               ตัวเลข badge คือจำนวนใบงานเกินกำหนดที่ manager ยังไม่เคยเห็น (ดู
+               app/actions/sla-actions.ts getManagerSlaBadgeCount) — hidden md:block: ย้ายไปเป็น
+               bottom nav bar บนมือถือแทนเช่นกัน (พร้อม badge ตัวเลขเดียวกัน) */}
           <Link href="/admin/manager/sla" className="hidden md:block group md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_20px_-8px_rgba(225,89,42,0.15)] hover:shadow-[0_16px_36px_-12px_rgba(225,89,42,0.4)] hover:border-red-500/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-0.5 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-red-400 to-red-600 shadow-md shadow-red-600/30 ring-1 ring-white/30 shrink-0">
-                <AlarmClock className="w-5 h-5 text-white" />
+            <div className="relative h-full rounded-lg bg-card border border-border hover:border-destructive/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-destructive/10 text-destructive shadow-sm shadow-destructive/20 shrink-0">
+                <AlarmClock className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-black text-[#241F5E]">SLA Monitoring System</h2>
-                <p className="text-xs text-[#6B6698] truncate">
+                <h2 className="text-sm font-bold text-foreground">SLA Monitoring System</h2>
+                <p className="text-xs text-muted-foreground truncate">
                   {slaBadgeCount ? `${slaBadgeCount} ใบงานเกินกำหนด` : 'ติดตาม SLA ทุกแผนก'}
                 </p>
               </div>
-              <ArrowRight className="w-4 h-4 text-red-600 group-hover:translate-x-1 transition-transform shrink-0" />
+              <ArrowRight className="w-4 h-4 text-destructive group-hover:translate-x-1 transition-transform shrink-0" />
             </div>
           </Link>
         </div>
@@ -338,38 +345,35 @@ export default function ManagerHubPage() {
 
       {/* ══ Bottom nav bar — เฉพาะมือถือ (md:hidden), fixed เกาะขอบล่างจอเสมอ ══
            pattern เดียวกับ CSR hub (app/admin/csr/page.tsx) — แทนที่ tile "รายงานผู้บริหาร"/
-           "Track & Trace"/"SLA Monitoring System" บนมือถือตามที่ผู้ใช้ขอ ทั้ง 3 ทางลัดนี้ใช้
-           งานได้จริงทั้งหมด (ต่างจาก CSR ที่ตัด Download Center placeholder ออกเพราะกดไม่ได้จริง
-           — ของ manager ทั้ง 3 tile นี้ลิงก์ใช้งานได้ปกติ เลยใส่ครบทั้ง 3) z-30 ต่ำกว่า
-           NotificationBell drawer (z-50) เสมอ กันไม่ให้บังตอนเปิดกระดิ่ง — safe-area-inset-
-           bottom กันแถบ home indicator ของ iPhone บังปุ่มล่างสุด ══ */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/85 backdrop-blur-xl border-t border-white/60 shadow-[0_-4px_20px_-8px_rgba(46,43,122,0.15)] px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+           "Track & Trace"/"SLA Monitoring System" บนมือถือ z-30 ต่ำกว่า NotificationBell drawer
+           (z-50) เสมอ กันไม่ให้บังตอนเปิดกระดิ่ง — safe-area-inset-bottom กันแถบ home indicator
+           ของ iPhone บังปุ่มล่างสุด ══ */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="grid grid-cols-3 gap-1 max-w-md mx-auto">
-          <Link href="/admin/manager/staff-approvals?tab=downloads" className="flex flex-col items-center gap-1 py-1.5 rounded-xl text-teal-700 active:bg-teal-50 transition-colors">
+          <Link href="/admin/manager/staff-approvals?tab=downloads" className="flex flex-col items-center gap-1 py-1.5 rounded-md text-primary active:bg-accent transition-colors">
             <FileSpreadsheet className="w-5 h-5" />
-            <span className="text-[10px] font-bold">รายงาน</span>
+            <span className="text-[10px] font-semibold">รายงาน</span>
           </Link>
-          <Link href="/admin/manager/tracking" className="flex flex-col items-center gap-1 py-1.5 rounded-xl text-teal-700 active:bg-teal-50 transition-colors">
+          <Link href="/admin/manager/tracking" className="flex flex-col items-center gap-1 py-1.5 rounded-md text-primary active:bg-accent transition-colors">
             <Search className="w-5 h-5" />
-            <span className="text-[10px] font-bold">ติดตาม</span>
+            <span className="text-[10px] font-semibold">ติดตาม</span>
           </Link>
-          <Link href="/admin/manager/sla" className="relative flex flex-col items-center gap-1 py-1.5 rounded-xl text-red-600 active:bg-red-50 transition-colors">
+          <Link href="/admin/manager/sla" className="relative flex flex-col items-center gap-1 py-1.5 rounded-md text-destructive active:bg-destructive/10 transition-colors">
             <span className="relative">
               <AlarmClock className="w-5 h-5" />
               {!!slaBadgeCount && (
-                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-red-600 px-1 text-[8px] font-bold text-white ring-2 ring-white">
+                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[8px] font-bold text-destructive-foreground ring-2 ring-card">
                   {slaBadgeCount > 9 ? '9+' : slaBadgeCount}
                 </span>
               )}
             </span>
-            <span className="text-[10px] font-bold">SLA</span>
+            <span className="text-[10px] font-semibold">SLA</span>
           </Link>
         </div>
       </nav>
 
-      <footer className="relative mt-4 py-5 px-6 text-center border-t border-[#EADFAF]">
-        <div className="absolute left-1/2 -translate-x-1/2 -top-px w-16 h-px bg-gradient-to-r from-transparent via-[#EAD94C] to-transparent" />
-        <p className="text-[11px] text-[#6B6698]">© 2026 <span className="font-bold text-[#E1592A]">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
+      <footer className="mt-4 py-5 px-6 text-center border-t border-border">
+        <p className="text-[11px] text-muted-foreground">© 2026 <span className="font-semibold text-foreground">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
       </footer>
     </div>
   );

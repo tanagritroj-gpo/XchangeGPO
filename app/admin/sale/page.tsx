@@ -13,13 +13,16 @@ import { AnalogClock } from '@/components/AnalogClock';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MiniStat } from '@/components/MiniStat';
 
-// ── หน้า hub ของ Sale — จัดวางแบบ "bento grid" เดียวกับ CSR hub (app/admin/csr/page.tsx):
-// hero (4×2) + tile "สถานะบัญชี" พร้อมนาฬิกาเข็ม (2×1) + tile "ขอบเขตที่ดูแล" (2×1, แยกออก
-// จาก hero เดิมที่เคยฝังไว้ด้วยกัน — ตัดปัญหาเดียวกับที่ CSR เจอ คือพื้นหลัง hero มี glow
-// ทองอยู่แล้ว ยัดเนื้อหาเพิ่มเข้าไปจะดูอึดอัด) แล้วปิดท้ายด้วยการ์ดลิงก์ 3 ใบเท่ากัน (2×2 ต่อใบ):
-// "Active Workflow", "ประวัติการแลกเปลี่ยน", "ศูนย์รายงาน" — ★ Active Workflow เดิมฝังบอร์ดตรง
-// ในหน้า hub เลย แต่ผู้ใช้ขอให้แยกเป็นการ์ดกดเข้าไปดูแทน (เหมือน "ประวัติการแลกเปลี่ยน") จึงย้าย
-// ไปเป็นหน้าแยก app/admin/sale/workflow/page.tsx
+// ── หน้า hub ของ Sale — จัดวางแบบ "bento grid" เดียวกับ CSR/Manager hub: hero (4×2) + tile
+// "สถานะบัญชี" พร้อมนาฬิกาเข็ม (2×1) + tile "ขอบเขตที่ดูแล" (2×1) แล้วปิดท้ายด้วยการ์ดลิงก์ 3
+// ใบเท่ากัน (2×2 ต่อใบ): "Active Workflow", "ประวัติใบงาน", "ศูนย์รายงาน"
+//
+// ★ ปรับสไตล์ตาม "Option B — Institutional Green" (เอกสารเสนอทิศทาง UI, ทำแบบเดียวกับหน้า
+// Manager ที่ app/admin/manager/page.tsx): เลิกให้แต่ละ tile คิดสีของตัวเอง (เดิม indigo/ทอง/
+// ส้ม/อำพันปนกัน) เหลือ accent เดียวคือสีเขียวแบรนด์ผ่าน CSS variable กลาง (--primary/--accent
+// ใน globals.css) ตัดพื้นหลัง blob ไล่เฉด, noise texture, glassmorphism และ pulse ที่เป็นแค่
+// ของตกแต่งออก — radius เหลือ 2 ระดับ (rounded-md/rounded-lg) เนื้อหา/ลิงก์/logic การโหลด
+// ข้อมูลไม่เปลี่ยนจากเดิม
 export default function SaleHubPage() {
   const router = useRouter();
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
@@ -51,16 +54,18 @@ export default function SaleHubPage() {
   // เดียวกับที่ SaleActiveWorkflow ใช้ (ยิงแยกกันคนละหน้า ไม่ผูก state ร่วม เหมือน pattern
   // getCSRHubCounts ของ CSR hub ที่แยกอิสระจาก getCSRDashboardData) — โหลดแยกไม่บล็อกหน้าหลัก
   // debtReduction/exchange นับตาม request_type ("รับคืนลดหนี้"/"รับคืนแลกเปลี่ยน") ไม่รวม
-  // "รับคืน CCR" เพราะการ์ดนี้โชว์แค่ 2 ประเภทหลักตามที่ผู้ใช้ขอ
-  const [counts, setCounts] = useState<{ total: number; active: number; debtReduction: number; exchange: number } | null>(null);
+  // "รับคืน CCR" เพราะการ์ดนี้โชว์แค่ 2 ประเภทหลักตามที่ผู้ใช้ขอ — completed แยกไว้ให้ hero
+  // ใช้เป็นสถิติผลงาน (ไม่ซ้ำกับ total/active ที่ขึ้นบนป้าย Active Workflow/ประวัติใบงานอยู่แล้ว)
+  const [counts, setCounts] = useState<{ total: number; active: number; completed: number; debtReduction: number; exchange: number } | null>(null);
   useEffect(() => {
     async function loadCounts() {
       const data = await getSaleCustomerHistory();
       const rows: { current_status: string; request_type: string | null }[] = data ?? [];
       const active = rows.filter((r) => !['completed', 'rejected'].includes(r.current_status)).length;
+      const completed = rows.filter((r) => r.current_status === 'completed').length;
       const debtReduction = rows.filter((r) => r.request_type === 'รับคืนลดหนี้').length;
       const exchange = rows.filter((r) => r.request_type === 'รับคืนแลกเปลี่ยน').length;
-      setCounts({ total: rows.length, active, debtReduction, exchange });
+      setCounts({ total: rows.length, active, completed, debtReduction, exchange });
     }
     loadCounts();
   }, []);
@@ -72,10 +77,10 @@ export default function SaleHubPage() {
   };
 
   if (!staff) return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#FBF6E8] to-[#F1E7C8]">
+    <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="text-center space-y-3">
-        <div className="w-10 h-10 border-4 border-[#E1592A] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm font-medium text-[#2E2B7A]">กำลังโหลดข้อมูล...</p>
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm font-medium text-primary">กำลังโหลดข้อมูล...</p>
       </div>
     </div>
   );
@@ -85,31 +90,86 @@ export default function SaleHubPage() {
   );
   const provinces: string[] = staff.sale_provinces ?? [];
 
-  return (
-    <div className="relative min-h-screen flex flex-col bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
-
-      {/* ── พื้นหลังลูกเล่น — แสงกระจายแบบสุ่ม + บลอบใหญ่ให้มิติ ── */}
-      <div className="pointer-events-none fixed inset-0 -z-0">
-        <div className="absolute -top-16 -right-10 w-64 h-64 md:-top-24 md:-right-16 md:w-[420px] md:h-[420px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
-        <div className="absolute top-[42%] -left-16 w-56 h-56 md:top-[38%] md:-left-28 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.15] blur-3xl" />
-        <div className="absolute -bottom-20 right-[6%] w-64 h-64 md:-bottom-32 md:w-[460px] md:h-[460px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
-        <div className="absolute top-[10%] left-[8%] w-14 h-14 rounded-full bg-[#EAD94C] opacity-[0.12] blur-xl hidden sm:block" />
-        <div className="absolute top-[20%] right-[10%] w-10 h-10 rounded-full bg-white opacity-20 blur-lg hidden sm:block" />
-        <div className="absolute bottom-[22%] left-[6%] w-16 h-16 rounded-full bg-[#E1592A] opacity-[0.10] blur-xl" />
-        <div className="absolute bottom-[8%] right-[12%] w-14 h-14 rounded-full bg-[#EAD94C] opacity-[0.10] blur-xl" />
+  // ══ เนื้อหาของ 3 การ์ด (สถานะบัญชี/บัญชีผู้ใช้/ขอบเขตที่ดูแล) แยกเป็นตัวแปร JSX ไว้ใช้ซ้ำ —
+  // เพราะการ์ดทั้ง 3 ต้อง "จับคู่กันคนละแบบ" ระหว่างมือถือกับ desktop (มือถือ: บัญชีผู้ใช้คู่กับ
+  // ขอบเขตที่ดูแล / desktop: บัญชีผู้ใช้คู่กับสถานะบัญชีแบบ CSR/Manager) ต่างกันที่ตัว adjacency
+  // ของ DOM จริงๆ ไม่ใช่แค่ขนาด/breakpoint เฉยๆ เลย render โครง wrapper 2 ชุดแยกกันด้านล่าง
+  // (ชุดมือถือ md:hidden / ชุดเดสก์ท็อป hidden md:contents) แต่ใช้เนื้อหาการ์ดชุดเดียวกันนี้
+  // ทั้งคู่ กันโค้ดซ้ำ
+  const statusCardBody = (
+    <>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">สถานะบัญชี</p>
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
+          </span>
+          <span className="text-foreground font-bold text-base md:text-lg">Active</span>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1.5 font-mono tabular-nums">
+          {now ? now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--'} น.
+        </p>
       </div>
+      <AnalogClock now={now} />
+    </>
+  );
 
-      <main className="relative z-10 flex-1 max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
+  const usernameCardBody = (
+    <>
+      <User className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+      <p className="text-xs font-mono font-semibold text-foreground truncate w-full">@{staff.username}</p>
+      <p className="text-[11px] text-muted-foreground">บัญชีผู้ใช้</p>
+    </>
+  );
+
+  const scopeCardBody = (
+    <>
+      {/* mx-auto: จำเป็นเฉพาะใน flex-col (มือถือ) ให้ไอคอนอยู่กึ่งกลางความกว้างการ์ด — ใน
+          flex-row (desktop) ไม่มีผลอะไรเพราะการ์ด content ข้างๆ เป็น flex-1 กินพื้นที่ว่าง
+          ที่เหลือหมดแล้ว ไม่มี free space เหลือให้ mx-auto ไปแย่งจับ เลยใช้ class เดียวได้ทั้งคู่ */}
+      <div className="w-9 h-9 rounded-md flex items-center justify-center bg-accent text-accent-foreground shrink-0 mt-0.5 mx-auto">
+        <MapPin className="w-4 h-4" strokeWidth={2.5} />
+      </div>
+      <div className="min-w-0 flex-1 flex flex-col justify-center gap-2">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1">ประเภท</p>
+          <div className="flex flex-wrap gap-1">
+            {customerTypeLabels.length > 0 ? (
+              customerTypeLabels.map((label: string) => (
+                <span key={label} className="text-[11px] font-semibold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">{label}</span>
+              ))
+            ) : <span className="text-[11px] text-muted-foreground">ยังไม่ได้กำหนด</span>}
+          </div>
+        </div>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1">จังหวัด</p>
+          <div className="flex flex-wrap gap-1">
+            {provinces.length > 0 ? (
+              provinces.map((p) => (
+                <span key={p} className="text-[11px] font-semibold bg-accent text-accent-foreground px-1.5 py-0.5 rounded">{p}</span>
+              ))
+            ) : <span className="text-[11px] text-muted-foreground">ยังไม่ได้กำหนด</span>}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 md:px-6 pt-6 pb-8 space-y-6">
 
         {/* ── LOGO & BRAND IDENTITY ── */}
-        <div className="relative z-20 flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white/45 backdrop-blur-md border border-white/50 shadow-[0_4px_20px_-6px_rgba(46,43,122,0.12)] ring-1 ring-white/60">
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-card border border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] text-[#241F5E] shadow-md shadow-[#EAD94C]/40 ring-1 ring-white/50">
+            <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground">
               <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-sm font-bold text-[#241F5E] leading-tight">GPO Xchange</p>
-              <p className="text-[10px] text-[#6B6698] leading-tight">Staff Portal · Sale</p>
+              <p className="text-sm font-bold text-foreground leading-tight">GPO Xchange</p>
+              <p className="text-[11px] text-muted-foreground leading-tight">Staff Portal · Sale</p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -117,191 +177,205 @@ export default function SaleHubPage() {
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#E1592A] bg-white/70 hover:bg-[#FBEFE6] border border-white/60 hover:border-[#F0C6AA] px-3.5 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary border border-border px-4 py-2.5 rounded-md transition-colors disabled:opacity-60 disabled:pointer-events-none"
             >
-              {isLoggingOut ? <Loader2 className="w-4 h-5 animate-spin" /> : <LogOut className="w-4 h-5" />}
+              {isLoggingOut ? <Loader2 className="w-5 h-5 animate-spin" /> : <LogOut className="w-5 h-5" />}
               ออกจากระบบ
             </button>
           </div>
         </div>
 
-        {/* ══ Bento Grid — 6 คอลัมน์ เท่ากับ CSR hub ══ auto-rows เป็น minmax(128px,auto) แทน
-             128px ตายตัว — ให้ tile "ขอบเขตที่ดูแล" ขยายสูงได้เองถ้ามีชิปเยอะ (โชว์ครบทุกอัน
-             ไม่ตัด +N) โดยไม่กระทบ tile อื่นที่เนื้อหาพอดี 128px อยู่แล้ว (minmax ไม่ทำอะไรกับ
-             row ที่เนื้อหาไม่เกิน min อยู่แล้ว) */}
+        {/* ══ Bento Grid — 6 คอลัมน์ เท่ากับ CSR/Manager hub ══ auto-rows เป็น minmax(128px,auto)
+             แทน 128px ตายตัว — ให้ tile "ขอบเขตที่ดูแล" ขยายสูงได้เองถ้ามีชิปเยอะ (โชว์ครบทุก
+             อัน ไม่ตัด +N) โดยไม่กระทบ tile อื่นที่เนื้อหาพอดี 128px อยู่แล้ว */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4 md:auto-rows-[minmax(128px,auto)]">
 
-          {/* Tile: Welcome hero — 4×2 โทน indigo เดียวกับ CSR (ตัด "ขอบเขตที่ดูแล" ออกไปเป็น
-               tile ของตัวเองแล้ว ดู tile ถัดไป) */}
-          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#38339B] via-[#2E2B7A] to-[#211D57] p-6 md:p-7 text-white shadow-2xl shadow-[#1A1740]/50 ring-1 ring-white/10 md:col-span-4 md:row-span-2">
-            <div className="absolute inset-0 opacity-[0.06] bg-[radial-gradient(circle_at_1px_1px,_white_1px,_transparent_0)] bg-[length:16px_16px]" />
-            <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/[0.08] to-transparent" />
-            <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_70%)] opacity-60 blur-sm" />
-            <div className="absolute -bottom-10 -left-10 w-44 h-44 rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_70%)] opacity-50 blur-sm" />
+          {/* Tile: Welcome hero — 4×2 พื้นสีเขียวแบรนด์ทึบ (accent เดียวของทั้งหน้า) — เพิ่ม glow
+               วงกลมเดียว โทนเดียวกับพื้น (primary-foreground จางๆ) มุมขวาบนให้มีมิติ ต่างจาก
+               บลอบหลายลูกหลายสีของดีไซน์เดิม อันนี้มีจุดเดียว สีเดียว ไม่ใช่ของตกแต่งสุ่ม */}
+          <div className="relative overflow-hidden rounded-lg bg-primary p-6 md:p-7 text-primary-foreground md:col-span-4 md:row-span-2">
+            <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary-foreground/10 blur-2xl pointer-events-none" />
             <div className="relative h-full flex flex-col justify-center">
-              <p className="text-[#EAD94C] text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#EAD94C] shadow-[0_0_8px_2px_rgba(234,217,76,0.6)] animate-pulse" /> ยินดีต้อนรับ
+              <p className="text-primary-foreground/70 text-xs font-semibold uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary-foreground/70" /> ยินดีต้อนรับ
               </p>
-              <h1 className="text-2xl md:text-3xl font-black leading-tight tracking-tight flex items-center gap-2 drop-shadow-sm">
+              <h1 className="text-2xl md:text-3xl font-bold leading-tight tracking-tight flex items-center gap-2">
                 สวัสดีคุณ {staff.full_name || staff.username}
                 <User className="w-6 h-6 opacity-80" />
               </h1>
-              <p className="text-[#D8D5F0] mt-1.5 flex items-center gap-1.5 text-sm">
+              <p className="text-primary-foreground/85 mt-1.5 flex items-center gap-1.5 text-sm">
                 <TrendingUp className="w-4 h-4" /> แผนก Sale (พนักงานขาย)
               </p>
-              <p className="text-[#D8D5F0]/90 mt-3 text-sm leading-relaxed">
+              <p className="text-primary-foreground/75 mt-3 text-sm leading-relaxed">
                 ขอให้มีความสุขตลอดการทำงาน ในวันที่สดใส{today && <> {today}</>}
               </p>
+
+              {/* ── แถบสรุปตัวเลขด่วน — เดิมโชว์ total/active ซ้ำกับตัวเลขบนป้ายมุมขวาบนของ
+                   การ์ด "Active Workflow"/"ประวัติใบงาน" ด้านล่างทุกตัวเป๊ะๆ (ผู้ใช้ทักว่าดูแปลก
+                   เห็นเลขชุดเดียวกันวนซ้ำ 3 รอบ) เปลี่ยนมาโชว์ "ผลงาน" แทน (เสร็จสิ้นแล้ว +
+                   อัตราปิดงานสำเร็จ) ซึ่งเป็นมุมมองที่ 2 การ์ดด้านล่างไม่ได้บอก ใช้ counts ชุด
+                   เดียวกันที่ fetch ไว้อยู่แล้ว ไม่ query เพิ่ม ── */}
+              <div className="mt-6 pt-5 border-t border-primary-foreground/15 flex items-center gap-6 md:gap-8">
+                <div>
+                  <p className="text-2xl md:text-3xl font-bold tabular-nums leading-none">
+                    {counts ? counts.completed.toLocaleString('th-TH') : '—'}
+                  </p>
+                  <p className="text-[11px] text-primary-foreground/70 uppercase tracking-wide mt-1">เสร็จสิ้นแล้ว</p>
+                </div>
+                <div className="w-px h-9 bg-primary-foreground/20 shrink-0" />
+                <div>
+                  <p className="text-2xl md:text-3xl font-bold tabular-nums leading-none">
+                    {counts && counts.total > 0 ? `${Math.round((counts.completed / counts.total) * 100)}%` : '—'}
+                  </p>
+                  <p className="text-[11px] text-primary-foreground/70 uppercase tracking-wide mt-1">อัตราปิดงานสำเร็จ</p>
+                </div>
+                <Link
+                  href="/admin/sale/workflow"
+                  className="ml-auto hidden sm:flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/90 hover:text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3.5 py-2 rounded-md transition-colors shrink-0"
+                >
+                  ดูภาพรวม <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
             </div>
           </div>
 
-          {/* wrapper คู่ "สถานะบัญชี" + "ขอบเขตที่ดูแล" — บนมือถือ grid หลักมีคอลัมน์เดียว
-               (grid-cols-1) ทำให้ทั้งสอง tile (เดิม col-span-2 มีผลแค่ md+) เรียงชิดกันตาม
-               ธรรมชาติแต่ยืดเต็มความกว้างจอทีละใบ ดูโล่งเพราะเนื้อหาน้อยแต่กว้างเกินไป —
-               ครอบด้วย wrapper ที่เป็น grid-cols-2 เฉพาะช่วง base (มือถือ) ให้ทั้งคู่อยู่แถว
-               เดียวกันแทน ส่วน md+ ใช้ "md:contents" ถอด wrapper ออกจาก layout (ลูกกลับไปเป็น
-               grid item ตรงของ grid หลักเหมือนเดิมทุกอย่าง ไม่กระทบตำแหน่งบนจอกว้างเลย) */}
-          <div className="grid grid-cols-2 gap-4 md:contents">
-            {/* Tile: สถานะบัญชี — 2×1 พร้อมนาฬิกาเข็ม เหมือน CSR hub เป๊ะ (AnalogClock component
-                 กลางตัวเดียวกัน) */}
-            <div className="rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.15)] ring-1 ring-white/40 p-4 md:p-5 flex flex-col md:flex-row items-center md:items-center justify-center md:justify-between gap-2 md:gap-3 min-h-[112px] md:min-h-0 md:col-span-2 md:row-span-1">
-              <div className="min-w-0 text-center md:text-left">
-                <p className="text-[10px] md:text-[11px] font-semibold uppercase tracking-wide text-[#6B6698] mb-1 md:mb-1.5">สถานะบัญชี</p>
-                <div className="flex items-center justify-center md:justify-start gap-2">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-teal-500" />
-                  </span>
-                  <span className="text-[#241F5E] font-black text-base md:text-lg">Active</span>
-                </div>
-                <p className="text-[10px] md:text-[11px] text-[#A7A2C4] mt-1 md:mt-1.5 font-mono tabular-nums">
-                  {now ? now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '--:--:--'} น.
-                </p>
+          {/* ══ กลุ่ม สถานะบัญชี + บัญชีผู้ใช้ + ขอบเขตที่ดูแล — จับคู่กันคนละแบบระหว่าง
+               มือถือ/desktop ตามที่ผู้ใช้ขอ (มือถือ: บัญชีผู้ใช้จับคู่กับขอบเขตที่ดูแล /
+               desktop: บัญชีผู้ใช้จับคู่กับสถานะบัญชีแบบ CSR/Manager) — ต่างจาก media query
+               ปกติตรงที่ adjacency ของ DOM เปลี่ยนจริง ไม่ใช่แค่ขนาด/ทิศทาง เลย render wrapper
+               2 ชุดแยกกัน (mobile-only / desktop-only) โดยใช้เนื้อหาการ์ดชุดเดียวกัน
+               (statusCardBody/usernameCardBody/scopeCardBody ด้านบนของไฟล์) กันโค้ดซ้ำ ══ */}
+
+          {/* ── ชุดมือถือ (ซ่อนที่ md ขึ้นไป) — แถวบน: สถานะบัญชี+นาฬิกาเต็มความกว้าง เดี่ยวๆ
+               (justify-between เพราะตอนนี้ไม่มีการ์ดข้างๆ แล้ว ใช้ได้เต็มที่ไม่เกิดช่องว่าง
+               แปลกแบบตอนพยายามจับคู่กับบัญชีผู้ใช้) — แถวล่าง: บัญชีผู้ใช้คู่กับขอบเขตที่ดูแล
+               ปล่อยให้ grid stretch ยืดสูงเท่ากัน (ไม่ใส่ items-start) ตามที่ผู้ใช้ขอให้การ์ด
+               ทั้งสองสูงเท่ากัน — ต่างจากบั๊กรอบก่อน (สถานะบัญชี+ขอบเขตที่ดูแล) ตรงที่การ์ด
+               บัญชีผู้ใช้ใช้ items-center justify-center อยู่แล้ว เนื้อหาทั้งกลุ่ม (ไอคอน+
+               username+label) เลยแค่เลื่อนไปกึ่งกลางกล่องที่สูงขึ้น ไม่ได้แหวกเป็นช่องว่างกลาง
+               การ์ดแบบ "ขอบเขตที่ดูแล" เดิมที่ไอคอนตรึงบนแยกจากเนื้อหาด้านล่าง ── */}
+          <div className="md:hidden space-y-3">
+            {/* justify-between เดิมดันข้อความ/นาฬิกาไปสุดขอบการ์ดจนช่องว่างตรงกลางดูแปลก
+                (การ์ดนี้กว้างเต็มจอเดี่ยวๆ ไม่มีการ์ดข้างๆ มาจำกัดความกว้างแล้ว) เปลี่ยนเป็น
+                justify-center + gap คงที่ ให้ทั้งกลุ่มอยู่กึ่งกลางการ์ดแทน เหมือนที่แก้ให้ CSR */}
+            <div className="rounded-lg bg-card border border-border p-4 flex items-center justify-center gap-6">
+              {statusCardBody}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Link
+                href="/admin/account"
+                className="group flex flex-col items-center justify-center gap-1.5 rounded-lg bg-card border border-border p-3 text-center hover:border-primary/50 hover:shadow-md transition-all duration-200"
+              >
+                {usernameCardBody}
+              </Link>
+              <div className="relative rounded-lg bg-card border border-border overflow-hidden p-3 flex flex-col gap-2">
+                {scopeCardBody}
               </div>
-              <AnalogClock now={now} />
+            </div>
+          </div>
+
+          {/* ── ชุดเดสก์ท็อป (md ขึ้นไป, ซ่อนบนมือถือด้วย hidden) — display:contents ที่ md+
+               ถอด wrapper ออกจาก layout ให้ลูกทั้งสองกลายเป็น grid item ของ bento grid หลักตรงๆ
+               (เหมือนที่ CSR/Manager hub ทำ): สถานะบัญชี+บัญชีผู้ใช้แถวเดียวกัน (row1 col5-6)
+               แล้วขอบเขตที่ดูแลเต็มแถวถัดไป (row2 col5-6) เท่าความสูง hero พอดี ── */}
+          <div className="hidden md:contents">
+            <div className="flex items-stretch gap-3 md:col-span-2 md:row-span-1">
+              <div className="flex-1 min-w-0 rounded-lg bg-card border border-border p-5 flex items-center justify-center gap-6">
+                {statusCardBody}
+              </div>
+              <Link
+                href="/admin/account"
+                className="group flex flex-col items-center justify-center gap-1.5 w-28 md:w-32 shrink-0 rounded-lg bg-card border border-border p-3 text-center hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+              >
+                {usernameCardBody}
+              </Link>
             </div>
 
-            {/* Tile: ขอบเขตที่ดูแล — 2×1 แยกออกมาจาก hero เดิม (ประเภทลูกค้า + จังหวัดที่ดูแล) —
-                 เพิ่ม icon chip gradient เหลืองด้านซ้าย ให้ระดับความหรูเท่า tile อื่น (เดิมมีแค่
-                 ไอคอนเล็กลอยเดี่ยวๆ ไม่มี chip เหมือนจุดอื่นในหน้า ดูจืดกว่าจุดอื่น) — ไม่มี accent
-                 bar ด้านบนแล้ว (ตามที่ผู้ใช้ขอให้เอาออก) */}
-            <div className="relative rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.15)] ring-1 ring-white/40 overflow-hidden p-3 md:p-4 flex flex-col md:flex-row gap-2 md:gap-3 min-h-[112px] md:min-h-0 md:col-span-2 md:row-span-1">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br from-[#F4E27E] to-[#EAD94C] shadow-sm shadow-[#EAD94C]/40 ring-1 ring-white/50 shrink-0 mt-0.5 mx-auto md:mx-0">
-                <MapPin className="w-4 h-4 text-[#241F5E]" strokeWidth={2.5} />
-              </div>
-              <div className="min-w-0 flex-1 flex flex-col justify-center gap-2">
-                {/* ★ โชว์ครบทุกรายการ ไม่ตัด +N แล้ว (ตามที่ผู้ใช้ขอ) — customerTypeLabels
-                     มีได้สูงสุดแค่ 2 ค่าอยู่แล้วจริงๆ (ดู SALE_CUSTOMER_TYPE_OPTIONS ใน
-                     lib/sale-coverage.ts) ส่วน provinces อาจมีหลายจังหวัดจึงเป็นตัวที่ยาวได้
-                     จริง — โทนเหลืองตามที่ผู้ใช้ขอ (เดิม indigo ให้ตัดกับ "จังหวัด" โทนส้ม)
-                     ★ label แยกขึ้นบรรทัดของตัวเองแทนการวางรวมไว้ในแถว flex-wrap เดียวกับชิป
-                     (เดิม label กับชิปตัวแรกๆ แย่งพื้นที่บรรทัดแรกกัน พอชิปเยอะ/จอแคบ (มือถือ)
-                     จะ wrap ไม่สม่ำเสมอ ดูไม่เป็นระเบียบ ตามที่ผู้ใช้ทักมา) — แยกบรรทัดแล้วให้
-                     ชิปทุกตัว wrap ชิดซ้ายเป็นบล็อกของตัวเอง อ่านง่ายกว่าทุกความกว้างจอ */}
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mb-1">ประเภท</p>
-                  <div className="flex flex-wrap gap-1">
-                    {customerTypeLabels.length > 0 ? (
-                      customerTypeLabels.map((label: string) => (
-                        <span key={label} className="text-[10px] font-bold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-md">{label}</span>
-                      ))
-                    ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-[#6B6698] mb-1">จังหวัด</p>
-                  <div className="flex flex-wrap gap-1">
-                    {provinces.length > 0 ? (
-                      provinces.map((p) => (
-                        <span key={p} className="text-[10px] font-bold bg-[#FBEFE6] text-[#E1592A] px-1.5 py-0.5 rounded-md">{p}</span>
-                      ))
-                    ) : <span className="text-[10px] text-[#A7A2C4]">ยังไม่ได้กำหนด</span>}
-                  </div>
-                </div>
-              </div>
+            <div className="relative rounded-lg bg-card border border-border overflow-hidden p-4 flex flex-row gap-3 md:col-span-2 md:row-span-1">
+              {scopeCardBody}
             </div>
           </div>
 
           {/* Tile: Active Workflow — 2×2 การ์ดลิงก์ไปหน้าบอร์ดแยก (app/admin/sale/workflow) */}
           <Link href="/admin/sale/workflow" className="group block md:col-span-2 md:row-span-2">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(79,70,229,0.35)] hover:border-indigo-400/50 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-indigo-400 via-indigo-600 to-[#2E2B7A] shadow-[0_0_10px_rgba(79,70,229,0.5)]" />
+            <div className="relative h-full flex flex-col bg-card rounded-lg border border-border border-l-[3px] border-l-primary hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-md shadow-indigo-600/30 ring-1 ring-white/20 shrink-0">
-                    <Eye className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground shadow-sm shadow-primary/30 shrink-0 transition-transform duration-200 group-hover:scale-105">
+                    <Eye className="w-5 h-5" />
                   </div>
                   {counts ? (
-                    <p className="text-indigo-600 font-black text-2xl leading-none tabular-nums">{counts.active.toLocaleString('th-TH')}</p>
+                    <p className="text-foreground font-bold text-2xl leading-none tabular-nums">{counts.active.toLocaleString('th-TH')}</p>
                   ) : (
                     <Skeleton className="h-7 w-10" />
                   )}
                 </div>
-                <h2 className="text-sm font-black text-[#241F5E]">Active Workflow</h2>
-                <p className="text-xs text-[#6B6698] mt-1">ใบงานกำลังดำเนินการในพื้นที่ดูแลของคุณ</p>
+                <h2 className="text-sm font-bold text-foreground">Active Workflow</h2>
+                <p className="text-xs text-muted-foreground mt-1">ใบงานกำลังดำเนินการในพื้นที่ดูแลของคุณ</p>
 
                 {/* แถบไอคอนขั้นตอนเป็นของตกแต่งล้วนๆ (ไม่ใช่ stepper ที่คำนวณสถานะจริง) — แสดง
-                     ภาพรวม pipeline ตั้งแต่รับคำร้องจนอนุมัติ ให้การ์ดดูมีชีวิตชีวาขึ้น ตามที่
-                     ผู้ใช้ขอ (แนบภาพตัวอย่างมา) ปรับโทนสีให้เข้ากับ indigo ของการ์ดนี้แทนโทนทีล
-                     ในภาพตัวอย่าง ให้เข้ากับส่วนอื่นของหน้า */}
+                     ภาพรวม pipeline ตั้งแต่รับคำร้องจนอนุมัติ ใช้โทน accent เดียวกับส่วนอื่นของ
+                     หน้า ยกเว้นไอคอนสุดท้าย (เสร็จสิ้น) ที่ใช้ primary ทึบแทน ให้เป็นจุดหมายปลายทาง
+                     ที่เด่นกว่าขั้นตอนระหว่างทาง — สื่อความหมายจริง ไม่ใช่ไล่สีสุ่ม */}
                 <div className="flex items-center justify-center gap-0.5 my-4">
-                  {[ClipboardCheck, PackageSearch, Truck, Warehouse, CheckCircle2].map((Icon, i, arr) => (
+                  {[ClipboardCheck, PackageSearch, Truck, Warehouse, CheckCircle2].map((Icon, i, arr) => {
+                    const isLast = i === arr.length - 1;
+                    return (
                     <div key={i} className="flex items-center">
-                      <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center ring-1 ring-indigo-100 shadow-sm shrink-0">
-                        <Icon className="w-3.5 h-3.5 text-indigo-600" strokeWidth={2.5} />
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-105 ${isLast ? 'bg-primary' : 'bg-accent'}`}>
+                        <Icon className={`w-3.5 h-3.5 ${isLast ? 'text-primary-foreground' : 'text-accent-foreground'}`} strokeWidth={2.5} />
                       </div>
                       {i < arr.length - 1 && (
-                        <div className="w-2.5 sm:w-3 h-0 border-t-2 border-dotted border-indigo-200 mx-0.5 shrink-0" />
+                        <div className="w-2.5 sm:w-3 h-0 border-t-2 border-dotted border-border mx-0.5 shrink-0" />
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
-                <span className="mt-auto text-xs font-bold text-indigo-600 flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                <span className="mt-auto text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูภาพรวมใบงาน <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
             </div>
           </Link>
 
-          {/* Tile: ประวัติใบงาน — 2×2 การ์ดลิงก์ (เดิมชื่อ "ประวัติการแลกเปลี่ยน" เปลี่ยนตามที่
-               ผู้ใช้ขอ — ครอบคลุมคำร้องทุกประเภทไม่ใช่แค่แลกเปลี่ยน ชื่อเดิมจึงแคบเกินจริง) */}
+          {/* Tile: ประวัติใบงาน — 2×2 การ์ดลิงก์ */}
           <Link href="/admin/sale/history" className="group block md:col-span-2 md:row-span-2">
-            <div className="relative h-full flex flex-col bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.12)] hover:shadow-[0_20px_45px_-15px_rgba(225,89,42,0.4)] hover:border-[#E1592A]/40 transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-              <div className="absolute top-0 left-6 right-6 h-[3px] rounded-b-full bg-gradient-to-r from-[#EAD94C] via-[#E1592A] to-[#2E2B7A] shadow-[0_0_10px_rgba(225,89,42,0.5)]" />
+            <div className="relative h-full flex flex-col bg-card rounded-lg border border-border border-l-[3px] border-l-primary hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-gradient-to-br from-[#EA6A3B] to-[#C9481E] shadow-md shadow-[#E1592A]/30 ring-1 ring-white/20 shrink-0">
-                    <History className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground shadow-sm shadow-primary/30 shrink-0 transition-transform duration-200 group-hover:scale-105">
+                    <History className="w-5 h-5" />
                   </div>
                   {counts ? (
-                    <p className="text-[#E1592A] font-black text-2xl leading-none tabular-nums">{counts.total.toLocaleString('th-TH')}</p>
+                    <p className="text-foreground font-bold text-2xl leading-none tabular-nums">{counts.total.toLocaleString('th-TH')}</p>
                   ) : (
                     <Skeleton className="h-7 w-10" />
                   )}
                 </div>
-                <h2 className="text-sm font-black text-[#241F5E]">ประวัติใบงาน</h2>
-                <p className="text-xs text-[#6B6698] mt-1">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
+                <h2 className="text-sm font-bold text-foreground">ประวัติใบงาน</h2>
+                <p className="text-xs text-muted-foreground mt-1">แสดงเฉพาะข้อมูลลูกค้าในพื้นที่ดูแลรับผิดชอบของคุณ</p>
 
                 {/* mini stat แยกตามประเภทคำร้อง 2 ประเภทหลักที่ sale ต้องติดตามบ่อยที่สุด —
                      div เฉยๆ ไม่ใช่ button จริง เพราะทั้งการ์ดถูกห่อด้วย Link ไปหน้ารายละเอียด
-                     แล้ว ซ้อน button คลิกได้จริงเข้าไปอีกชั้นจะผิด HTML semantics (pattern
-                     เดียวกับ MiniStat ที่ CSR hub ใช้ในการ์ด "CSR Dashboard") */}
+                     แล้ว ซ้อน button คลิกได้จริงเข้าไปอีกชั้นจะผิด HTML semantics — ทั้งสองช่อง
+                     ใช้โทนเดียวกัน (accent) เพราะเป็นแค่ประเภทคำร้อง ไม่ใช่สถานะที่ต้องแยกสี */}
                 <div className="grid grid-cols-2 gap-2 mt-3">
                   {counts ? (
                     <>
-                      <MiniStat icon={Receipt} value={counts.debtReduction} label="รับคืนลดหนี้" iconBg="bg-[#FBEFE6]" iconText="text-[#E1592A]" />
-                      <MiniStat icon={ArrowLeftRight} value={counts.exchange} label="รับคืนแลกเปลี่ยน" iconBg="bg-[#ECEAF6]" iconText="text-[#2E2B7A]" />
+                      <MiniStat icon={Receipt} value={counts.debtReduction} label="รับคืนลดหนี้" iconBg="bg-accent" iconText="text-accent-foreground" />
+                      <MiniStat icon={ArrowLeftRight} value={counts.exchange} label="รับคืนแลกเปลี่ยน" iconBg="bg-accent" iconText="text-accent-foreground" />
                     </>
                   ) : (
                     <>
-                      <Skeleton className="h-[68px] rounded-xl" />
-                      <Skeleton className="h-[68px] rounded-xl" />
+                      <Skeleton className="h-[68px] rounded-md" />
+                      <Skeleton className="h-[68px] rounded-md" />
                     </>
                   )}
                 </div>
 
-                <span className="mt-auto pt-3 text-xs font-bold text-[#E1592A] flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                <span className="mt-auto pt-3 text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-1.5 transition-all">
                   ดูประวัติใบงาน <ArrowRight className="w-3.5 h-3.5" />
                 </span>
               </div>
@@ -309,17 +383,17 @@ export default function SaleHubPage() {
           </Link>
 
           {/* Tile: ศูนย์รายงาน — 2×2 ยังเป็น placeholder เหมือนเดิม (รอพัฒนาต่อ) */}
-          <div className="md:col-span-2 md:row-span-2 h-full min-h-[128px] flex flex-col bg-white/60 backdrop-blur-xl rounded-3xl border border-dashed border-white/60 opacity-70 overflow-hidden">
+          <div className="md:col-span-2 md:row-span-2 h-full min-h-[128px] flex flex-col bg-card rounded-lg border border-dashed border-border opacity-80 overflow-hidden">
             <div className="p-6 flex-1 flex flex-col">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-[#F1EDE0] shrink-0 mb-3">
-                <BarChart3 className="w-5 h-5 text-[#6B6698]" />
+              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-secondary shrink-0 mb-3">
+                <BarChart3 className="w-5 h-5 text-muted-foreground" />
               </div>
-              <h2 className="text-sm font-black text-[#241F5E] flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
                 ศูนย์รายงาน (Report Center)
-                <span className="text-[9px] font-bold uppercase tracking-wide bg-[#F1EDE0] text-[#6B6698] px-2 py-0.5 rounded-full">เร็วๆ นี้</span>
+                <span className="text-[11px] font-bold uppercase tracking-wide bg-secondary text-muted-foreground px-2 py-0.5 rounded-full">เร็วๆ นี้</span>
               </h2>
-              <p className="text-xs text-[#6B6698] mt-1">สรุปสถิติยอดขาย/คำร้องของลูกค้าที่ดูแล — อยู่ระหว่างการพัฒนา</p>
-              <div className="mt-auto flex items-center justify-center rounded-2xl text-xs text-[#A7A2C4] bg-[#F1EDE0] border-2 border-dashed border-[#EADFAF] py-4">
+              <p className="text-xs text-muted-foreground mt-1">สรุปสถิติยอดขาย/คำร้องของลูกค้าที่ดูแล — อยู่ระหว่างการพัฒนา</p>
+              <div className="mt-auto flex items-center justify-center rounded-md text-xs text-muted-foreground bg-secondary border-2 border-dashed border-border py-4">
                 กำลังพัฒนา
               </div>
             </div>
@@ -327,9 +401,8 @@ export default function SaleHubPage() {
         </div>
       </main>
 
-      <footer className="relative mt-4 py-5 px-6 text-center border-t border-[#EADFAF]">
-        <div className="absolute left-1/2 -translate-x-1/2 -top-px w-16 h-px bg-gradient-to-r from-transparent via-[#EAD94C] to-transparent" />
-        <p className="text-[11px] text-[#6B6698]">© 2026 <span className="font-bold text-[#E1592A]">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
+      <footer className="mt-4 py-5 px-6 text-center border-t border-border">
+        <p className="text-[11px] text-muted-foreground">© 2026 <span className="font-semibold text-foreground">GPO Xchange Portal</span> • องค์การเภสัชกรรม สาขาภาคใต้ &nbsp;|&nbsp; Staff Portal</p>
       </footer>
     </div>
   );

@@ -45,30 +45,30 @@ export function StatusBadge({ status }: { status: string }) {
 type ActionModal = 'checked_in' | 'receiving' | 'rejected' | null;
 
 const MODAL_META: Record<Exclude<ActionModal, null>, {
-  title: string; icon: typeof Check; iconBg: string; iconColor: string; gradient: string; notes?: readonly { code: string; label: string }[];
+  title: string; icon: typeof Check; iconBg: string; iconColor: string; solidBg: string; notes?: readonly { code: string; label: string }[];
 }> = {
   checked_in: {
     title: 'ยืนยันการตรวจรับสินค้า',
     icon: CheckCircle2,
-    iconBg: '#ccfbf1',
+    iconBg: 'bg-teal-100',
     iconColor: 'text-teal-600',
-    gradient: 'linear-gradient(135deg,#0f766e,#14b8a6)',
+    solidBg: 'bg-teal-600 hover:bg-teal-700',
     notes: WH_CHECKED_IN_NOTES,
   },
   receiving: {
     title: 'ยืนยันการจัดเก็บเข้าคลัง',
     icon: PackageCheck,
-    iconBg: '#dbeafe',
+    iconBg: 'bg-blue-100',
     iconColor: 'text-blue-600',
-    gradient: 'linear-gradient(135deg,#1d4ed8,#3b82f6)',
+    solidBg: 'bg-blue-600 hover:bg-blue-700',
     notes: WH_RECEIVING_NOTES,
   },
   rejected: {
     title: 'ยืนยันการปฏิเสธรายการ',
     icon: AlertTriangle,
-    iconBg: '#fee2e2',
+    iconBg: 'bg-rose-100',
     iconColor: 'text-rose-600',
-    gradient: 'linear-gradient(135deg,#dc2626,#f87171)',
+    solidBg: 'bg-rose-600 hover:bg-rose-700',
     notes: undefined, // ใช้ REJECTION_REASONS แทน
   },
 };
@@ -118,7 +118,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
   const ModalIcon = meta?.icon;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 bg-white rounded-xl border border-border hover:border-emerald-200 hover:bg-emerald-50/20 transition-all duration-150">
+    <div className="grid grid-cols-2 md:grid-cols-12 gap-2 md:gap-3 items-start md:items-center px-4 py-3 bg-card rounded-md border border-border hover:border-primary/30 transition-colors">
       <div className="col-span-2 md:col-span-4">
         <p className="text-sm font-bold text-foreground truncate">{item.drug_name}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1">
@@ -126,11 +126,11 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
         </p>
       </div>
       <div className="col-span-1 md:col-span-2 text-xs text-muted-foreground">
-        <span className="md:hidden text-[10px] text-muted-foreground">หมดอายุ: </span>
+        <span className="md:hidden text-[11px] text-muted-foreground">หมดอายุ: </span>
         {item.exp_date ? new Date(item.exp_date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
       </div>
-      <div className="col-span-1 md:col-span-2 text-xs font-bold text-slate-600 text-left md:text-right">
-        <span className="md:hidden text-[10px] font-normal text-muted-foreground">จำนวน: </span>
+      <div className="col-span-1 md:col-span-2 text-xs font-bold text-foreground text-left md:text-right">
+        <span className="md:hidden text-[11px] font-normal text-muted-foreground">จำนวน: </span>
         {item.qty} <span className="font-normal text-muted-foreground">{item.unit}</span>
       </div>
       <div className="col-span-1 md:col-span-2">
@@ -141,19 +141,17 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
       <div className="col-span-1 md:col-span-2 flex justify-start md:justify-end gap-1.5 flex-wrap">
         {isProcessing ? (
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <div className="w-3 h-3 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[9px] font-bold">กำลังบันทึก...</span>
+            <div className="w-3 h-3 border-2 border-muted-foreground/40 border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] font-bold">กำลังบันทึก...</span>
           </div>
         ) : (
           <>
-            {/* ปุ่มอนุมัติ/ปฏิเสธ (รอตรวจรับ) — มาตรฐานเดียวกับ CSRDrugRow.tsx: สีทึบตัน,
-                text-xs, ไอคอนจริง (ไม่ใช่ตัวอักษร "X" ลอยๆ แบบเดิม), flex-1 md:flex-none
-                ให้ปุ่มเท่ากันทั้งสอง ไม่ใช้ hover lift/gradient แยกสไตล์จากปุ่มอื่นในระบบ —
-                คงโทนสีเดิมของ WH (teal=checked_in, rose=rejected) ให้ตรงกับ WH_STATUS ด้านบน */}
+            {/* ปุ่มอนุมัติ/ปฏิเสธ (รอตรวจรับ) — สีทึบตัน คงโทนสีเดิมของ WH (teal=checked_in,
+                rose=rejected) ให้ตรงกับ WH_STATUS ด้านบน */}
             {item.current_status === 'at_warehouse' && (
               <button
                 onClick={() => openActionModal('checked_in')}
-                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-teal-700 transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-teal-600 text-white rounded-md text-xs font-bold hover:bg-teal-700 transition-colors"
               ><Check size={13} strokeWidth={3} /> อนุมัติ</button>
             )}
 
@@ -161,32 +159,31 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
             {item.current_status === 'at_warehouse' && (
               <button
                 onClick={() => openActionModal('rejected')}
-                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm hover:bg-rose-700 transition-all"
+                className="flex-1 md:flex-none flex items-center justify-center gap-1 px-3 py-2 md:py-1.5 bg-rose-600 text-white rounded-md text-xs font-bold hover:bg-rose-700 transition-colors"
               ><X size={13} strokeWidth={3} /> ปฏิเสธ</button>
             )}
 
             {/* สถานะตรวจรับแล้ว (รอ confirm ทั้งใบ) */}
             {item.current_status === 'checked_in' && !reqConfirmed && (
-              <span className="text-[10px] font-bold text-teal-600 flex items-center gap-1"><Check size={11} strokeWidth={3} /> ตรวจรับแล้ว</span>
+              <span className="text-[11px] font-bold text-teal-600 flex items-center gap-1"><Check size={11} strokeWidth={3} /> ตรวจรับแล้ว</span>
             )}
 
             {/* ปุ่มจัดเก็บ (หลัง confirm ทั้งใบแล้ว) */}
             {item.current_status === 'checked_in' && reqConfirmed && (
               <button
                 onClick={() => openActionModal('receiving')}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all"
-                style={{ background: 'linear-gradient(135deg,#1d4ed8,#3b82f6)' }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-md text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-700 active:scale-95 transition-colors"
               ><PackageCheck size={11} strokeWidth={2.5} /> จัดเก็บ</button>
             )}
 
             {/* สถานะหลังจัดเก็บแล้ว */}
             {item.current_status === 'receiving' && (
-              <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1"><Check size={11} strokeWidth={3} /> จัดเก็บแล้ว</span>
+              <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1"><Check size={11} strokeWidth={3} /> จัดเก็บแล้ว</span>
             )}
 
             {/* สถานะปฏิเสธ */}
             {item.current_status === 'rejected' && (
-              <span className="text-[10px] font-bold text-rose-500 flex items-center gap-1"><X size={11} strokeWidth={3} /> ปฏิเสธแล้ว</span>
+              <span className="text-[11px] font-bold text-rose-600 flex items-center gap-1"><X size={11} strokeWidth={3} /> ปฏิเสธแล้ว</span>
             )}
           </>
         )}
@@ -197,12 +194,12 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
           ถ้าแถวอยู่ในสาย ancestor ที่มี transform (เช่น hover:-translate-y-* บนการ์ดแม่) ══ */}
       {actionModal && meta && ModalIcon && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
-            <div className="h-1.5" style={{ background: meta.gradient }} />
+          <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className={`h-1.5 ${meta.solidBg}`} />
 
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: meta.iconBg }}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${meta.iconBg}`}>
                   <ModalIcon size={22} className={meta.iconColor} strokeWidth={2.5} />
                 </div>
                 <div className="min-w-0">
@@ -225,7 +222,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
                   type="button"
                   onClick={() => setActionModal(null)}
                   disabled={isProcessing}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -233,8 +230,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
                   type="button"
                   onClick={submitAction}
                   disabled={isProcessing || !reasonCode || (reasonCode === 'other' && !detail.trim())}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: meta.gradient }}
+                  className={`py-3.5 rounded-md font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${meta.solidBg}`}
                 >
                   {isProcessing
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>

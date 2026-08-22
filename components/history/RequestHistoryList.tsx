@@ -277,23 +277,31 @@ export function RequestHistoryList({
                       )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      {req.total_value != null && (
-                        <span className={`${T.meta} font-semibold text-muted-foreground hidden sm:inline`}>
-                          {formatCurrency(req.total_value)}
+                      {/* สถานะ+มูลค่า เรียงซ้อนแนวตั้งชิดขวาแทนการวางเรียงแนวนอน — เดิม badge
+                           ความยาวไม่เท่ากันต่อสถานะ (เช่น "ถูกปฏิเสธ" สั้น vs "รอตรวจสอบคำร้อง"
+                           ยาว) ทำให้มูลค่าที่วางไว้ก่อนหน้า badge ขยับตำแหน่งไปมาไม่เป็นแนวเดียว
+                           กันทุกแถว ดูไม่เป็นระเบียบ — ย้าย badge ขึ้นบน (เด่นกว่า เพราะเป็นสิ่ง
+                           ที่ผู้ใช้สแกนหาก่อน) มูลค่าไว้บรรทัดล่างชิดขวาเสมอ ไม่ขยับตามความยาว
+                           badge อีกต่อไป */}
+                      <div className="flex flex-col items-end gap-1">
+                        <span
+                          className={`${T.badge} font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                            req.current_status === REJECTED_STATUS
+                              ? 'bg-red-50 text-red-700'
+                              : req.current_status === 'completed'
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'bg-amber-50 text-amber-700'
+                          }`}
+                        >
+                          {getStatusLabel(req.current_status)}
                         </span>
-                      )}
-                      <span
-                        className={`${T.badge} font-bold px-2.5 py-1 rounded-full ${
-                          req.current_status === REJECTED_STATUS
-                            ? 'bg-red-50 text-red-700'
-                            : req.current_status === 'completed'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-amber-50 text-amber-700'
-                        }`}
-                      >
-                        {getStatusLabel(req.current_status)}
-                      </span>
-                      <ChevronDown size={T.chevron} strokeWidth={2.5} className={`text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                        {req.total_value != null && (
+                          <span className={`${T.meta} font-semibold text-muted-foreground hidden sm:inline`}>
+                            {formatCurrency(req.total_value)}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronDown size={T.chevron} strokeWidth={2.5} className={`text-muted-foreground transition-transform duration-200 shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                   </button>
 

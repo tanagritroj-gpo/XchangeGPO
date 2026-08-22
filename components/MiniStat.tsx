@@ -15,12 +15,12 @@ export function MiniStat({ icon: Icon, value, label, iconBg, iconText }: {
   icon: LucideIcon; value: number; label: string; iconBg: string; iconText: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-white/80 p-2 flex flex-col gap-1 min-w-0">
+    <div className="rounded-md border border-border bg-card p-2 flex flex-col gap-1 min-w-0">
       <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${iconBg} ${iconText}`}>
-        <Icon className="w-3 h-3" strokeWidth={2.5} />
+        <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
       </div>
-      <p className="text-base font-black text-[#241F5E] leading-none tabular-nums">{value.toLocaleString('th-TH')}</p>
-      <p className="text-[9px] font-bold text-[#6B6698] leading-tight truncate">{label}</p>
+      <p className="text-base font-bold text-foreground leading-none tabular-nums">{value.toLocaleString('th-TH')}</p>
+      <p className="text-[11px] font-semibold text-muted-foreground leading-tight truncate">{label}</p>
     </div>
   );
 }
