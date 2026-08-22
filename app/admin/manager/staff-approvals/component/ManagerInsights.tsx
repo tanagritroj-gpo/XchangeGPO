@@ -74,14 +74,14 @@ function StatCard({ icon: Icon, label, value, sub, accentBg, accentColor }: {
   icon: LucideIcon; label: string; value: string; sub?: string; accentBg: string; accentColor: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-border p-4 md:p-5 flex items-center gap-3.5">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${accentBg}`}>
+    <div className="bg-card rounded-lg border border-border p-4 md:p-5 flex items-center gap-3.5">
+      <div className={`w-11 h-11 rounded-md flex items-center justify-center shrink-0 ${accentBg}`}>
         <Icon size={20} className={accentColor} strokeWidth={2.5} />
       </div>
       <div className="min-w-0">
         <p className="text-[11px] font-semibold text-muted-foreground truncate">{label}</p>
         <p className="text-lg md:text-xl font-bold text-foreground truncate">{value}</p>
-        {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+        {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
       </div>
     </div>
   );
@@ -94,14 +94,14 @@ function ComparisonCard({ icon: Icon, label, periodLabel, current, previous, for
   const change = pctChange(current, previous);
   const isUp = change >= 0;
   return (
-    <div className="bg-white rounded-2xl border border-border p-4 md:p-5">
+    <div className="bg-card rounded-lg border border-border p-4 md:p-5">
       <div className="flex items-center gap-2.5 mb-3">
         <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${accentBg}`}>
           <Icon size={16} className={accentColor} strokeWidth={2.5} />
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold text-muted-foreground truncate">{label}</p>
-          <p className="text-[10px] text-muted-foreground">{periodLabel}</p>
+          <p className="text-[11px] text-muted-foreground">{periodLabel}</p>
         </div>
       </div>
       <div className="flex items-end justify-between gap-2">
@@ -111,7 +111,7 @@ function ComparisonCard({ icon: Icon, label, periodLabel, current, previous, for
           {Math.abs(change)}%
         </span>
       </div>
-      <p className="text-[10px] text-muted-foreground mt-1">เทียบก่อนหน้า: {formatValue(previous)}</p>
+      <p className="text-[11px] text-muted-foreground mt-1">เทียบก่อนหน้า: {formatValue(previous)}</p>
     </div>
   );
 }
@@ -120,7 +120,7 @@ function ChartCard({ icon: Icon, title, subtitle, accentBg, accentColor, rightSl
   icon: LucideIcon; title: string; subtitle: string; accentBg: string; accentColor: string; rightSlot?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-border p-4 md:p-6">
+    <div className="bg-card rounded-lg border border-border p-4 md:p-6">
       <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2.5">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${accentBg}`}>
@@ -164,8 +164,8 @@ function DonutWithLegend({ data, colors, tooltipFormatter, legendValueFormatter,
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-base font-black text-foreground">{centerValue}</p>
-          <p className="text-[9px] text-muted-foreground text-center leading-tight px-4">{centerLabel}</p>
+          <p className="text-base font-bold text-foreground">{centerValue}</p>
+          <p className="text-[11px] text-muted-foreground text-center leading-tight px-4">{centerLabel}</p>
         </div>
       </div>
       <div className="flex-1 min-w-0 w-full space-y-1.5">
@@ -174,8 +174,8 @@ function DonutWithLegend({ data, colors, tooltipFormatter, legendValueFormatter,
         ) : data.map((d, i) => (
           <div key={d.name} className="flex items-center gap-2 text-xs">
             <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: colors[i % colors.length] }} />
-            <span className="truncate flex-1 text-slate-600 font-medium" title={d.name}>{d.name}</span>
-            <span className="font-bold text-slate-700 shrink-0">{legendValueFormatter(d.value)}</span>
+            <span className="truncate flex-1 text-muted-foreground font-medium" title={d.name}>{d.name}</span>
+            <span className="font-bold text-foreground shrink-0">{legendValueFormatter(d.value)}</span>
           </div>
         ))}
       </div>
@@ -185,16 +185,16 @@ function DonutWithLegend({ data, colors, tooltipFormatter, legendValueFormatter,
 
 function PeriodToggle({ mode, onChange }: { mode: 'month' | 'year'; onChange: (m: 'month' | 'year') => void }) {
   return (
-    <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100">
+    <div className="inline-flex items-center gap-1 p-1 rounded-md bg-secondary">
       <button
         onClick={() => onChange('month')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'month' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${mode === 'month' ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
       >
         รายเดือน
       </button>
       <button
         onClick={() => onChange('year')}
-        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${mode === 'year' ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
+        className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${mode === 'year' ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
       >
         รายปี
       </button>
@@ -208,12 +208,12 @@ function ViewToggle<T extends string>({ value, options, onChange }: {
   value: T; options: { key: T; label: string }[]; onChange: (v: T) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-slate-100">
+    <div className="inline-flex items-center gap-1 p-1 rounded-md bg-secondary">
       {options.map((opt) => (
         <button
           key={opt.key}
           onClick={() => onChange(opt.key)}
-          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${value === opt.key ? 'bg-white shadow-sm text-foreground' : 'text-muted-foreground hover:text-slate-700'}`}
+          className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${value === opt.key ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
         >
           {opt.label}
         </button>
@@ -468,8 +468,8 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
   return (
     <section className="space-y-5">
       <div className="flex items-center gap-2.5 px-1">
-        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
-          <BarChart3 size={16} className="text-purple-600" strokeWidth={2.5} />
+        <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center shrink-0">
+          <BarChart3 size={16} className="text-accent-foreground" strokeWidth={2.5} />
         </div>
         <div>
           <h2 className="text-sm font-bold text-foreground">ภาพรวม & สถิติ</h2>
@@ -481,7 +481,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <StatCard icon={ClipboardList} label="ใบงานทั้งหมด" value={requests.length.toLocaleString('th-TH')} accentBg="bg-blue-100" accentColor="text-blue-600" />
         <StatCard icon={Wallet} label="มูลค่ารวมทั้งหมด" value={`${totalValue.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`} accentBg="bg-emerald-100" accentColor="text-emerald-600" />
-        <StatCard icon={Package} label="รายการยารวม" value={totalDrugItems.toLocaleString('th-TH')} sub="ทุกใบงาน" accentBg="bg-teal-100" accentColor="text-teal-600" />
+        <StatCard icon={Package} label="รายการยารวม" value={totalDrugItems.toLocaleString('th-TH')} sub="ทุกใบงาน" accentBg="bg-rose-100" accentColor="text-rose-600" />
         <StatCard
           icon={Clock} label="เวลาเฉลี่ยจนเสร็จสิ้น"
           value={avgTurnaroundDays !== null ? `${avgTurnaroundDays} วัน` : '—'}
@@ -508,13 +508,13 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
           icon={ClipboardList} label="ใบงานปีนี้" periodLabel={`เทียบปีก่อน (${periodComparison.yearLabel})`}
           current={periodComparison.thisYearCount} previous={periodComparison.lastYearCount}
           formatValue={(n) => n.toLocaleString('th-TH')}
-          accentBg="bg-indigo-100" accentColor="text-indigo-600"
+          accentBg="bg-blue-100" accentColor="text-blue-600"
         />
         <ComparisonCard
           icon={Wallet} label="มูลค่าปีนี้" periodLabel={`เทียบปีก่อน (${periodComparison.yearLabel})`}
           current={periodComparison.thisYearValue} previous={periodComparison.lastYearValue}
           formatValue={(n) => `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`}
-          accentBg="bg-purple-100" accentColor="text-purple-600"
+          accentBg="bg-emerald-100" accentColor="text-emerald-600"
         />
       </div>
 
@@ -522,7 +522,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       <ChartCard
         icon={TrendingUp} title="แนวโน้มใบงาน"
         subtitle={requestTrendMetric === 'count' ? 'จำนวนใบงานตามช่วงเวลา' : 'มูลค่ารวมของใบงานตามช่วงเวลา'}
-        accentBg="bg-teal-100" accentColor="text-teal-600"
+        accentBg="bg-blue-100" accentColor="text-blue-600"
         rightSlot={
           <div className="flex items-center gap-2 flex-wrap">
             <ViewToggle
@@ -555,7 +555,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       {/* ── ใหม่ #1: เวลาเฉลี่ยแต่ละขั้นตอน ── */}
       <ChartCard
         icon={Layers} title="เวลาเฉลี่ยแต่ละขั้นตอน" subtitle="จำนวนวันเฉลี่ยที่ใช้ในแต่ละช่วงของ workflow (จากข้อมูลจริง)"
-        accentBg="bg-cyan-100" accentColor="text-cyan-600"
+        accentBg="bg-amber-100" accentColor="text-amber-600"
       >
         {stageDurations.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-10">ยังไม่มีข้อมูลเพียงพอสำหรับคำนวณ</p>
@@ -600,16 +600,16 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       {/* ── 4) มูลค่าสะสมแยกตาม request_type รายเดือน/ปี ── */}
       <ChartCard
         icon={Wallet} title="มูลค่าตามประเภทคำร้อง" subtitle="มูลค่ารวมแยกตามประเภท — เริ่มแสดงจากช่วงที่เริ่มมีข้อมูลจริง"
-        accentBg="bg-indigo-100" accentColor="text-indigo-600"
+        accentBg="bg-emerald-100" accentColor="text-emerald-600"
         rightSlot={<PeriodToggle mode={valuePeriodMode} onChange={setValuePeriodMode} />}
       >
         {/* ── แถบสรุปมูลค่ารวมต่อประเภท — อ่านตัวเลขรวมได้ทันทีไม่ต้องชี้ดู tooltip ทีละแท่ง ── */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
           {valueByTypeTotals.map(({ type, value }) => (
-            <span key={type} className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-slate-50 border border-slate-100">
+            <span key={type} className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-secondary border border-transparent">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: REQUEST_TYPE_COLORS[type] ?? DEFAULT_TYPE_COLOR }} />
-              <span className="text-slate-600">{type}</span>
-              <span className="text-slate-800 font-bold">{value.toLocaleString('th-TH')} บาท</span>
+              <span className="text-muted-foreground">{type}</span>
+              <span className="text-foreground font-bold">{value.toLocaleString('th-TH')} บาท</span>
             </span>
           ))}
         </div>
@@ -631,7 +631,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
 
       {/* ── ใหม่ #3: มูลค่า/จำนวนใบงานแยกตามจังหวัด ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <ChartCard icon={MapPin} title="จำนวนใบงานตามจังหวัด" subtitle="Top 10 จังหวัดตามจำนวนใบงาน" accentBg="bg-rose-100" accentColor="text-rose-600">
+        <ChartCard icon={MapPin} title="จำนวนใบงานตามจังหวัด" subtitle="Top 10 จังหวัดตามจำนวนใบงาน" accentBg="bg-blue-100" accentColor="text-blue-600">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={provinceStats.byCount} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
@@ -643,7 +643,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard icon={MapPin} title="มูลค่าตามจังหวัด" subtitle="Top 10 จังหวัดตามมูลค่ารวม (บาท)" accentBg="bg-orange-100" accentColor="text-orange-600">
+        <ChartCard icon={MapPin} title="มูลค่าตามจังหวัด" subtitle="Top 10 จังหวัดตามมูลค่ารวม (บาท)" accentBg="bg-emerald-100" accentColor="text-emerald-600">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={provinceStats.byValue} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
@@ -693,7 +693,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard icon={AlertOctagon} title="อัตราการปฏิเสธ" subtitle={`เฉลี่ย ${rejectionRateOverall}% ของใบงานทั้งหมด`} accentBg="bg-orange-100" accentColor="text-orange-600">
+        <ChartCard icon={AlertOctagon} title="อัตราการปฏิเสธ" subtitle={`เฉลี่ย ${rejectionRateOverall}% ของใบงานทั้งหมด`} accentBg="bg-destructive/10" accentColor="text-destructive">
           <ResponsiveContainer width="100%" height={240}>
             <LineChart data={rejectionTrend} margin={{ top: 4, right: 16, left: -12, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -707,7 +707,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
       </div>
 
       {/* ── ใหม่ #4: เหตุผลการปฏิเสธยอดนิยม ── */}
-      <ChartCard icon={XCircle} title="เหตุผลการปฏิเสธยอดนิยม" subtitle="Top 8 หมายเหตุที่พนักงานระบุตอนปฏิเสธ" accentBg="bg-red-100" accentColor="text-red-600">
+      <ChartCard icon={XCircle} title="เหตุผลการปฏิเสธยอดนิยม" subtitle="Top 8 หมายเหตุที่พนักงานระบุตอนปฏิเสธ" accentBg="bg-destructive/10" accentColor="text-destructive">
         {topRejectionReasons.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-10">ยังไม่มีข้อมูลการปฏิเสธที่มีหมายเหตุ</p>
         ) : (

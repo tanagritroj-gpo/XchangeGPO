@@ -13,6 +13,8 @@ import {
   Wallet,
   History,
   UserRound,
+  ChevronLeft,
+  ChevronRight,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -70,6 +72,9 @@ const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
 // ลำดับแท็บ: ทั้งหมด -> ตามขั้นตอนงานจริง (จบที่ "เสร็จสิ้น") -> ปฏิเสธคำร้อง (ย้ายไปท้ายสุด
 // แทนที่จะขึ้นก่อนตามที่ตกลงกันไว้)
 const GROUP_ORDER: Group[] = [ALL_GROUP, ...STAGE_GROUPS, REJECTED_GROUP];
+
+// จำนวนรายการต่อหน้าในแต่ละแท็บสถานะ — เดิมโชว์ทุกรายการรวดเดียว พอสถานะไหนมีเยอะจะเลื่อนยาว
+const PAGE_SIZE = 10;
 
 function getGroupKey(request: HistoryRequestRow): string {
   if (request.current_status === REJECTED_STATUS) return 'rejected';
@@ -268,6 +273,13 @@ export function ExchangeHistoryView({
   const [history, setHistory] = useState<HistoryRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string>(GROUP_ORDER[0].key);
+  const [page, setPage] = useState(1);
+
+  // สลับแท็บสถานะแล้วต้องกลับไปหน้า 1 เสมอ กันเคสค้างอยู่หน้า 3 ของแท็บเดิม
+  // แล้วสลับมาแท็บใหม่ที่มีแค่หน้าเดียว (จะเห็นรายการว่างทั้งที่มีข้อมูลจริง)
+  useEffect(() => {
+    setPage(1);
+  }, [activeKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -299,6 +311,9 @@ export function ExchangeHistoryView({
   }, [loading]);
 
   const activeTab = tabs.find((t) => t.key === activeKey) ?? tabs[0];
+  const totalPages = Math.max(1, Math.ceil(activeTab.items.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pagedItems = activeTab.items.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const completedCount = tabs.find((t) => t.key === 'completed')?.items.length ?? 0;
   const rejectedCount = tabs.find((t) => t.key === 'rejected')?.items.length ?? 0;
@@ -417,11 +432,50 @@ export function ExchangeHistoryView({
               <p className="text-sm font-bold text-muted-foreground">ยังไม่มีคำร้องในสถานะนี้</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {activeTab?.items.map((request) => (
-                <RequestCard key={request.id} request={request} showSubmitter={showSubmitter} />
-              ))}
-            </div>
+            <>
+              <div className="space-y-4">
+                {pagedItems.map((request) => (
+                  <RequestCard key={request.id} request={request} showSubmitter={showSubmitter} />
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div className="flex flex-col items-center gap-2 pt-2 sm:flex-row sm:justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    แสดง {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, activeTab.items.length)} จาก {activeTab.items.length} รายการ
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+                      aria-label="หน้าก่อนหน้า"
+                    >
+                      <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setPage(p)}
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors ${
+                          p === currentPage ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-100'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+                      aria-label="หน้าถัดไป"
+                    >
+                      <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

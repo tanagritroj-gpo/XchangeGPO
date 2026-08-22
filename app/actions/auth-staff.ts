@@ -368,3 +368,165 @@ export async function resetStaffPassword(username: string, otp: string, newPassw
     return { success: false, error: getErrorMessage(error) };
   }
 }
+
+// ══ จัดการบัญชีตัวเอง (self-service, หน้า /admin/account) — ต่างจาก "ลืมรหัสผ่าน" ด้านบน
+// ตรงที่ทั้ง 3 ฟังก์ชันนี้ยืนยันตัวตนด้วย "รหัสผ่านปัจจุบัน" โดยตรง (ไม่ใช่ OTP) เพราะสมมติ
+// ฐานว่าพนักงานยัง login ค้างอยู่และจำรหัสผ่านเดิมได้ ทุกฟังก์ชัน authenticate ด้วย
+// getStaffSession() เอง ไม่รับ staffId จาก client เพื่อกันการปลอมแปลงแก้บัญชีคนอื่น และ
+// บันทึกลง staff_account_change_logs (audit trail แยกจาก staff_password_reset_logs) ทุกครั้ง
+// ที่แก้สำเร็จ ให้ manager/ผู้ดูแลระบบตรวจสอบย้อนหลังได้ ══
+
+async function verifyCurrentPassword(staffId: string, currentPassword: string): Promise<boolean> {
+  const { data: staff } = await supabaseAdmin
+    .from('staff_users')
+    .select('password_hash')
+    .eq('id', staffId)
+    .maybeSingle();
+  if (!staff) return false;
+  return bcrypt.compare(currentPassword, staff.password_hash);
+}
+
+// --- เปลี่ยน Username ---
+export async function updateStaffUsername(currentPassword: string, newUsername: string) {
+  try {
+    const session = await getStaffSession();
+    if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    // ★ rate limit ผูกกับ staff เดียวกันทั้ง 3 ฟังก์ชันจัดการบัญชี (ใช้ prefix เดียวกัน) เพราะ
+    // ทุกฟังก์ชันต้องยืนยันรหัสผ่านปัจจุบันเหมือนกัน กันเดารหัสผ่านผ่านฟังก์ชันไหนก็ได้เกิน
+    // งบรวมที่ตั้งไว้ ไม่ใช่แยกงบต่อฟังก์ชัน
+    const rateLimit = await checkRateLimit(`staff-account-update:${session.id}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const cleanUsername = newUsername?.trim();
+    if (!cleanUsername || cleanUsername.length < 3 || cleanUsername.length > 50) {
+      return { success: false, error: 'Username ต้องมีความยาว 3-50 ตัวอักษร' };
+    }
+    if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
+
+    if (cleanUsername === session.username) {
+      return { success: false, error: 'Username นี้เป็น Username ปัจจุบันของคุณอยู่แล้ว' };
+    }
+
+    const passwordOk = await verifyCurrentPassword(session.id, currentPassword);
+    if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
+
+    const { error } = await supabaseAdmin
+      .from('staff_users')
+      .update({ username: cleanUsername, updated_at: new Date().toISOString() })
+      .eq('id', session.id);
+
+    if (error) {
+      // เคสเดียวกับตอนสมัคร — unique constraint ชน username ซ้ำ
+      if (error.code === '23505') return { success: false, error: 'Username นี้ถูกใช้งานแล้ว' };
+      throw error;
+    }
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: session.id, field: 'username', old_value: session.username, new_value: cleanUsername, ip,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Update Staff Username Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-account-update' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// --- เปลี่ยนอีเมล ---
+export async function updateStaffEmail(currentPassword: string, newEmail: string) {
+  try {
+    const session = await getStaffSession();
+    if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    const rateLimit = await checkRateLimit(`staff-account-update:${session.id}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const cleanEmail = newEmail?.trim();
+    if (!cleanEmail || !EMAIL_RE.test(cleanEmail)) {
+      return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+    }
+    if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
+
+    if (cleanEmail === session.email) {
+      return { success: false, error: 'อีเมลนี้เป็นอีเมลปัจจุบันของคุณอยู่แล้ว' };
+    }
+
+    const passwordOk = await verifyCurrentPassword(session.id, currentPassword);
+    if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
+
+    const { error } = await supabaseAdmin
+      .from('staff_users')
+      .update({ email: cleanEmail, updated_at: new Date().toISOString() })
+      .eq('id', session.id);
+
+    if (error) throw error;
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: session.id, field: 'email', old_value: session.email, new_value: cleanEmail, ip,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Update Staff Email Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-account-update' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// --- เปลี่ยนรหัสผ่าน (รู้รหัสเดิม) — ต่างจาก resetStaffPassword ด้านบนตรงที่ยืนยันด้วย
+// รหัสผ่านเดิมโดยตรง (ไม่ใช่ OTP) แล้ว revoke เฉพาะ session อื่นทั้งหมด "ยกเว้น session
+// ปัจจุบัน" (resetStaffPassword revoke ทุก session รวมของตัวเองด้วย เพราะฝั่งนั้นเพิ่งยืนยัน
+// ตัวตนใหม่ผ่าน OTP ไม่ได้ถืออยู่ใน session เดิมอีกต่อไป) ══
+export async function updateStaffPassword(currentPassword: string, newPassword: string) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('staff_session')?.value;
+    const session = await getStaffSession();
+    if (!session || !token) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    const rateLimit = await checkRateLimit(`staff-account-update:${session.id}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
+    }
+
+    const passwordOk = await verifyCurrentPassword(session.id, currentPassword);
+    if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const { error } = await supabaseAdmin
+      .from('staff_users')
+      .update({ password_hash: hashedPassword, updated_at: new Date().toISOString() })
+      .eq('id', session.id);
+
+    if (error) throw error;
+
+    // revoke session อื่นทั้งหมด เก็บ session ปัจจุบัน (ที่เพิ่งยืนยันรหัสผ่านเดิมสำเร็จ) ไว้
+    // ไม่ให้หลุดออกจากระบบกลางทาง
+    await supabaseAdmin
+      .from('sessions')
+      .delete()
+      .eq('staff_id', session.id)
+      .eq('actor_type', 'staff')
+      .neq('token', token);
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: session.id, field: 'password', old_value: null, new_value: null, ip,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Update Staff Password Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-account-update' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}

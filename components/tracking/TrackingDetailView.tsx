@@ -276,16 +276,16 @@ function TrackingContent({
     <div className="max-w-4xl mx-auto py-10 px-6 print:py-0 print:px-0">
       {/* หัวข้อ — icon badge เข้าชุดกับหน้าประวัติการแลกเปลี่ยน */}
       <div className="flex items-center gap-3.5 mb-1 print:hidden">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-600 to-teal-700 text-white shadow-lg shadow-teal-200">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Search className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">{heading}</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{heading}</h1>
           <p className="text-sm font-medium text-muted-foreground">{subheading}</p>
         </div>
       </div>
       {/* หัวข้อสำหรับตอนพิมพ์ — ไม่มี icon/คำอธิบายรอง เอาแค่ข้อความ */}
-      <h1 className="hidden print:block text-2xl font-black text-foreground mb-4">{heading}</h1>
+      <h1 className="hidden print:block text-2xl font-bold text-foreground mb-4">{heading}</h1>
 
       <form
         onSubmit={(e) => {
@@ -318,14 +318,14 @@ function TrackingContent({
       </form>
 
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 print:hidden">
+        <div className="mb-6 flex items-start gap-3 rounded-lg border border-red-100 bg-red-50 px-5 py-4 print:hidden">
           <AlertCircle className="h-5 w-5 shrink-0 text-red-500" strokeWidth={2} aria-hidden="true" />
           <p className="text-sm font-semibold text-red-700">{error}</p>
         </div>
       )}
 
       {loading && !data && (
-        <div className="rounded-2xl border border-border bg-white overflow-hidden">
+        <div className="rounded-lg border border-border bg-card overflow-hidden">
           <div className="px-4 md:px-6 py-5 flex items-center justify-between gap-3">
             <div className="space-y-2">
               <Skeleton className="h-5 w-32 rounded" />
@@ -339,7 +339,7 @@ function TrackingContent({
 
       {/* Empty state — ก่อนค้นหาครั้งแรก ไม่ปล่อยพื้นที่ว่างเปล่าไว้เฉยๆ */}
       {!hasSearched && !loading && (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-white/60 py-16 text-center print:hidden">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/60 py-16 text-center print:hidden">
           <PackageSearch className="h-9 w-9 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
           <p className="text-sm font-bold text-muted-foreground">กรอกเลขอ้างอิงด้านบนเพื่อติดตามสถานะ</p>
           <p className="max-w-xs text-xs text-muted-foreground">
@@ -351,12 +351,12 @@ function TrackingContent({
       {data && (
         <div className="space-y-8 animate-in fade-in duration-500">
           {/* ส่วนแสดงหัวข้อใบงาน + stepper */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-border print:shadow-none print:border-slate-300">
+          <div className="bg-card p-6 rounded-lg border border-border print:border-slate-300">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-xs text-muted-foreground font-medium mb-1">ใบงานเลขที่</p>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black text-foreground font-mono tracking-wide">{data.ref_id}</h2>
+                  <h2 className="text-xl font-bold text-foreground font-mono tracking-wide">{data.ref_id}</h2>
                   <button
                     onClick={handleCopy}
                     aria-label="คัดลอกเลขอ้างอิง"
@@ -423,7 +423,7 @@ function TrackingContent({
           </div>
 
           {/* รายละเอียดคำร้อง — เห็นได้เฉพาะฝั่ง login เข้ามาเท่านั้น */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-border print:shadow-none print:border-slate-300">
+          <div className="bg-card p-6 rounded-lg border border-border print:border-slate-300">
             <p className="text-sm font-bold text-muted-foreground mb-4">รายละเอียดคำร้อง</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <InfoRow label="โรงพยาบาล / ร้านยา" value={data.hospital_name} />
@@ -441,7 +441,7 @@ function TrackingContent({
 
           {/* รายการยา พร้อมมูลค่าต่อรายการ (private only) */}
           {(data.drug_items?.length ?? 0) > 0 && (
-            <div className="bg-white border border-border rounded-2xl p-5 shadow-sm print:shadow-none print:border-slate-300">
+            <div className="bg-card border border-border rounded-lg p-5 print:border-slate-300">
               <div className="flex items-center gap-2 mb-4">
                 <Pill className="w-4 h-4 text-muted-foreground" />
                 <p className="text-sm font-bold text-muted-foreground">รายการยา</p>
@@ -460,7 +460,7 @@ function TrackingContent({
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-foreground text-sm">{item.drug_name}</p>
                           {itemRejected && (
-                            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
+                            <span className="text-[11px] font-bold text-red-600 bg-red-100 px-1.5 py-0.5 rounded">
                               ถูกปฏิเสธ
                             </span>
                           )}
@@ -558,7 +558,7 @@ function TrackingContent({
           onClick={() => setPdfModalUrl(null)}
         >
           <div
-            className="relative w-full max-w-3xl h-[85vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            className="relative w-full max-w-3xl h-[85vh] bg-card rounded-lg shadow-lg overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">

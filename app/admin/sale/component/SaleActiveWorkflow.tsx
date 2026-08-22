@@ -16,15 +16,15 @@ function SkeletonWorkflowBoard() {
   return (
     <div className="space-y-3">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-[#F1EDE0]/50 rounded-2xl border border-[#EADFAF] p-3">
+        <div key={i} className="bg-secondary/50 rounded-lg border border-border p-3">
           <div className="flex items-center gap-2 mb-3 px-0.5">
-            <Skeleton className="w-6 h-6 rounded-lg shrink-0" />
+            <Skeleton className="w-6 h-6 rounded-md shrink-0" />
             <Skeleton className="h-3 w-28 rounded" />
             <Skeleton className="ml-auto h-4 w-6 rounded-full" />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {Array.from({ length: 3 }).map((__, j) => (
-              <Skeleton key={j} className="h-[72px] rounded-xl" />
+              <Skeleton key={j} className="h-[72px] rounded-md" />
             ))}
           </div>
         </div>
@@ -103,39 +103,39 @@ function WorkflowCard({ req, isExpanded, onToggle }: { req: SaleWorkflowRequest;
   const TagIcon = tag?.icon;
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/60 p-3">
+    <div className="bg-card rounded-md border border-border hover:border-primary/30 hover:shadow-sm transition-all duration-200 p-3">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-black text-[#241F5E] font-mono truncate">{req.ref_id}</p>
+        <p className="text-xs font-bold text-foreground font-mono truncate">{req.ref_id}</p>
         {tag && TagIcon && (
-          <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${tag.bg} ${tag.color}`}>
+          <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-bold ${tag.bg} ${tag.color}`}>
             <TagIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
             {tag.label}
           </span>
         )}
       </div>
-      {req.hospital_name && <p className="text-[11px] text-[#6B6698] truncate mt-0.5">{req.hospital_name}</p>}
+      {req.hospital_name && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{req.hospital_name}</p>}
 
       <button
         onClick={onToggle}
-        className="mt-2 flex items-center gap-1.5 text-[11px] text-[#6B6698] hover:text-[#2E2B7A] font-semibold transition-colors"
+        className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground font-semibold transition-colors"
       >
-        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[9px]">{drugCount}</span>
+        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent text-accent-foreground font-bold text-[11px] leading-none">{drugCount}</span>
         รายการสินค้า
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
-        <div className="mt-2 space-y-1.5 border-t border-[#EADFAF] pt-2">
+        <div className="mt-2 space-y-1.5 border-t border-border pt-2">
           {drugItems.map((item) => (
-            <div key={item.id} className="text-[10.5px] bg-[#F1EDE0]/60 rounded-lg px-2 py-1.5">
-              <p className="font-bold text-[#241F5E] truncate">{item.drug_name}</p>
-              <p className="text-[#6B6698] mt-0.5">
+            <div key={item.id} className="text-[11px] bg-secondary/60 rounded-md px-2 py-1.5">
+              <p className="font-bold text-foreground truncate">{item.drug_name}</p>
+              <p className="text-muted-foreground mt-0.5">
                 {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
               </p>
             </div>
           ))}
           {totalValue > 0 && (
-            <p className="text-right text-[10.5px] font-bold text-[#2E2B7A] pt-0.5">
+            <p className="text-right text-[11px] font-bold text-primary pt-0.5">
               {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
@@ -176,14 +176,14 @@ export default function SaleActiveWorkflow() {
   }, []);
 
   return (
-    <div className="bg-white/70 backdrop-blur-xl rounded-3xl border border-white/60 shadow-[0_4px_24px_-8px_rgba(46,43,122,0.12)] p-5 md:p-6">
+    <div className="bg-card rounded-lg border border-border p-5 md:p-6">
       <div className="flex items-center gap-2.5 mb-4 px-1">
-        <div className="w-9 h-9 rounded-xl bg-indigo-100 ring-1 ring-white/50 flex items-center justify-center shrink-0">
-          <Eye size={16} className="text-indigo-600" strokeWidth={2.5} />
+        <div className="w-9 h-9 rounded-md bg-accent text-accent-foreground shadow-sm shadow-accent/40 flex items-center justify-center shrink-0">
+          <Eye size={16} strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-black text-[#241F5E]">Active Workflow</h2>
-          <p className="text-xs text-[#6B6698]">
+          <h2 className="text-sm font-bold text-foreground">Active Workflow</h2>
+          <p className="text-xs text-muted-foreground">
             {isLoading ? 'กำลังโหลดข้อมูล...' : `${requests.length} ใบงานในพื้นที่ดูแลของคุณ — จัดกลุ่มตามสถานะจริง`}
           </p>
         </div>
@@ -192,7 +192,7 @@ export default function SaleActiveWorkflow() {
       {isLoading ? (
         <SkeletonWorkflowBoard />
       ) : requests.length === 0 ? (
-        <p className="text-sm text-[#6B6698] text-center py-12">ยังไม่มีคำร้องจากลูกค้าในพื้นที่ดูแลของคุณ</p>
+        <p className="text-sm text-muted-foreground text-center py-12">ยังไม่มีคำร้องจากลูกค้าในพื้นที่ดูแลของคุณ</p>
       ) : (
         <div className="space-y-3">
           {WORKFLOW_STAGE_GROUPS.map((group) => {
@@ -202,18 +202,18 @@ export default function SaleActiveWorkflow() {
             const visibleItems = colItems.slice(0, visibleCount);
             const remaining = colItems.length - visibleItems.length;
             return (
-              <div key={group.key} className="bg-[#F1EDE0]/50 rounded-2xl border border-[#EADFAF] p-3">
+              <div key={group.key} className="bg-secondary/50 rounded-lg border border-border p-3">
                 <div className="flex items-center gap-2 mb-3 px-0.5">
-                  <span className={`flex items-center justify-center w-6 h-6 rounded-lg shrink-0 ${group.bg}`}>
+                  <span className={`flex items-center justify-center w-6 h-6 rounded-md shrink-0 ${group.bg}`}>
                     <StageIcon className={`w-3.5 h-3.5 ${group.fg}`} strokeWidth={2.5} />
                   </span>
                   <span className={`text-xs font-bold ${group.fg}`}>{group.label}</span>
-                  <span className="ml-auto text-[10px] font-bold text-[#6B6698] bg-white/70 px-1.5 py-0.5 rounded-full border border-[#EADFAF]">
+                  <span className="ml-auto text-[11px] font-bold text-muted-foreground bg-card px-1.5 py-0.5 rounded-full border border-border">
                     {colItems.length}
                   </span>
                 </div>
                 {colItems.length === 0 ? (
-                  <p className="text-[11px] text-[#6B6698] text-center py-6">ไม่มีใบงาน</p>
+                  <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -229,7 +229,7 @@ export default function SaleActiveWorkflow() {
                     {remaining > 0 && (
                       <button
                         onClick={() => showMore(group.key)}
-                        className="mt-2 w-full text-center text-[11px] font-bold text-[#2E2B7A] hover:text-[#E1592A] py-2 rounded-lg hover:bg-white/60 transition-colors"
+                        className="mt-2 w-full text-center text-[11px] font-bold text-primary hover:text-primary/80 py-2 rounded-md hover:bg-card transition-colors"
                       >
                         แสดงเพิ่มเติม (เหลืออีก {remaining} รายการ)
                       </button>

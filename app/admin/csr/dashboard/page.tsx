@@ -96,16 +96,16 @@ function TabButton({ icon: Icon, label, count, active, onClick, accentBg, accent
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
+      className={`flex items-center gap-3 px-3.5 py-3 rounded-md text-sm font-semibold transition-colors shrink-0 md:w-full text-left border
         ${active
-          ? 'bg-white shadow-sm border-white/60 text-[#241F5E]'
-          : 'bg-transparent border-transparent text-[#6B6698] hover:bg-white/50 hover:text-[#241F5E]'}`}
+          ? 'bg-card border-border text-foreground'
+          : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
     >
-      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-[#F1EDE0]'}`}>
-        <Icon size={15} className={active ? accentColor : 'text-[#6B6698]'} strokeWidth={2.5} />
+      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${active ? accentBg : 'bg-secondary'}`}>
+        <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
       </span>
       <span className="whitespace-nowrap md:whitespace-normal md:flex-1">{label}</span>
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-[#F1EDE0] text-[#6B6698]'}`}>
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 ${active ? `${accentBg} ${accentColor}` : 'bg-secondary text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -119,12 +119,12 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 shrink-0 whitespace-nowrap
-        ${active ? 'bg-white shadow-sm text-[#241F5E]' : 'text-[#6B6698] hover:text-[#241F5E]'}`}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-colors shrink-0 whitespace-nowrap
+        ${active ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
     >
-      <Icon size={15} className={active ? accentColor : 'text-[#6B6698]'} strokeWidth={2.5} />
+      <Icon size={15} className={active ? accentColor : 'text-muted-foreground'} strokeWidth={2.5} />
       {label}
-      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-[#ECEAF6] text-[#2E2B7A]' : 'bg-[#EADFAF]/60 text-[#6B6698]'}`}>
+      <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? 'bg-accent text-accent-foreground' : 'bg-secondary/60 text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -133,20 +133,18 @@ function SubTabButton({ icon: Icon, label, count, active, onClick, accentColor }
 
 function ActionButton({ icon: Icon, label, onClick, tone, loading }: {
   icon: LucideIcon; label: string; onClick: () => void;
-  tone: 'blue' | 'red' | 'orange' | 'emerald';
+  tone: 'blue' | 'emerald';
   loading?: boolean;
 }) {
   const tones = {
-    blue:    'bg-blue-600 hover:bg-blue-700 shadow-blue-200',
-    red:     'bg-red-500 hover:bg-red-600 shadow-red-200',
-    orange:  'bg-[#E1592A] hover:bg-[#C9481E] shadow-[#E1592A]/30',
-    emerald: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200',
+    blue:    'bg-blue-600 hover:bg-blue-700',
+    emerald: 'bg-emerald-600 hover:bg-emerald-700',
   };
   return (
     <button
       onClick={onClick}
       disabled={loading}
-      className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all w-full disabled:opacity-60 disabled:pointer-events-none ${tones[tone]}`}
+      className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-md text-xs font-semibold text-white hover:-translate-y-0.5 active:scale-95 transition-all w-full disabled:opacity-60 disabled:pointer-events-none ${tones[tone]}`}
     >
       {loading ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} /> : <Icon size={14} strokeWidth={2.5} />}
       {label}
@@ -160,11 +158,11 @@ function WorkflowDecisionButton({ icon: Icon, label, onClick, tone }: {
 }) {
   const styles = {
     approve: {
-      wrap: 'border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600 hover:shadow-emerald-200',
+      wrap: 'border-emerald-200 bg-emerald-50/70 text-emerald-700 hover:bg-emerald-600 hover:text-white hover:border-emerald-600',
       icon: 'bg-emerald-100 text-emerald-600 group-hover:bg-white/25 group-hover:text-white',
     },
     reject: {
-      wrap: 'border-red-200 bg-red-50/70 text-red-700 hover:bg-red-600 hover:text-white hover:border-red-600 hover:shadow-red-200',
+      wrap: 'border-red-200 bg-red-50/70 text-red-700 hover:bg-red-600 hover:text-white hover:border-red-600',
       icon: 'bg-red-100 text-red-600 group-hover:bg-white/25 group-hover:text-white',
     },
   };
@@ -172,7 +170,7 @@ function WorkflowDecisionButton({ icon: Icon, label, onClick, tone }: {
   return (
     <button
       onClick={onClick}
-      className={`group flex items-center gap-2 px-3.5 py-2.5 rounded-xl border-2 text-xs font-bold transition-all duration-200 active:scale-95 hover:-translate-y-0.5 hover:shadow-md w-full justify-center ${s.wrap}`}
+      className={`group flex items-center gap-2 px-3.5 py-2.5 rounded-md border text-xs font-bold transition-colors active:scale-95 hover:-translate-y-0.5 w-full justify-center ${s.wrap}`}
     >
       <span className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors duration-200 ${s.icon}`}>
         <Icon size={11} strokeWidth={3} />
@@ -235,16 +233,16 @@ function RequestListSection({
         </div>
         <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="text-sm font-bold text-[#241F5E]">{title}</h2>
-            <p className="text-[11px] text-[#6B6698]">{subtitle}</p>
+            <h2 className="text-sm font-bold text-foreground">{title}</h2>
+            <p className="text-[11px] text-muted-foreground">{subtitle}</p>
           </div>
           {headerExtra}
         </div>
       </div>
 
-      <div className="bg-white/70 backdrop-blur-xl rounded-2xl border border-white/60 shadow-sm overflow-hidden">
+      <div className="bg-card rounded-lg border border-border overflow-hidden">
         {items.length > 0 && (
-          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-[#F1EDE0]/60 border-b border-[#EADFAF] text-[10px] font-bold text-[#6B6698] uppercase tracking-wider">
+          <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-2.5 bg-secondary/60 border-b border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
@@ -254,39 +252,39 @@ function RequestListSection({
 
         {items.length === 0 ? (
           <div className="py-12 text-center">
-            <EmptyIcon className="w-9 h-9 text-[#D8D5E8] mx-auto mb-2.5" strokeWidth={1.75} />
-            <p className="text-sm text-[#6B6698] font-medium">{emptyText}</p>
+            <EmptyIcon className="w-9 h-9 text-muted-foreground/40 mx-auto mb-2.5" strokeWidth={1.75} />
+            <p className="text-sm text-muted-foreground font-medium">{emptyText}</p>
           </div>
         ) : (
-          <div className="divide-y divide-[#EADFAF]/60">
+          <div className="divide-y divide-border/60">
             {pagedItems.map((req: RequestRow) => {
               const isExpanded = expandedReq === req.id;
               const drugCount  = req.drug_items?.length ?? 0;
               return (
                 <div
                   key={req.id}
-                  className={`group relative transition-colors ${isExpanded ? 'bg-[#ECEAF6]/70' : 'hover:bg-[#ECEAF6]/40'}`}
+                  className={`group relative transition-colors ${isExpanded ? 'bg-accent/70' : 'hover:bg-accent/40'}`}
                 >
                   <span
                     aria-hidden="true"
                     className={`absolute inset-y-0 left-0 w-[3px] transition-opacity duration-150 ${
-                      isExpanded ? 'bg-[#2E2B7A] opacity-100' : 'bg-[#4A46B0] opacity-0 group-hover:opacity-100'
+                      isExpanded ? 'bg-primary opacity-100' : 'bg-primary opacity-0 group-hover:opacity-100'
                     }`}
                   />
 
                   {/* Desktop row */}
                   <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 items-center">
                     <div className="col-span-3">
-                      <p className="text-sm font-bold text-[#241F5E] font-mono">{req.ref_id}</p>
-                      {req.hospital_name && <p className="text-xs text-[#6B6698] mt-0.5 truncate">{req.hospital_name}</p>}
+                      <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
+                      {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
                     </div>
                     <div className="col-span-2"><StatusBadge status={req.current_status} /></div>
                     <div className="col-span-5 flex items-center gap-3">
                       <button
                         onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                        className="flex items-center gap-2 text-xs text-[#6B6698] hover:text-[#2E2B7A] font-medium transition-colors group"
+                        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-primary font-medium transition-colors group"
                       >
-                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[10px] group-hover:bg-[#E2DEF6]">
+                        <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent text-accent-foreground font-bold text-[11px] group-hover:bg-primary/15">
                           {drugCount}
                         </span>
                         รายการสินค้า
@@ -306,7 +304,7 @@ function RequestListSection({
                             </>
                           )
                         ) : (
-                          <p className="text-[10px] text-muted-foreground text-right leading-snug flex items-center gap-1 justify-end">
+                          <p className="text-[11px] text-muted-foreground text-right leading-snug flex items-center gap-1 justify-end">
                             <ClipboardCheck size={12} strokeWidth={2.5} />
                             ตรวจรายการยาให้ครบก่อน
                           </p>
@@ -314,9 +312,9 @@ function RequestListSection({
                       )}
                       {!readOnly && req.current_status === 'receiving' && (
                         req.request_type === 'รับคืนแลกเปลี่ยน' ? (
-                          <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                          <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         ) : (
-                          <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                          <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         )
                       )}
                       {!readOnly && (req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
@@ -332,18 +330,18 @@ function RequestListSection({
                   <div className="md:hidden px-4 py-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="text-sm font-bold text-[#241F5E] font-mono">{req.ref_id}</p>
-                        {req.hospital_name && <p className="text-xs text-[#6B6698] mt-0.5 truncate">{req.hospital_name}</p>}
-                        {readOnly && <p className="text-[11px] text-[#6B6698] mt-0.5">{formatRequestDate(req.created_at)}</p>}
+                        <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
+                        {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
+                        {readOnly && <p className="text-[11px] text-muted-foreground mt-0.5">{formatRequestDate(req.created_at)}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
 
                     <button
                       onClick={() => setExpandedReq(isExpanded ? null : req.id)}
-                      className="flex items-center gap-2 text-xs text-[#6B6698] font-medium w-full py-2 px-3 bg-[#F1EDE0]/60 rounded-xl hover:bg-[#ECEAF6] hover:text-[#2E2B7A] transition-colors"
+                      className="flex items-center gap-2 text-xs text-muted-foreground font-medium w-full py-2 px-3 bg-secondary/60 rounded-md hover:bg-accent hover:text-primary transition-colors"
                     >
-                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[10px]">{drugCount}</span>
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-accent text-accent-foreground font-bold text-[11px]">{drugCount}</span>
                       รายการสินค้า
                       <ChevronDown size={14} strokeWidth={2.5} className={`ml-auto transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                     </button>
@@ -371,9 +369,9 @@ function RequestListSection({
                         )}
                         {req.current_status === 'receiving' && (
                           req.request_type === 'รับคืนแลกเปลี่ยน' ? (
-                            <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                            <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="blue" onClick={() => openExchangeModal(req.id)} />
                           ) : (
-                            <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="orange" onClick={() => openExchangeModal(req.id)} />
+                            <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="blue" onClick={() => openExchangeModal(req.id)} />
                           )
                         )}
                         {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
@@ -391,7 +389,7 @@ function RequestListSection({
                       <RequestDetailPanel requestId={req.id} fetchDetail={getCSRRequestDetail} size="default" />
                     ) : drugCount > 0 && (
                       <div className="px-4 md:px-6 pb-4">
-                        <div className="hidden md:grid grid-cols-12 gap-1 text-[10px] font-bold text-[#6B6698] uppercase tracking-wide px-3 mb-1.5">
+                        <div className="hidden md:grid grid-cols-12 gap-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wide px-3 mb-1.5">
                           <div className="col-span-3">ชื่อยา</div>
                           <div className="col-span-1">จำนวน</div>
                           <div className="col-span-1 text-center">Lot</div>
@@ -412,10 +410,10 @@ function RequestListSection({
                         </div>
                         {(req.drug_items ?? []).some((i: DrugItemRow) => i.value_amount) && (
                           <div className="mt-3 flex justify-end">
-                            <div className="flex items-center gap-2 bg-[#ECEAF6] border border-[#D8D5E8] rounded-xl px-4 py-2 text-xs">
-                              <Pill size={13} className="text-[#6B6698]" strokeWidth={2.5} />
-                              <span className="text-[#6B6698]">มูลค่ารวม:</span>
-                              <span className="font-bold text-[#2E2B7A]">
+                            <div className="flex items-center gap-2 bg-accent border border-border rounded-md px-4 py-2 text-xs">
+                              <Pill size={13} className="text-muted-foreground" strokeWidth={2.5} />
+                              <span className="text-muted-foreground">มูลค่ารวม:</span>
+                              <span className="font-bold text-primary">
                                 {(req.drug_items ?? []).reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
                               </span>
                             </div>
@@ -433,14 +431,14 @@ function RequestListSection({
 
       {pageSize && totalPages > 1 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-3 px-1">
-          <p className="text-xs text-[#6B6698]">
+          <p className="text-xs text-muted-foreground">
             แสดง {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, items.length)} จาก {items.length} รายการ
           </p>
           <div className="flex items-center gap-1 overflow-x-auto">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-[#6B6698] hover:bg-[#ECEAF6] disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
               aria-label="หน้าก่อนหน้า"
             >
               <ChevronLeft size={16} strokeWidth={2.5} />
@@ -450,7 +448,7 @@ function RequestListSection({
                 key={p}
                 onClick={() => setPage(p)}
                 className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
-                  p === currentPage ? 'bg-[#2E2B7A] text-white' : 'text-[#6B6698] hover:bg-[#ECEAF6]'
+                  p === currentPage ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'
                 }`}
               >
                 {p}
@@ -459,7 +457,7 @@ function RequestListSection({
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-[#6B6698] hover:bg-[#ECEAF6] disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-accent disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
               aria-label="หน้าถัดไป"
             >
               <ChevronRight size={16} strokeWidth={2.5} />
@@ -493,39 +491,39 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
   const role = MONITOR_STAGE_ROLE[req.current_status];
   const RoleIcon = role?.icon;
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-xl border border-white/60 p-3">
+    <div className="bg-card rounded-md border border-border p-3">
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-black text-[#241F5E] font-mono truncate">{req.ref_id}</p>
+        <p className="text-xs font-bold text-foreground font-mono truncate">{req.ref_id}</p>
         {role && (
-          <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-bold ${role.bg} ${role.color}`}>
+          <span className={`flex items-center gap-1 shrink-0 px-1.5 py-0.5 rounded-md text-[11px] font-bold ${role.bg} ${role.color}`}>
             <RoleIcon className="w-2.5 h-2.5" strokeWidth={2.5} />
             {role.label}
           </span>
         )}
       </div>
-      {req.hospital_name && <p className="text-[11px] text-[#6B6698] truncate mt-0.5">{req.hospital_name}</p>}
+      {req.hospital_name && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{req.hospital_name}</p>}
 
       <button
         onClick={onToggle}
-        className="mt-2 flex items-center gap-1.5 text-[11px] text-[#6B6698] hover:text-[#2E2B7A] font-semibold transition-colors"
+        className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-primary font-semibold transition-colors"
       >
-        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#ECEAF6] text-[#2E2B7A] font-bold text-[9px]">{drugCount}</span>
+        <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent text-accent-foreground font-bold text-[11px] leading-none">{drugCount}</span>
         รายการสินค้า
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
-        <div className="mt-2 space-y-1.5 border-t border-[#EADFAF] pt-2">
+        <div className="mt-2 space-y-1.5 border-t border-border pt-2">
           {(req.drug_items ?? []).map((item: DrugItemRow) => (
-            <div key={item.id} className="text-[10.5px] bg-[#F1EDE0]/60 rounded-lg px-2 py-1.5">
-              <p className="font-bold text-[#241F5E] truncate">{item.drug_name}</p>
-              <p className="text-[#6B6698] mt-0.5">
+            <div key={item.id} className="text-[11px] bg-secondary/60 rounded-lg px-2 py-1.5">
+              <p className="font-bold text-foreground truncate">{item.drug_name}</p>
+              <p className="text-muted-foreground mt-0.5">
                 {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
               </p>
             </div>
           ))}
           {totalValue > 0 && (
-            <p className="text-right text-[10.5px] font-bold text-[#2E2B7A] pt-0.5">
+            <p className="text-right text-[11px] font-bold text-primary pt-0.5">
               {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
@@ -548,8 +546,8 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
           <Eye size={16} className="text-indigo-600" strokeWidth={2.5} />
         </div>
         <div>
-          <h2 className="text-sm font-bold text-[#241F5E]">Active Workflow</h2>
-          <p className="text-[11px] text-[#6B6698]">{items.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า — จัดกลุ่มตามสถานะจริง</p>
+          <h2 className="text-sm font-bold text-foreground">Active Workflow</h2>
+          <p className="text-[11px] text-muted-foreground">{items.length} ใบงานกำลังดำเนินการโดยฝ่ายขนส่ง/คลังสินค้า — จัดกลุ่มตามสถานะจริง</p>
         </div>
       </div>
 
@@ -560,18 +558,18 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
           const meta = getStatusMeta(statusKey);
           const StageIcon = meta.icon;
           return (
-            <div key={statusKey} className="bg-[#F1EDE0]/50 rounded-2xl border border-[#EADFAF] p-3">
+            <div key={statusKey} className="bg-secondary/50 rounded-lg border border-border p-3">
               <div className="flex items-center gap-2 mb-3 px-0.5">
                 <span className={`flex items-center justify-center w-6 h-6 rounded-lg shrink-0 ${meta.bg}`}>
                   <StageIcon className={`w-3.5 h-3.5 ${meta.fg}`} strokeWidth={2.5} />
                 </span>
                 <span className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</span>
-                <span className="ml-auto text-[10px] font-bold text-[#6B6698] bg-white/70 px-1.5 py-0.5 rounded-full border border-[#EADFAF]">
+                <span className="ml-auto text-[11px] font-bold text-muted-foreground bg-card px-1.5 py-0.5 rounded-full border border-border">
                   {colItems.length}
                 </span>
               </div>
               {colItems.length === 0 ? (
-                <p className="text-[11px] text-[#6B6698] text-center py-6">ไม่มีใบงาน</p>
+                <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {colItems.map((req) => (
@@ -785,38 +783,29 @@ export default function CSRDashboard() {
   if (isLoading) return <StaffDashboardSkeleton statCount={5} sidebarTabCount={2} subTabCount={2} rows={5} />;
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
+    <div className="min-h-screen bg-background">
 
-      {/* ── พื้นหลังลูกเล่น — แสงกระจายแบบสุ่ม + บลอบใหญ่ ให้เข้าชุดกับหน้าอื่นในธีมนี้ ── */}
-      <div className="pointer-events-none fixed inset-0 -z-0">
-        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
-        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
-        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
-        <div className="absolute top-[12%] left-[10%] w-12 h-12 rounded-full bg-[#EAD94C] opacity-[0.12] blur-lg hidden sm:block" />
-        <div className="absolute bottom-[16%] left-[8%] w-14 h-14 rounded-full bg-[#E1592A] opacity-[0.09] blur-xl" />
-      </div>
-
-      {/* ══ Top Bar — กระจกโปร่งแสง ══ */}
-      <div className="relative z-30 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-white/50">
+      {/* ══ Top Bar ══ */}
+      <div className="relative z-30 sticky top-0 bg-card border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={() => router.replace('/admin/csr')}
-              className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#241F5E] bg-white/60 hover:bg-white/90 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary px-3 py-2 rounded-md transition-colors group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
-            <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
+            <div className="w-px h-5 bg-border shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-[#241F5E] leading-tight truncate">CSR Dashboard</h1>
-              <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">CSR Dashboard</h1>
+              <p className="text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
-            className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#E1592A] bg-white/60 hover:bg-[#FBEFE6] px-3 py-2 rounded-xl transition-all shrink-0 disabled:opacity-60 disabled:pointer-events-none"
+            className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary px-3 py-2 rounded-md transition-colors shrink-0 disabled:opacity-60 disabled:pointer-events-none"
           >
             {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
             <span className="hidden sm:inline">ออกจากระบบ</span>
@@ -824,13 +813,13 @@ export default function CSRDashboard() {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 md:space-y-7">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 md:space-y-7">
 
         {/* ── แถบสถิติสรุป — คลิกได้จริง กดแล้วกระโดดไปดูเฉพาะกลุ่มสถานะนั้นทันที ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
           <StatCard
-            icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-[#ECEAF6]" iconText="text-[#2E2B7A]"
-            isActive={statusFilter === null && activeTab === 'history'} activeBorder="border-[#2E2B7A]/40" activeRing="ring-2 ring-[#2E2B7A]/10"
+            icon={ClipboardList} value={requests.length} label="ใบงานรวม" iconBg="bg-accent" iconText="text-accent-foreground"
+            isActive={statusFilter === null && activeTab === 'history'} activeBorder="border-primary/40" activeRing="ring-2 ring-primary/10"
             onClick={() => selectTab('history')}
           />
           <StatCard
@@ -868,7 +857,7 @@ export default function CSRDashboard() {
               <TabButton
                 icon={History} label="ประวัติใบงาน" count={requests.length}
                 active={statusFilter === null && activeTab === 'history'} onClick={() => selectTab('history')}
-                accentBg="bg-[#ECEAF6]" accentColor="text-[#2E2B7A]"
+                accentBg="bg-accent" accentColor="text-accent-foreground"
               />
             </nav>
           </aside>
@@ -898,7 +887,7 @@ export default function CSRDashboard() {
             {activeTab === 'active' && (
             <div>
               {/* ── Sub-tab แนวนอน (segmented control) ── */}
-              <div className="flex items-center gap-1 p-1 mb-4 rounded-xl bg-white/50 backdrop-blur-md border border-white/40 overflow-x-auto max-w-full">
+              <div className="flex items-center gap-1 p-1 mb-4 rounded-md bg-secondary border border-border overflow-x-auto max-w-full">
                 <SubTabButton
                   icon={ClipboardEdit} label="CSR Workflow" count={csrWorkflowRequests.length}
                   active={workflowSubTab === 'csr'} onClick={() => selectWorkflowSubTab('csr')}
@@ -944,8 +933,8 @@ export default function CSRDashboard() {
             <RequestListSection
               title="ประวัติใบงาน"
               icon={History}
-              iconBg="bg-[#ECEAF6]"
-              iconColor="text-[#2E2B7A]"
+              iconBg="bg-accent"
+              iconColor="text-accent-foreground"
               subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
               items={historyRequestsFiltered}
               pageSize={10}
@@ -994,27 +983,19 @@ export default function CSRDashboard() {
       {/* ══ Confirm Modal: อนุมัติ/ปฏิเสธใบงาน พร้อมหมายเหตุ ══ */}
       {confirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
-            <div
-              className="h-1.5"
-              style={{
-                background: confirmModal.action === 'approved'
-                  ? 'linear-gradient(90deg,#059669,#10b981)'
-                  : 'linear-gradient(90deg,#dc2626,#f87171)',
-              }}
-            />
+          <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className={`h-1.5 ${confirmModal.action === 'approved' ? 'bg-emerald-600' : 'bg-destructive'}`} />
 
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{
-                    background: confirmModal.action === 'approved' ? '#d1fae5' : '#fee2e2',
-                  }}
+                  className={`w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                    confirmModal.action === 'approved' ? 'bg-emerald-100' : 'bg-destructive/10'
+                  }`}
                 >
                   {confirmModal.action === 'approved'
                     ? <CheckCircle2 size={22} className="text-emerald-600" strokeWidth={2.5} />
-                    : <AlertTriangle size={22} className="text-rose-600" strokeWidth={2.5} />}
+                    : <AlertTriangle size={22} className="text-destructive" strokeWidth={2.5} />}
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-foreground">
@@ -1046,7 +1027,7 @@ export default function CSRDashboard() {
                     onChange={(e) => setRemark(e.target.value)}
                     placeholder="ระบุหมายเหตุ (ถ้ามี)..."
                     maxLength={500}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none placeholder:text-slate-300 mb-6"
+                    className="w-full px-4 py-3 rounded-md border border-border bg-secondary text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-none placeholder:text-muted-foreground/50 mb-6"
                   />
                 </>
               )}
@@ -1056,7 +1037,7 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={() => { setConfirmModal(null); setRemark(''); setReasonCode(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -1064,12 +1045,9 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={handleConfirmSubmit}
                   disabled={isSubmitting || (confirmModal.action === 'rejected' && (!reasonCode || (reasonCode === 'other' && !remark.trim())))}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{
-                    background: confirmModal.action === 'approved'
-                      ? 'linear-gradient(135deg,#059669,#10b981)'
-                      : 'linear-gradient(135deg,#dc2626,#f87171)',
-                  }}
+                  className={`py-3.5 rounded-md font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                    confirmModal.action === 'approved' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-destructive hover:bg-destructive/90'
+                  }`}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
@@ -1084,15 +1062,15 @@ export default function CSRDashboard() {
       {/* ══ Confirm Modal: เริ่มกระบวนการแลกเปลี่ยน พร้อมหมายเหตุ ══ */}
       {exchangeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
-            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#ea580c,#fb923c)' }} />
+          <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5 bg-blue-600" />
 
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#ffedd5' }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-blue-100">
                   {isExchangeModalType
-                    ? <RefreshCw size={22} className="text-orange-600" strokeWidth={2.5} />
-                    : <Receipt size={22} className="text-orange-600" strokeWidth={2.5} />}
+                    ? <RefreshCw size={22} className="text-blue-600" strokeWidth={2.5} />
+                    : <Receipt size={22} className="text-blue-600" strokeWidth={2.5} />}
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-foreground">
@@ -1118,7 +1096,7 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={() => { setExchangeModal(null); setExchangeReasonCode(''); setExchangeDetail(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -1126,8 +1104,7 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={submitExchangeModal}
                   disabled={isSubmitting || !exchangeReasonCode || (exchangeReasonCode === 'other' && !exchangeDetail.trim())}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(135deg,#ea580c,#fb923c)' }}
+                  className="py-3.5 rounded-md font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
@@ -1142,12 +1119,12 @@ export default function CSRDashboard() {
       {/* ══ Confirm Modal: เสร็จสิ้นใบงาน พร้อมหมายเหตุ ══ */}
       {completeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
-            <div className="h-1.5" style={{ background: 'linear-gradient(90deg,#059669,#10b981)' }} />
+          <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+            <div className="h-1.5 bg-emerald-600" />
 
             <div className="p-7">
               <div className="flex items-center gap-3 mb-5">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: '#d1fae5' }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 bg-emerald-100">
                   <CheckCircle2 size={22} className="text-emerald-600" strokeWidth={2.5} />
                 </div>
                 <div>
@@ -1172,7 +1149,7 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={() => { setCompleteModal(null); setCompleteReasonCode(''); setCompleteDetail(''); }}
                   disabled={isSubmitting}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
+                  className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
                 >
                   ยกเลิก
                 </button>
@@ -1180,8 +1157,7 @@ export default function CSRDashboard() {
                   type="button"
                   onClick={submitCompleteModal}
                   disabled={isSubmitting || !completeReasonCode || (completeReasonCode === 'other' && !completeDetail.trim())}
-                  className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(135deg,#059669,#10b981)' }}
+                  className="py-3.5 rounded-md font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>

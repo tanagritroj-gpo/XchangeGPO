@@ -33,39 +33,28 @@ import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
-// ── โทนสีต่อหัวข้อ sidebar — รวมไว้จุดเดียวแทนที่จะส่ง bg/text แยกทีละ prop ต่อการเรียก
-// ให้ TabButton คำนวณ shadow แสงเรืองต่างๆ ต่อโทนเองได้ (เดิมส่งแค่ accentBg/accentColor
-// ทำให้เพิ่มเอฟเฟกต์ยาก เพราะต้องคำนวณสี rgba ซ้ำในหน้าเรียกทุกจุด) ──
-const TAB_ACCENTS = {
-  indigo: { bg: 'bg-[#ECEAF6]', text: 'text-[#2E2B7A]', shadow: 'shadow-[0_10px_24px_-10px_rgba(46,43,122,0.4)]', bar: 'from-[#4A46B0] to-[#2E2B7A]', barGlow: 'shadow-[0_0_8px_rgba(74,70,176,0.7)]' },
-  violet: { bg: 'bg-violet-100', text: 'text-violet-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(124,58,237,0.4)]', bar: 'from-violet-400 to-violet-600', barGlow: 'shadow-[0_0_8px_rgba(139,92,246,0.7)]' },
-  gold: { bg: 'bg-[#FBF0C8]', text: 'text-[#8A7420]', shadow: 'shadow-[0_10px_24px_-10px_rgba(138,116,32,0.35)]', bar: 'from-[#F4E27E] to-[#EAD94C]', barGlow: 'shadow-[0_0_8px_rgba(234,217,76,0.7)]' },
-  teal: { bg: 'bg-teal-100', text: 'text-teal-600', shadow: 'shadow-[0_10px_24px_-10px_rgba(13,148,136,0.4)]', bar: 'from-teal-400 to-teal-600', barGlow: 'shadow-[0_0_8px_rgba(45,212,191,0.7)]' },
-} as const;
-
-// ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR Dashboard
-// active state มีแท่งไล่สีเรืองแสงด้านซ้าย + เงาสีตามโทนของหัวข้อนั้น (เดิมมีแค่ bg ขาว + shadow-sm เรียบๆ) ──
-function TabButton({ icon: Icon, label, count, active, onClick, accent }: {
+// ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR
+// Dashboard — accent เดียวทั้งหมด (ตัด indigo/violet/gold/teal ต่อแท็บออก ไม่มีทั้ง 4 แท็บนี้
+// เป็นสถานะเชิงความหมาย แค่หมวดเนื้อหาคนละหน้า) ──
+function TabButton({ icon: Icon, label, count, active, onClick }: {
   icon: LucideIcon; label: string; count: number; active: boolean; onClick: () => void;
-  accent: keyof typeof TAB_ACCENTS;
 }) {
-  const a = TAB_ACCENTS[accent];
   return (
     <button
       onClick={onClick}
-      className={`relative overflow-hidden flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shrink-0 md:w-full text-left border
+      className={`relative flex items-center gap-3 px-3.5 py-3 rounded-md text-sm font-semibold transition-colors shrink-0 md:w-full text-left border
         ${active
-          ? `bg-white ${a.shadow} border-border text-foreground`
-          : 'bg-transparent border-transparent text-muted-foreground hover:bg-white/70 hover:text-slate-700'}`}
+          ? 'bg-card border-border text-foreground'
+          : 'bg-transparent border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground'}`}
     >
       {active && (
-        <span className={`absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-gradient-to-b ${a.bar} ${a.barGlow}`} />
+        <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full bg-primary" />
       )}
-      <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ring-1 ${active ? `${a.bg} ring-white/60 shadow-sm` : 'bg-slate-100 ring-transparent'}`}>
-        <Icon size={15} className={active ? a.text : 'text-muted-foreground'} strokeWidth={2.5} />
+      <span className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${active ? 'bg-accent' : 'bg-secondary'}`}>
+        <Icon size={15} className={active ? 'text-accent-foreground' : 'text-muted-foreground'} strokeWidth={2.5} />
       </span>
       <span className="whitespace-nowrap md:whitespace-normal md:flex-1">{label}</span>
-      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${active ? `${a.bg} ${a.text}` : 'bg-slate-100 text-muted-foreground'}`}>
+      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full shrink-0 tabular-nums ${active ? 'bg-accent text-accent-foreground' : 'bg-secondary text-muted-foreground'}`}>
         {count}
       </span>
     </button>
@@ -79,10 +68,10 @@ function DownloadSubTabButton({ icon: Icon, label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 shrink-0 whitespace-nowrap
-        ${active ? 'bg-white shadow-sm text-teal-700' : 'text-muted-foreground hover:text-slate-700'}`}
+      className={`flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-colors shrink-0 whitespace-nowrap
+        ${active ? 'bg-card text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
     >
-      <Icon size={15} className={active ? 'text-teal-600' : 'text-muted-foreground'} strokeWidth={2.5} />
+      <Icon size={15} className={active ? 'text-primary' : 'text-muted-foreground'} strokeWidth={2.5} />
       {label}
     </button>
   );
@@ -233,7 +222,7 @@ function StaffApprovalPageInner() {
     : statusFilteredHistory.filter((r) => r.request_type === requestTypeFilter);
 
   if (isLoading) return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+    <div className="min-h-screen bg-background">
       <SkeletonTopBar />
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
@@ -247,41 +236,34 @@ function StaffApprovalPageInner() {
   );
 
   return (
-    <div className="relative min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8] overflow-hidden">
-
-      {/* ── พื้นหลังลูกเล่น — ตรงกับหน้า hub (app/admin/manager/page.tsx) ── */}
-      <div className="pointer-events-none fixed inset-0 -z-0">
-        <div className="absolute -top-16 -right-14 w-56 h-56 md:-top-20 md:-right-20 md:w-[380px] md:h-[380px] rounded-full bg-[radial-gradient(circle,_#EAD94C_0%,_transparent_72%)] opacity-40 blur-2xl" />
-        <div className="absolute top-[42%] -left-14 w-48 h-48 md:top-[45%] md:-left-28 md:w-[340px] md:h-[340px] rounded-full bg-[radial-gradient(circle,_#E1592A_0%,_transparent_72%)] opacity-[0.14] blur-3xl" />
-        <div className="absolute -bottom-16 right-[8%] w-56 h-56 md:-bottom-28 md:w-[400px] md:h-[400px] rounded-full bg-[radial-gradient(circle,_#2E2B7A_0%,_transparent_72%)] opacity-[0.10] blur-3xl" />
-      </div>
+    <div className="min-h-screen bg-background">
 
       {/* ══ Top Bar ══ */}
-      <div className="relative z-30 sticky top-0 bg-white/70 backdrop-blur-xl border-b border-white/50">
+      <div className="relative z-30 sticky top-0 bg-card border-b border-border">
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
               onClick={handleBack}
-              className="flex items-center gap-1.5 text-sm font-semibold text-[#6B6698] hover:text-[#241F5E] bg-white/60 hover:bg-white/90 px-3 py-2 rounded-xl transition-all group shrink-0"
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary px-3 py-2 rounded-md transition-colors group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
               <span className="hidden sm:inline">ย้อนกลับ</span>
             </button>
-            <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
+            <div className="w-px h-5 bg-border shrink-0" />
             <div className="min-w-0">
-              <h1 className="text-sm md:text-base font-bold text-[#241F5E] leading-tight truncate">Manager Portal</h1>
-              <p className="text-[10px] md:text-[11px] text-[#6B6698] hidden sm:block">GPO Xchange Portal</p>
+              <h1 className="text-sm md:text-base font-bold text-foreground leading-tight truncate">Manager Portal</h1>
+              <p className="text-[11px] text-muted-foreground hidden sm:block">GPO Xchange Portal</p>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3 shrink-0">
-            <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-[#ECEAF6] border-[#D8D5E8] text-[#2E2B7A] text-[11px] md:text-xs font-semibold shrink-0">
+            <span className="flex items-center gap-1.5 md:gap-2 px-2.5 md:px-3.5 py-1.5 rounded-full border bg-accent border-transparent text-accent-foreground text-[11px] md:text-xs font-semibold shrink-0">
               <ShieldCheck size={13} strokeWidth={2.5} />
               <span>Manager</span>
             </span>
             <button
               onClick={handleLogout}
               disabled={isLoggingOut}
-              className="flex items-center gap-1.5 text-xs font-bold text-[#6B6698] hover:text-[#2E2B7A] bg-white/70 hover:bg-[#ECEAF6] border border-white/60 hover:border-[#D8D5E8] px-3 py-2 rounded-xl transition-colors disabled:opacity-60 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary border border-border px-3 py-2 rounded-md transition-colors disabled:opacity-60 disabled:pointer-events-none"
             >
               {isLoggingOut ? <Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> : <LogOut size={15} strokeWidth={2.5} />}
               <span className="hidden sm:inline">ออกจากระบบ</span>
@@ -290,7 +272,7 @@ function StaffApprovalPageInner() {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — เหมือน CSR Dashboard) ══ */}
@@ -299,22 +281,18 @@ function StaffApprovalPageInner() {
               <TabButton
                 icon={Users} label="จัดการสิทธิ์พนักงาน" count={pendingStaff.length}
                 active={activeTab === 'staff'} onClick={() => setActiveTab('staff')}
-                accent="indigo"
               />
               <TabButton
                 icon={ClipboardList} label="ใบงานทั้งหมด" count={allRequests.length}
                 active={activeTab === 'all'} onClick={() => setActiveTab('all')}
-                accent="violet"
               />
               <TabButton
                 icon={BarChart3} label="ภาพรวม & สถิติ" count={allRequests.length}
                 active={activeTab === 'insights'} onClick={() => setActiveTab('insights')}
-                accent="gold"
               />
               <TabButton
                 icon={FileSpreadsheet} label="รายงานผู้บริหาร" count={allRequests.length}
                 active={activeTab === 'downloads'} onClick={() => setActiveTab('downloads')}
-                accent="teal"
               />
             </nav>
           </aside>
@@ -326,8 +304,8 @@ function StaffApprovalPageInner() {
             {activeTab === 'staff' && (
               <section>
                 <div className="flex items-center gap-2.5 mb-3 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center shrink-0">
-                    <Users size={16} className="text-orange-600" strokeWidth={2.5} />
+                  <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center shrink-0">
+                    <Users size={16} className="text-accent-foreground" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-foreground">จัดการสิทธิ์พนักงาน</h2>
@@ -335,29 +313,29 @@ function StaffApprovalPageInner() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-border overflow-hidden">
+                <div className="bg-card rounded-lg border border-border overflow-hidden">
                   {pendingStaff.length === 0 ? (
                     <div className="py-12 text-center">
-                      <Users className="w-9 h-9 text-slate-300 mx-auto mb-2.5" strokeWidth={1.75} />
+                      <Users className="w-9 h-9 text-muted-foreground/40 mx-auto mb-2.5" strokeWidth={1.75} />
                       <p className="text-sm text-muted-foreground font-medium">ไม่มีรายการรออนุมัติ</p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-border">
                       {pendingStaff.map((staff) => (
                         <div key={staff.id}
-                          className="flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4 hover:bg-slate-50 transition-colors gap-3">
+                          className="flex items-center justify-between px-4 md:px-6 py-3.5 md:py-4 hover:bg-secondary/50 transition-colors gap-3">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-foreground">{staff.full_name}</p>
                             <p className="text-xs text-muted-foreground font-mono mt-0.5">{staff.employee_id}</p>
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
-                            <span className="text-[11px] font-bold text-muted-foreground uppercase bg-slate-100 px-2.5 py-1 rounded-full">
+                            <span className="text-[11px] font-bold text-muted-foreground uppercase bg-secondary px-2.5 py-1 rounded-full">
                               {staff.department}
                             </span>
                             <button
                               onClick={() => handleApprove(staff.id)}
                               disabled={approvingId === staff.id}
-                              className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all disabled:opacity-60 disabled:pointer-events-none"
+                              className="flex items-center gap-1.5 px-3 md:px-4 py-2 rounded-md text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-colors disabled:opacity-60 disabled:pointer-events-none"
                             >
                               {approvingId === staff.id
                                 ? <Loader2 size={14} className="animate-spin" strokeWidth={2.5} />
@@ -378,8 +356,8 @@ function StaffApprovalPageInner() {
             {activeTab === 'all' && (
               <section>
                 <div className="flex items-center gap-2.5 mb-3 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                    <ClipboardList size={16} className="text-blue-600" strokeWidth={2.5} />
+                  <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center shrink-0">
+                    <ClipboardList size={16} className="text-accent-foreground" strokeWidth={2.5} />
                   </div>
                   <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
                     <div>
@@ -415,8 +393,8 @@ function StaffApprovalPageInner() {
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-5">
                   <StatCard
-                    icon={ClipboardList} value={allRequestsHistory.length} label="ทั้งหมด" iconBg="bg-slate-100" iconText="text-slate-600"
-                    isActive={statusFilter === null} activeBorder="border-slate-300" activeRing="ring-2 ring-slate-100"
+                    icon={ClipboardList} value={allRequestsHistory.length} label="ทั้งหมด" iconBg="bg-accent" iconText="text-accent-foreground"
+                    isActive={statusFilter === null} activeBorder="border-primary/40" activeRing="ring-2 ring-primary/10"
                     onClick={() => setStatusFilter(null)}
                   />
                   <StatCard
@@ -460,8 +438,8 @@ function StaffApprovalPageInner() {
             {activeTab === 'downloads' && (
               <section className="space-y-4">
                 <div className="flex items-center gap-2.5 px-1">
-                  <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center shrink-0">
-                    <FileSpreadsheet size={16} className="text-teal-600" strokeWidth={2.5} />
+                  <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center shrink-0">
+                    <FileSpreadsheet size={16} className="text-accent-foreground" strokeWidth={2.5} />
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-foreground">รายงานผู้บริหาร</h2>
@@ -471,7 +449,7 @@ function StaffApprovalPageInner() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 w-fit">
+                <div className="flex items-center gap-1 p-1 rounded-md bg-secondary w-fit">
                   <DownloadSubTabButton
                     icon={Briefcase} label="รายงานผู้บริหาร"
                     active={downloadSubTab === 'reports'} onClick={() => setDownloadSubTab('reports')}
@@ -483,7 +461,7 @@ function StaffApprovalPageInner() {
                 </div>
 
                 {downloadSubTab === 'single' && (
-                  <div className="bg-white rounded-2xl border border-border overflow-hidden">
+                  <div className="bg-card rounded-lg border border-border overflow-hidden">
                     <div className="p-4 border-b border-border">
                       <div className="relative max-w-sm">
                         <Search size={14} strokeWidth={2.5} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -491,14 +469,14 @@ function StaffApprovalPageInner() {
                           type="text" value={downloadSearch}
                           onChange={(e) => { setDownloadSearch(e.target.value); setSinglePage(1); }}
                           placeholder="ค้นหา ref id หรือชื่อหน่วยงาน..."
-                          className="w-full text-sm border border-border rounded-lg pl-8 pr-3 py-2"
+                          className="w-full text-sm border border-border rounded-md pl-8 pr-3 py-2"
                         />
                       </div>
                     </div>
-                    <div className="divide-y divide-slate-100">
+                    <div className="divide-y divide-border">
                       {singleRequestResults.length === 0 ? (
                         <div className="py-10 text-center">
-                          <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" strokeWidth={1.75} />
+                          <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" strokeWidth={1.75} />
                           <p className="text-sm text-muted-foreground font-medium">ไม่พบใบงานที่ตรงกับคำค้นหา</p>
                         </div>
                       ) : (
@@ -512,7 +490,7 @@ function StaffApprovalPageInner() {
                             </div>
                             <a
                               href={`/admin/manager/downloads-export?mode=request&requestId=${r.id}`}
-                              className="flex items-center gap-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-2 rounded-xl transition-colors shrink-0"
+                              className="flex items-center gap-1.5 text-xs font-bold text-accent-foreground bg-accent hover:bg-primary/15 px-3 py-2 rounded-md transition-colors shrink-0"
                             >
                               <Download size={13} strokeWidth={2.5} /> ดาวน์โหลด
                             </a>
@@ -524,7 +502,7 @@ function StaffApprovalPageInner() {
                     {/* ── ส่วนกำกับหน้า — pattern เดียวกับ components/history/RequestHistoryList.tsx
                          ที่ใช้อยู่แล้วในแท็บ "ใบงานทั้งหมด" ของหน้านี้ (และหน้าประวัติของ CSR) ── */}
                     {singleTotalPages > 1 && (
-                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-t border-border bg-slate-50">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 md:px-6 py-3.5 border-t border-border bg-secondary">
                         <p className="text-xs text-muted-foreground">
                           แสดง {(singlePageClamped - 1) * SINGLE_PAGE_SIZE + 1}–{Math.min(singlePageClamped * SINGLE_PAGE_SIZE, singleRequestResults.length)} จาก {singleRequestResults.length} รายการ
                         </p>
@@ -532,7 +510,7 @@ function StaffApprovalPageInner() {
                           <button
                             onClick={() => setSinglePage((p) => Math.max(1, p - 1))}
                             disabled={singlePageClamped === 1}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-secondary disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
                             aria-label="หน้าก่อนหน้า"
                           >
                             <ChevronLeft size={16} strokeWidth={2.5} />
@@ -542,7 +520,7 @@ function StaffApprovalPageInner() {
                               key={p}
                               onClick={() => setSinglePage(p)}
                               className={`flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold transition-colors shrink-0 ${
-                                p === singlePageClamped ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-200'
+                                p === singlePageClamped ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'
                               }`}
                             >
                               {p}
@@ -551,7 +529,7 @@ function StaffApprovalPageInner() {
                           <button
                             onClick={() => setSinglePage((p) => Math.min(singleTotalPages, p + 1))}
                             disabled={singlePageClamped === singleTotalPages}
-                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
+                            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-secondary disabled:opacity-40 disabled:pointer-events-none transition-colors shrink-0"
                             aria-label="หน้าถัดไป"
                           >
                             <ChevronRight size={16} strokeWidth={2.5} />
@@ -567,10 +545,10 @@ function StaffApprovalPageInner() {
                     {/* ── รายงานพอร์ตลูกค้า/หน่วยงาน — ภาพรวมสะสมทั้งหมด ไม่มีตัวกรองวันที่ ──
                          (Audit Trail Report ย้ายไปหน้า /admin/manager/sla แล้ว — รวมกับ
                          SLA Monitoring System ตาม 06-sla-monitoring-design.md หัวข้อ 7) */}
-                    <div className="bg-white rounded-2xl border border-border p-5 space-y-4">
+                    <div className="bg-card rounded-lg border border-border p-5 space-y-4">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
-                          <Building2 size={16} className="text-amber-600" strokeWidth={2.5} />
+                        <div className="w-8 h-8 rounded-md bg-accent flex items-center justify-center shrink-0">
+                          <Building2 size={16} className="text-accent-foreground" strokeWidth={2.5} />
                         </div>
                         <div>
                           <h3 className="text-sm font-bold text-foreground">พอร์ตลูกค้า/หน่วยงาน</h3>
@@ -581,7 +559,7 @@ function StaffApprovalPageInner() {
                       <div className="flex items-center justify-end">
                         <a
                           href="/admin/manager/downloads-export?mode=customer-portfolio"
-                          className="flex items-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2.5 rounded-xl transition-colors shrink-0"
+                          className="flex items-center gap-1.5 text-xs font-bold text-primary-foreground bg-primary hover:bg-primary/90 px-3.5 py-2.5 rounded-md transition-colors shrink-0"
                         >
                           <Download size={14} strokeWidth={2.5} /> ดาวน์โหลด Excel
                         </a>
@@ -602,7 +580,7 @@ function StaffApprovalPageInner() {
 export default function StaffApprovalPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]">
+      <div className="min-h-screen bg-background">
         <SkeletonTopBar />
         <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
           <div className="flex flex-col md:flex-row gap-4 md:gap-8">

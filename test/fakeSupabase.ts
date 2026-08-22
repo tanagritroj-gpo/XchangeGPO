@@ -17,6 +17,7 @@ type Tables = Record<string, Row[]>;
 const UNIQUE_COLUMNS: Record<string, string[]> = {
   b2b_customers: ['email'],
   clients: ['email'],
+  staff_users: ['username'],
 };
 
 class FakeQueryBuilder {
@@ -202,6 +203,28 @@ class FakeQueryBuilder {
         }
       } else if (this.mode === 'update') {
         const rows = this.matched();
+        // Same duplicate-key check as insert (e.g. auth-staff.ts updateStaffUsername relies
+        // on a real 23505 to report "username already taken" back to the caller) — only
+        // checked here, not in insert, because rows being updated shouldn't conflict with
+        // themselves (e.g. re-saving the same username unchanged).
+        const uniqueCols = UNIQUE_COLUMNS[this.tableName] ?? [];
+        let conflict = false;
+        for (const col of uniqueCols) {
+          const newVal = this.updateValues?.[col];
+          if (newVal == null) continue;
+          if (this.table().some((r) => r[col] === newVal && !rows.includes(r))) {
+            resolve({
+              data: null,
+              error: {
+                message: `duplicate key value violates unique constraint "${this.tableName}_${col}_key"`,
+                code: '23505',
+              },
+            });
+            conflict = true;
+            break;
+          }
+        }
+        if (conflict) return;
         rows.forEach((r) => Object.assign(r, this.updateValues));
         data = this.wantsSingle ? rows[0] : rows;
       } else if (this.mode === 'insert') {

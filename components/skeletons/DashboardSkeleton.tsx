@@ -8,17 +8,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 /** แทนที่ top bar: ปุ่มย้อนกลับ + เส้นคั่น + หัวข้อ 2 บรรทัด ... ปุ่ม logout ขวาสุด */
 export function SkeletonTopBar() {
   return (
-    <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-white/50">
+    <div className="sticky top-0 z-30 bg-card border-b border-border">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
-          <Skeleton className="h-9 w-9 sm:w-24 rounded-xl" />
-          <div className="w-px h-5 bg-[#EADFAF] shrink-0" />
+          <Skeleton className="h-9 w-9 sm:w-24 rounded-md" />
+          <div className="w-px h-5 bg-border shrink-0" />
           <div className="space-y-1.5">
             <Skeleton className="h-4 w-32 rounded" />
             <Skeleton className="h-2.5 w-20 rounded hidden sm:block" />
           </div>
         </div>
-        <Skeleton className="h-9 w-9 sm:w-28 rounded-xl" />
+        <Skeleton className="h-9 w-9 sm:w-28 rounded-md" />
       </div>
     </div>
   );
@@ -29,8 +29,8 @@ export function SkeletonStatCards({ count = 5 }: { count?: number }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5 md:p-4">
-          <Skeleton className="h-10 w-10 md:h-11 md:w-11 rounded-xl shrink-0" />
+        <div key={i} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3.5 md:p-4">
+          <Skeleton className="h-10 w-10 md:h-11 md:w-11 rounded-md shrink-0" />
           <div className="min-w-0 flex-1 space-y-1.5">
             <Skeleton className="h-5 w-10 rounded" />
             <Skeleton className="h-2.5 w-16 rounded" />
@@ -46,7 +46,7 @@ export function SkeletonSidebarTabs({ count = 2 }: { count?: number }) {
   return (
     <div className="hidden md:flex md:flex-col gap-2 md:w-60 shrink-0">
       {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 px-3.5 py-3 rounded-xl border border-transparent bg-white/40">
+        <div key={i} className="flex items-center gap-3 px-3.5 py-3 rounded-md border border-transparent bg-secondary/40">
           <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
           <Skeleton className="h-3.5 flex-1 rounded" />
           <Skeleton className="h-4 w-6 rounded-full shrink-0" />
@@ -59,7 +59,7 @@ export function SkeletonSidebarTabs({ count = 2 }: { count?: number }) {
 /** แทนที่ sub-tab แนวนอนแบบ segmented control */
 export function SkeletonSubTabs({ count = 2 }: { count?: number }) {
   return (
-    <div className="flex items-center gap-1 p-1 rounded-xl bg-white/50 border border-white/40 w-fit">
+    <div className="flex items-center gap-1 p-1 rounded-md bg-secondary border border-border w-fit">
       {Array.from({ length: count }).map((_, i) => (
         <Skeleton key={i} className="h-9 w-32 rounded-lg" />
       ))}
@@ -70,7 +70,7 @@ export function SkeletonSubTabs({ count = 2 }: { count?: number }) {
 /** แทนที่แถบ filter (input วันที่/dropdown/ค้นหา) แบบ grid หลายคอลัมน์ */
 export function SkeletonFilterBar({ fields = 5 }: { fields?: number }) {
   return (
-    <div className="bg-white/70 rounded-2xl border border-white/60 shadow-sm p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="bg-card rounded-lg border border-border p-4 grid grid-cols-2 md:grid-cols-5 gap-3">
       {Array.from({ length: fields }).map((_, i) => (
         <div key={i} className="space-y-1.5">
           <Skeleton className="h-2.5 w-14 rounded" />
@@ -87,11 +87,11 @@ export function SkeletonFilterBar({ fields = 5 }: { fields?: number }) {
  */
 export function SkeletonTableRows({ rows = 5 }: { rows?: number }) {
   return (
-    <div className="bg-white/70 rounded-2xl border border-white/60 shadow-sm overflow-hidden">
-      <div className="hidden md:block px-6 py-2.5 bg-[#F1EDE0]/60 border-b border-[#EADFAF]">
+    <div className="bg-card rounded-lg border border-border overflow-hidden">
+      <div className="hidden md:block px-6 py-2.5 bg-secondary/60 border-b border-border">
         <Skeleton className="h-2.5 w-full max-w-md rounded" />
       </div>
-      <div className="divide-y divide-[#EADFAF]/60">
+      <div className="divide-y divide-border/60">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i}>
             {/* desktop row */}
@@ -102,7 +102,7 @@ export function SkeletonTableRows({ rows = 5 }: { rows?: number }) {
               </div>
               <div className="col-span-2"><Skeleton className="h-5 w-20 rounded-full" /></div>
               <div className="col-span-5"><Skeleton className="h-3.5 w-28 rounded" /></div>
-              <div className="col-span-2 flex justify-end"><Skeleton className="h-8 w-20 rounded-xl" /></div>
+              <div className="col-span-2 flex justify-end"><Skeleton className="h-8 w-20 rounded-md" /></div>
             </div>
             {/* mobile card */}
             <div className="md:hidden px-4 py-4 space-y-3">
@@ -113,7 +113,7 @@ export function SkeletonTableRows({ rows = 5 }: { rows?: number }) {
                 </div>
                 <Skeleton className="h-5 w-16 rounded-full shrink-0" />
               </div>
-              <Skeleton className="h-8 w-full rounded-xl" />
+              <Skeleton className="h-8 w-full rounded-md" />
             </div>
           </div>
         ))}
@@ -125,7 +125,7 @@ export function SkeletonTableRows({ rows = 5 }: { rows?: number }) {
 /** แทนที่รายการแบบการ์ดเรียบง่าย (เช่น "ลูกค้าที่รออนุมัติ") — เลข ลำดับ + ชื่อ + รายละเอียดย่อย */
 export function SkeletonSimpleRows({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="bg-white/70 rounded-2xl border border-white/60 shadow-sm overflow-hidden divide-y divide-[#EADFAF]/60">
+    <div className="bg-card rounded-lg border border-border overflow-hidden divide-y divide-border/60">
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 md:px-6 py-3.5 md:py-4">
           <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
@@ -133,7 +133,7 @@ export function SkeletonSimpleRows({ rows = 4 }: { rows?: number }) {
             <Skeleton className="h-3.5 w-40 rounded" />
             <Skeleton className="h-2.5 w-24 rounded" />
           </div>
-          <Skeleton className="h-8 w-20 rounded-xl shrink-0" />
+          <Skeleton className="h-8 w-20 rounded-md shrink-0" />
         </div>
       ))}
     </div>
@@ -149,7 +149,7 @@ export function StaffDashboardSkeleton({
   sidebarTabCount = 0,
   subTabCount = 0,
   rows = 5,
-  bgClassName = 'bg-gradient-to-b from-[#FBF6E8] via-[#F8F2DF] to-[#F1E7C8]',
+  bgClassName = 'bg-background',
 }: {
   statCount?: number;
   sidebarTabCount?: number;
