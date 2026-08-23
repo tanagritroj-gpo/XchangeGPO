@@ -382,22 +382,24 @@ export default function SaleHubPage() {
             </div>
           </Link>
 
-          {/* Tile: ศูนย์รายงาน — 2×2 ยังเป็น placeholder เหมือนเดิม (รอพัฒนาต่อ) */}
-          <div className="md:col-span-2 md:row-span-2 h-full min-h-[128px] flex flex-col bg-card rounded-lg border border-dashed border-border opacity-80 overflow-hidden">
-            <div className="p-6 flex-1 flex flex-col">
-              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-secondary shrink-0 mb-3">
-                <BarChart3 className="w-5 h-5 text-muted-foreground" />
-              </div>
-              <h2 className="text-sm font-bold text-foreground flex items-center gap-2 flex-wrap">
-                ศูนย์รายงาน (Report Center)
-                <span className="text-[11px] font-bold uppercase tracking-wide bg-secondary text-muted-foreground px-2 py-0.5 rounded-full">เร็วๆ นี้</span>
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">สรุปสถิติยอดขาย/คำร้องของลูกค้าที่ดูแล — อยู่ระหว่างการพัฒนา</p>
-              <div className="mt-auto flex items-center justify-center rounded-md text-xs text-muted-foreground bg-secondary border-2 border-dashed border-border py-4">
-                กำลังพัฒนา
+          {/* Tile: ศูนย์รายงาน — 2×2 การ์ดลิงก์ (เดิม placeholder "เร็วๆ นี้" ตอนนี้พัฒนาแล้ว —
+               ไปหน้าสถิติจริงที่ใช้ ManagerInsights.tsx ตัวเดียวกับ Manager/CSR แต่กรองเฉพาะ
+               ลูกค้าของ sale ตาม org_type/sale_provinces เดิม) ไม่มีป้ายตัวเลขมุมขวาบนเหมือน
+               "ประวัติใบงาน" ข้างบน เพราะจะซ้ำกับ counts.total ที่โชว์อยู่แล้วในการ์ดนั้น */}
+          <Link href="/admin/sale/reports" className="group block md:col-span-2 md:row-span-2">
+            <div className="relative h-full flex flex-col bg-card rounded-lg border border-border border-l-[3px] border-l-primary hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
+              <div className="p-6 flex-1 flex flex-col">
+                <div className="w-10 h-10 rounded-md flex items-center justify-center bg-primary text-primary-foreground shadow-sm shadow-primary/30 shrink-0 mb-3 transition-transform duration-200 group-hover:scale-105">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <h2 className="text-sm font-bold text-foreground">ศูนย์รายงาน (Report Center)</h2>
+                <p className="text-xs text-muted-foreground mt-1">สรุปสถิติ แนวโน้ม และ Export Excel ของลูกค้าที่ดูแล</p>
+                <span className="mt-auto pt-3 text-xs font-semibold text-primary flex items-center gap-1 group-hover:gap-1.5 transition-all">
+                  ดูรายงาน <ArrowRight className="w-3.5 h-3.5" />
+                </span>
               </div>
             </div>
-          </div>
+          </Link>
         </div>
       </main>
 

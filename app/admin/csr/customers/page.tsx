@@ -9,6 +9,8 @@ import {
 } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
+import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import CustomerPicker from '../form/components/CustomerPicker';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import { SkeletonTopBar, SkeletonSubTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
@@ -61,6 +63,7 @@ function formatThaiDate(dateStr: string) {
 // แก้ไขประเภทหน่วยงานของลูกค้าที่อนุมัติไปแล้ว — จำเป็นสำหรับลูกค้าเก่าที่ org_type
 // ยังเป็น NULL (ลงทะเบียนก่อนมีฟีเจอร์นี้) เพื่อให้พนักงาน sale จับคู่ขอบเขตดูแลได้
 function OrgTypeEditor({ customer, onSaved }: { customer: Customer; onSaved: (orgType: string) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(customer.org_type ?? '');
   const [saving, setSaving] = useState(false);
@@ -104,7 +107,7 @@ function OrgTypeEditor({ customer, onSaved }: { customer: Customer; onSaved: (or
           const res = await updateCustomerOrgType(customer.id, draft);
           setSaving(false);
           if (res.success) { onSaved(draft); setEditing(false); }
-          else alert(('error' in res && res.error) || 'บันทึกไม่สำเร็จ');
+          else toast.error(('error' in res && res.error) || 'บันทึกไม่สำเร็จ');
         }}
         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary/90 disabled:opacity-40 transition-colors"
       >
@@ -224,6 +227,8 @@ function CustomerCodeField({ hospitalName, value, onChange }: {
 
 export default function CSRCustomersPage() {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const [clients, setClients] = useState<ClientRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -306,21 +311,21 @@ export default function CSRCustomersPage() {
   const handleReviewClient = async (id: string, action: 'approved' | 'rejected') => {
     if (processingIds.has(id)) return;
     if (action === 'approved' && !customerCodes[id]?.trim()) {
-      alert('กรุณาระบุรหัสลูกค้าก่อนอนุมัติ');
+      toast.error('กรุณาระบุรหัสลูกค้าก่อนอนุมัติ');
       return;
     }
     setProcessingIds((prev) => new Set(prev).add(id));
     try {
       const res = await reviewClient(id, action, customerCodes[id]);
       if (res.success) {
-        alert(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย');
+        toast.success(action === 'approved' ? 'อนุมัติเรียบร้อย' : 'ปฏิเสธเรียบร้อย');
         setCustomerCodes((prev) => {
           const { [id]: _omit, ...rest } = prev;
           return rest;
         });
         fetchData();
       } else {
-        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        toast.error(('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
         // รีเฟรชด้วยแม้ล้มเหลว — สถานะจริงใน DB อาจเปลี่ยนไปแล้ว (เช่น ถูกดำเนินการไปแล้ว
         // จากคำขออื่น) ไม่อยากให้ list ค้างข้อมูลเก่าที่ไม่ตรงกับ DB จริง
         fetchData();
@@ -342,7 +347,7 @@ export default function CSRCustomersPage() {
     if (res.success && 'url' in res && res.url) {
       setDocModalUrl(res.url);
     } else {
-      alert(('error' in res && res.error) || 'ไม่สามารถเปิดเอกสารได้');
+      toast.error(('error' in res && res.error) || 'ไม่สามารถเปิดเอกสารได้');
     }
   };
 
@@ -363,12 +368,12 @@ export default function CSRCustomersPage() {
 
   const handleRenew = async (id: number) => {
     if (accessProcessingIds.has(id)) return;
-    if (!confirm('ยืนยันต่ออายุการใช้งาน 2 ปี นับจากวันนี้?')) return;
+    if (!(await confirm('ยืนยันต่ออายุการใช้งาน 2 ปี นับจากวันนี้?'))) return;
     setAccessProcessingIds((prev) => new Set(prev).add(id));
     try {
       const res = await renewCustomerAccess(id);
-      if (res.success) { alert('ต่ออายุเรียบร้อย'); fetchAccessData(); }
-      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      if (res.success) { toast.success('ต่ออายุเรียบร้อย'); fetchAccessData(); }
+      else toast.error(('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
     } finally {
       setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
@@ -376,12 +381,15 @@ export default function CSRCustomersPage() {
 
   const handleCancelAccess = async (id: number) => {
     if (accessProcessingIds.has(id)) return;
-    if (!confirm('ยืนยันยกเลิกสิทธิ์การเข้าใช้งานของลูกค้ารายนี้? ลูกค้าจะไม่สามารถเข้าสู่ระบบได้ทันที')) return;
+    if (!(await confirm({
+      message: 'ยืนยันยกเลิกสิทธิ์การเข้าใช้งานของลูกค้ารายนี้? ลูกค้าจะไม่สามารถเข้าสู่ระบบได้ทันที',
+      variant: 'destructive',
+    }))) return;
     setAccessProcessingIds((prev) => new Set(prev).add(id));
     try {
       const res = await cancelCustomerAccess(id);
-      if (res.success) { alert('ยกเลิกสิทธิ์เรียบร้อย'); fetchAccessData(); }
-      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      if (res.success) { toast.success('ยกเลิกสิทธิ์เรียบร้อย'); fetchAccessData(); }
+      else toast.error(('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
     } finally {
       setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }
@@ -389,12 +397,12 @@ export default function CSRCustomersPage() {
 
   const handleReactivate = async (id: number) => {
     if (accessProcessingIds.has(id)) return;
-    if (!confirm('ยืนยันเปิดใช้งานลูกค้ารายนี้อีกครั้ง?')) return;
+    if (!(await confirm('ยืนยันเปิดใช้งานลูกค้ารายนี้อีกครั้ง?'))) return;
     setAccessProcessingIds((prev) => new Set(prev).add(id));
     try {
       const res = await reactivateCustomerAccess(id);
-      if (res.success) { alert('เปิดใช้งานเรียบร้อย'); fetchAccessData(); }
-      else alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+      if (res.success) { toast.success('เปิดใช้งานเรียบร้อย'); fetchAccessData(); }
+      else toast.error(('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
     } finally {
       setAccessProcessingIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
     }

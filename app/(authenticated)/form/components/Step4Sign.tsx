@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState } from 'react';
 import { PenLine, Trash2, Check, Lock, ArrowLeft, ArrowRight } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 import type { ReturnFormData } from '../form-types';
 
 interface StepProps {
@@ -132,6 +133,7 @@ function SignaturePad({ canvasRef, isEmpty, setIsEmpty }: {
 }
 
 export default function Step4Signature({ next, back, updateData, formData }: StepProps) {
+  const toast = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null!);
   const [isEmpty, setIsEmpty] = useState(true);
 
@@ -150,9 +152,9 @@ export default function Step4Signature({ next, back, updateData, formData }: Ste
   };
 
   const handleNext = () => {
-    if (isEmpty) return alert('กรุณาลงลายเซ็นก่อนครับ');
-    if (!fullname.trim()) return alert('กรุณาระบุชื่อผู้ลงนาม');
-    if (!pdpa) return alert('กรุณายินยอม PDPA');
+    if (isEmpty) return toast.error('กรุณาลงลายเซ็นก่อนครับ');
+    if (!fullname.trim()) return toast.error('กรุณาระบุชื่อผู้ลงนาม');
+    if (!pdpa) return toast.error('กรุณายินยอม PDPA');
 
     const sigDataUrl = canvasRef.current!.toDataURL('image/png');
 

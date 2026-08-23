@@ -7,6 +7,7 @@ import { loginWithGoogle } from '@/app/actions/auth-google';
 import { loginStaffAction } from '@/app/actions/auth-staff';
 import { loginCustomerAction } from '@/app/actions/auth-actions';
 import { PasswordInput } from '@/components/ui/password-input';
+import { useToast } from '@/components/ui/toast';
 
 const GOOGLE_LOGIN_ERRORS: Record<string, string> = {
   'auth-failed': 'เชื่อมต่อกับ Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
@@ -25,11 +26,12 @@ export default function HomePage() {
 function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
 
   useEffect(() => {
     const error = searchParams.get('error');
     if (error && GOOGLE_LOGIN_ERRORS[error]) {
-      alert(GOOGLE_LOGIN_ERRORS[error]);
+      toast.error(GOOGLE_LOGIN_ERRORS[error]);
       router.replace('/');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,11 +75,11 @@ function HomePageContent() {
       if (res.success) {
         window.location.href = res.url;
       } else {
-        alert(res.error);
+        toast.error(res.error);
         setLoadingLogin(false);
       }
     } catch {
-      alert('เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่');
+      toast.error('เชื่อมต่อ Google ไม่สำเร็จ กรุณาลองใหม่');
       setLoadingLogin(false);
     }
   };
@@ -90,7 +92,7 @@ function HomePageContent() {
         if (res.success) {
           router.push('/welcome');
         } else {
-          alert(res.error || "เข้าสู่ระบบไม่สำเร็จ");
+          toast.error(res.error || "เข้าสู่ระบบไม่สำเร็จ");
         }
         return;
       }
@@ -108,10 +110,10 @@ function HomePageContent() {
         const destination = deptRoutes[result.department] || '/dashboard';
         router.push(destination);
       } else {
-        alert(result.error || "เข้าสู่ระบบไม่สำเร็จ");
+        toast.error(result.error || "เข้าสู่ระบบไม่สำเร็จ");
       }
     } catch {
-      alert("เกิดข้อผิดพลาดในการเชื่อมต่อ");
+      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
       setLoadingLogin(false);
     }

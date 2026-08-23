@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ClipboardList, NotebookPen, Truck, Handshake, MapPin, User, Loader2, Check, ChevronDown, ArrowLeft, ArrowRight } from 'lucide-react';
 import type { ReturnFormData } from '../form-types';
 import { getAssignedSaleRepsForCustomer, type SaleRepLookupResult } from '@/app/actions/sale-lookup-actions';
+import { useToast } from '@/components/ui/toast';
 
 interface StepProps {
   next:       () => void;
@@ -62,6 +63,7 @@ function BadgeBtn({ label, active, onClick }: { label: React.ReactNode; active: 
 }
 
 export default function Step3Reason({ next, back, updateData, formData, getSaleRepsFn = getAssignedSaleRepsForCustomer }: StepProps) {
+  const toast = useToast();
   const isExchange = formData?.sender?.request_type === 'รับคืนแลกเปลี่ยน';
   const items = formData?.items || [];
 
@@ -116,14 +118,14 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
     setCheckedItems(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
 
   const handleNext = () => {
-    if (!reason) return alert('กรุณาระบุเหตุผลการส่งคืนครับ');
-    if (reason === 'อื่นๆ' && !reasonOther.trim()) return alert('กรุณาระบุรายละเอียดเหตุผลครับ');
+    if (!reason) return toast.error('กรุณาระบุเหตุผลการส่งคืนครับ');
+    if (reason === 'อื่นๆ' && !reasonOther.trim()) return toast.error('กรุณาระบุรายละเอียดเหตุผลครับ');
     if (isExchange) {
-      if (!exchangeMode) return alert('กรุณาระบุสินค้าที่ต้องการแลกเปลี่ยนครับ');
-      if (exchangeMode === 'รายการเดิม' && checkedItems.length === 0) return alert('กรุณาเลือกรายการสินค้าเดิมอย่างน้อย 1 รายการ');
-      if (exchangeMode === 'อื่นๆ' && !exchangeOtherText.trim()) return alert('กรุณาระบุชื่อสินค้าที่ต้องการครับ');
+      if (!exchangeMode) return toast.error('กรุณาระบุสินค้าที่ต้องการแลกเปลี่ยนครับ');
+      if (exchangeMode === 'รายการเดิม' && checkedItems.length === 0) return toast.error('กรุณาเลือกรายการสินค้าเดิมอย่างน้อย 1 รายการ');
+      if (exchangeMode === 'อื่นๆ' && !exchangeOtherText.trim()) return toast.error('กรุณาระบุชื่อสินค้าที่ต้องการครับ');
     }
-    if (!deliveryType) return alert('กรุณาเลือกวิธีส่งคืนครับ');
+    if (!deliveryType) return toast.error('กรุณาเลือกวิธีส่งคืนครับ');
     // ถ้ามี sale ที่ระบบจับคู่ให้อัตโนมัติ ใช้ชื่อ sale เป็นหลัก ถ้าไม่มีใครดูแลเขตนี้เลย
     // ใช้ข้อความที่กรอกเองแทน (ช่องว่างให้กรอกเอง ตามที่ตกลงไว้) — โน้ตนัดหมายเก็บแยกคอลัมน์
     // ของตัวเอง (agent_appointment_note) ไม่ยัดรวมเป็น string เดียวกับ agent_info อีกต่อไป

@@ -79,6 +79,26 @@ export interface HistorySummaryRow {
   province?: string | null;
 }
 
+// รูปแบบย่อของ requests/drug_items สำหรับ ManagerInsights/computeManagerStats
+// (lib/manager-stats.ts) — Pick มาจาก RequestRow/DrugItemRow เฉพาะคอลัมน์ที่การคำนวณสถิติ
+// ใช้จริง เพื่อให้ RPC ข้ามแผนกที่ join ผ่าน organizations แบบจำกัดคอลัมน์ (เช่น
+// get_sale_customer_history ที่ Sale ใช้ ไม่ select('*') เต็มตาราง requests แบบ CSR/Manager)
+// ส่งข้อมูลเข้า component เดียวกันได้ตรงๆ โดยไม่ต้องปลอมค่า field ที่ไม่ได้ดึงมาเป็น null —
+// RequestRow/DrugItemRow เต็มรูปแบบยัง assignable เข้าตัวนี้ได้เสมอ (superset ของฟิลด์ที่ต้องใช้)
+// จึงไม่กระทบ CSR/Manager ที่ส่ง RequestRow[] เข้ามาอยู่แล้ว
+export type ReportDrugItemRow = Pick<
+  DrugItemRow,
+  'drug_name' | 'qty' | 'unit' | 'lot_number' | 'exp_date' | 'value_amount' | 'current_status'
+>;
+
+export type ReportRequestRow = Pick<
+  RequestRow,
+  | 'id' | 'ref_id' | 'hospital_name' | 'province' | 'addr_province' | 'request_type'
+  | 'return_reason' | 'total_value' | 'current_status' | 'created_at' | 'updated_at'
+> & {
+  drug_items?: ReportDrugItemRow[];
+};
+
 export interface CustomerSessionInfo {
   id: number;
   email: string;

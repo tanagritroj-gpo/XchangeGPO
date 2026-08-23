@@ -44,6 +44,7 @@ import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { StatCard } from '@/components/StatCard';
 import { RequestDetailPanel } from '@/components/history/RequestHistoryList';
+import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
@@ -592,6 +593,7 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
 
 export default function CSRDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const [requests, setRequests]       = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -663,10 +665,10 @@ export default function CSRDashboard() {
         setCompleteModal(null);
         fetchData();
       } else {
-        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        toast.error(`${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -690,10 +692,10 @@ export default function CSRDashboard() {
         setExchangeModal(null);
         fetchData();
       } else {
-        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        toast.error(`${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
       console.error(err);
     } finally {
       setIsSubmitting(false);
@@ -721,10 +723,10 @@ export default function CSRDashboard() {
         setRemark('');
         fetchData();
       } else {
-        alert('Error: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        toast.error(`${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
       console.error(err);
     } finally {
       setIsSubmitting(false);

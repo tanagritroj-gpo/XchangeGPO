@@ -12,7 +12,7 @@
  * ──────────────────────────────────────────────────────────────────── */
 
 import { getRejectionReasonLabel } from './rejection-reasons';
-import type { RequestRow, StatusLogRow, DrugItemRow } from './types';
+import type { StatusLogRow, ReportRequestRow, ReportDrugItemRow } from './types';
 
 export const MONTH_LABELS_TH = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -80,7 +80,9 @@ function normalizeReason(reason: string | null) {
 
 /** สถิติภาพรวมทั้งหมด — ใช้ทั้งกับ ManagerInsights.tsx (โชว์กราฟ) และ
  *  staff-chat route (สรุปให้บอท) เพื่อให้ตัวเลขตรงกันเสมอ */
-export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLogRow[]) {
+// generic <T> — ให้ CSR/Manager ส่ง RequestRow[] เต็มรูปแบบ หรือ Sale ส่ง ReportRequestRow[]
+// แบบย่อ (จาก get_sale_customer_history ที่ select คอลัมน์จำกัดกว่า) เข้ามาคำนวณร่วมกันได้
+export function computeManagerStats<T extends ReportRequestRow>(requests: T[], statusLogs: StatusLogRow[]) {
   const totalValue = requests.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
   const totalDrugItems = requests.reduce((s, r) => s + (r.drug_items?.length ?? 0), 0);
 
@@ -110,7 +112,7 @@ export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLo
     return d.getFullYear() === y && d.getMonth() === m;
   };
   const inYear = (dateStr: string, y: number) => new Date(dateStr).getFullYear() === y;
-  const sumValue = (arr: RequestRow[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
+  const sumValue = (arr: T[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
 
   const thisMonthReqs = requests.filter((r) => r.created_at && inMonth(r.created_at, now.getFullYear(), now.getMonth()));
   const lastMonthReqs = requests.filter((r) => r.created_at && inMonth(r.created_at, lastMonthDate.getFullYear(), lastMonthDate.getMonth()));
@@ -193,7 +195,7 @@ export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLo
 
   // ยาที่ถูกส่งคืนบ่อยที่สุด
   const drugMap: Record<string, number> = {};
-  requests.forEach((r) => (r.drug_items || []).forEach((i: DrugItemRow) => {
+  requests.forEach((r) => (r.drug_items || []).forEach((i: ReportDrugItemRow) => {
     drugMap[i.drug_name] = (drugMap[i.drug_name] || 0) + (Number(i.qty) || 1);
   }));
   const topReturnedDrugs = Object.entries(drugMap)
@@ -248,7 +250,7 @@ export function computeManagerStats(requests: RequestRow[], statusLogs: StatusLo
 /** สรุปสถิติเป็นข้อความอ่านง่าย ใช้ฉีดเข้า system prompt ของบอท —
  *  ตั้งใจสรุปเฉพาะ top-line + top 5-8 ของแต่ละหมวด ไม่ใส่ trend รายเดือน
  *  ย้อนหลัง 12 เดือนแบบเต็ม (กิน token เยอะเกินจำเป็นสำหรับคำถามทั่วไป) */
-export function summarizeManagerStatsForChatbot(requests: RequestRow[], statusLogs: StatusLogRow[]): string {
+export function summarizeManagerStatsForChatbot<T extends ReportRequestRow>(requests: T[], statusLogs: StatusLogRow[]): string {
   const s = computeManagerStats(requests, statusLogs);
   const fmtBaht = (n: number) => `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`;
 

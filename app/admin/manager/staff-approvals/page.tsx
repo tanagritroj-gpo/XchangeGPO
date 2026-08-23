@@ -23,15 +23,27 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { getPendingStaff, approveStaff, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getCSRDashboardData } from '@/app/actions/csr-actions';
 import { getManagerStatusLogs, getManagerRequestDetail } from '@/app/actions/manager-actions';
-import ManagerInsights from './component/ManagerInsights';
 import { StatCard } from '@/components/StatCard';
-import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
+import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows, SkeletonManagerInsights } from '@/components/skeletons/DashboardSkeleton';
+import { useToast } from '@/components/ui/toast';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
+
+// Code-split ManagerInsights (recharts + ~730 บรรทัด) ออกจาก bundle หลักของหน้านี้ — อยู่หลัง
+// แท็บ "ภาพรวม & สถิติ" ที่ผู้ใช้ต้องกดเลือกเอง เดิมถูกโหลดมาพร้อมหน้าตั้งแต่แรกเข้าทั้งที่ยังไม่ทัน
+// กดดู ใช้ SkeletonManagerInsights ตัวเดียวกับที่มีอยู่แล้วเป็น loading fallback ระหว่างรอโหลด
+// chunk ไม่ต้องสร้าง skeleton ใหม่ — ssr: false เพราะ recharts วัดขนาด DOM ฝั่ง client เท่านั้น
+// และหน้านี้เป็น 'use client' อยู่แล้ว ไม่มีประโยชน์จาก SSR ของกราฟ
+const ManagerInsights = dynamic(() => import('./component/ManagerInsights'), {
+  loading: () => <SkeletonManagerInsights />,
+  ssr: false,
+});
 
 // ── ปุ่ม tab บน sidebar ฝั่งซ้าย (desktop) / แนวนอนเลื่อนได้ (mobile) — pattern เดียวกับ CSR
 // Dashboard — accent เดียวทั้งหมด (ตัด indigo/violet/gold/teal ต่อแท็บออก ไม่มีทั้ง 4 แท็บนี้
@@ -84,6 +96,8 @@ type ManagerTab = (typeof VALID_TABS)[number];
 
 function StaffApprovalPageInner() {
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const initialTab: ManagerTab = (VALID_TABS as readonly string[]).includes(tabFromUrl ?? '')
@@ -146,7 +160,7 @@ function StaffApprovalPageInner() {
   }, []);
 
   const handleApprove = async (id: string) => {
-    const confirmed = confirm("ยืนยันการอนุมัติพนักงานท่านนี้?");
+    const confirmed = await confirm("ยืนยันการอนุมัติพนักงานท่านนี้?");
     if (!confirmed) return;
 
     setApprovingId(id);
@@ -154,10 +168,10 @@ function StaffApprovalPageInner() {
       const res = await approveStaff(id);
 
       if (res.success) {
-        alert("อนุมัติเรียบร้อยแล้ว");
+        toast.success("อนุมัติเรียบร้อยแล้ว");
         fetchData();
       } else {
-        alert("เกิดข้อผิดพลาด: " + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
+        toast.error(('error' in res && res.error) || 'ไม่ทราบสาเหตุ');
       }
     } finally {
       setApprovingId(null);
@@ -227,8 +241,11 @@ function StaffApprovalPageInner() {
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
           <SkeletonSidebarTabs count={4} />
+          {/* activeTab รู้ค่าแล้วตั้งแต่ตอน mount (มาจาก URL ?tab= ก่อนเริ่ม fetch) — ใช้
+              โครง skeleton ให้ตรงกับแท็บที่จะโชว์จริงหลังโหลดเสร็จ กันเนื้อหากราฟ "โผล่" แทรก
+              กลางหน้าตอนสลับจาก SkeletonSimpleRows ทั่วไปเป็น ManagerInsights ทันที */}
           <div className="flex-1 min-w-0">
-            <SkeletonSimpleRows rows={4} />
+            {activeTab === 'insights' ? <SkeletonManagerInsights /> : <SkeletonSimpleRows rows={4} />}
           </div>
         </div>
       </div>

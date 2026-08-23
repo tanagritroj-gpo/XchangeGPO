@@ -9,6 +9,7 @@ import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { LogisticsRequestList } from '../component/LogisticsRequestList';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
+import { useToast } from '@/components/ui/toast';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 // หน้า "ส่งรถไปรับคืนสินค้า" แยกต่างหาก (เดิมเป็นแท็บ "อนุมัติรับคืนสินค้า" ในหน้า dashboard
@@ -22,6 +23,7 @@ const TRANSIT_NOTES = [
 
 export default function LogisticsApprovedPage() {
   const router = useRouter();
+  const toast = useToast();
   const [requests, setRequests]       = useState<RequestRow[]>([]);
   const [isLoading, setIsLoading]     = useState(true);
   const [expandedReq, setExpandedReq] = useState<number | null>(null);
@@ -70,7 +72,7 @@ export default function LogisticsApprovedPage() {
         ));
         setTransitModal(null);
       } else {
-        alert('Error: ' + res.error);
+        toast.error(res.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
       }
     } finally {
       setIsSubmittingTransit(false);

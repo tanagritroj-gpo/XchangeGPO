@@ -5,6 +5,7 @@ import { updateItemStatus, rejectItemStatus } from '@/app/actions/logistics-acti
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
+import { useToast } from '@/components/ui/toast';
 import type { DrugItemRow } from '@/lib/types';
 
 // หมายเหตุตรวจรับสินค้าถึงคลัง — preset ให้เลือกเร็วๆ ไม่ต้องพิมพ์เองทุกครั้ง
@@ -21,6 +22,7 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
   reqStatus: string;
   onUpdate: (itemId: number, newStatus: 'at_warehouse' | 'rejected') => void;
 }) {
+  const toast = useToast();
   // Modal ยืนยันตรวจรับ/ปฏิเสธรายการยา (แทน prompt() เดิม)
   const [actionModal, setActionModal] = useState<'at_warehouse' | 'rejected' | null>(null);
   const [detail, setDetail] = useState('');
@@ -47,11 +49,11 @@ export default function LOGDrugRow({ item, reqStatus, onUpdate }: {
         setActionModal(null);
         setDetail('');
       } else {
-        alert('บันทึกไม่สำเร็จ: ' + (('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'));
+        toast.error(`บันทึกไม่สำเร็จ: ${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
       console.error('Error:', err);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setIsSubmitting(false);
     }

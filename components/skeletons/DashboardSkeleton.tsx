@@ -140,6 +140,84 @@ export function SkeletonSimpleRows({ rows = 4 }: { rows?: number }) {
   );
 }
 
+/** แทนที่การ์ดกราฟ 1 ใบของ ManagerInsights (ChartCard) — icon หัวข้อ + subtitle + พื้นที่
+ *  กราฟ ให้ระบุความสูงเองได้ต่อกราฟ (แต่ละกราฟจริงสูงไม่เท่ากัน) */
+function SkeletonChartCard({ heightClassName = 'h-[260px]' }: { heightClassName?: string }) {
+  return (
+    <div className="bg-card rounded-lg border border-border p-4 md:p-6 space-y-4">
+      <div className="flex items-center gap-2.5">
+        <Skeleton className="w-8 h-8 rounded-lg shrink-0" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-3.5 w-32 rounded" />
+          <Skeleton className="h-2.5 w-48 rounded" />
+        </div>
+      </div>
+      <Skeleton className={`w-full rounded-lg ${heightClassName}`} />
+    </div>
+  );
+}
+
+/** แทนที่ ManagerInsights.tsx ทั้งก้อน (การ์ดสถิติ 2 แถว + กราฟหลายใบ) — ใช้กับหน้าที่ยัง
+ *  โหลดข้อมูล requests/statusLogs อยู่ (ภาพรวม & สถิติ ของ Manager, ศูนย์รายงานของ CSR/Sale)
+ *  กันเนื้อหากราฟ "โผล่" มาทีเดียวแทรกกลางหน้าหลังโหลดเสร็จ — ไม่ได้ไล่ทำครบทุกกราฟจริง (9 ใบ)
+ *  เพราะไม่คุ้มต้องตามแก้ทุกครั้งที่ ManagerInsights เพิ่ม/ลดกราฟ แค่ให้จังหวะ/สัดส่วนใกล้เคียง
+ *  พอที่ค่าจริงเข้ามาแทนที่แล้วไม่รู้สึกกระโดด */
+export function SkeletonManagerInsights() {
+  return (
+    <section className="space-y-5">
+      <div className="flex items-center gap-2.5 px-1">
+        <Skeleton className="w-8 h-8 rounded-md shrink-0" />
+        <div className="space-y-1.5">
+          <Skeleton className="h-4 w-28 rounded" />
+          <Skeleton className="h-2.5 w-44 rounded" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-card rounded-lg border border-border p-4 md:p-5 flex items-center gap-3.5">
+            <Skeleton className="w-11 h-11 rounded-md shrink-0" />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <Skeleton className="h-2.5 w-16 rounded" />
+              <Skeleton className="h-5 w-20 rounded" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-card rounded-lg border border-border p-4 md:p-5 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-2.5 w-20 rounded" />
+                <Skeleton className="h-2.5 w-16 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-24 rounded" />
+          </div>
+        ))}
+      </div>
+
+      <SkeletonChartCard heightClassName="h-[260px]" />
+      <SkeletonChartCard heightClassName="h-[200px]" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SkeletonChartCard heightClassName="h-[220px]" />
+        <SkeletonChartCard heightClassName="h-[220px]" />
+      </div>
+
+      <SkeletonChartCard heightClassName="h-[280px]" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <SkeletonChartCard heightClassName="h-[240px]" />
+        <SkeletonChartCard heightClassName="h-[240px]" />
+      </div>
+    </section>
+  );
+}
+
 /**
  * โครงเต็มหน้าแบบมาตรฐาน — top bar + stat cards (ถ้ามี) + sidebar (ถ้ามี) + ตาราง
  * ใช้แทนที่ full-page spinner gate เดิมของ CSR/WH/Logistics/Manager dashboard

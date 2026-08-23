@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal, Package, Check, FileText, Calendar, User, Phone, Mail, ArrowRight } from 'lucide-react';
 import { getNextDocNumber } from '@/app/actions/form-actions';
 import { getCustomerSession } from '@/app/actions/auth-actions';
+import { useToast } from '@/components/ui/toast';
 import type { ReturnFormData, CustomerSessionInfo } from '../form-types';
 
 interface Step1Props {
@@ -33,6 +34,7 @@ const InfoBox = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function Step1Info({ next, updateData, initialRequestType }: Step1Props) {
+  const toast = useToast();
   const [selectedType, setSelectedType] = useState(initialRequestType || '');
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
@@ -64,8 +66,8 @@ export default function Step1Info({ next, updateData, initialRequestType }: Step
   }, []);
 
   const handleNext = async () => {
-    if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
-    if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
+    if (!selectedType) return toast.error('กรุณาเลือกประเภทรายการ');
+    if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return toast.error('กรุณาระบุรายละเอียดเพิ่มเติม');
     // doc_number ไม่ต้องพกไปกับ formData อีกต่อไป — เลขจริงถูกจองแบบ atomic ตอน submit จริง
     // ใน create_exchange_request เอง (ค่าที่โชว์ด้านบนเป็นแค่ตัวอย่าง ไม่ผูกมัด)
     updateData((prev) => ({

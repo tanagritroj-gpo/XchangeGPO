@@ -4,23 +4,29 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ArrowLeft, FileBarChart2, Download, Loader2, Inbox, Search, ChevronLeft, ChevronRight, ChevronDown, LogOut } from 'lucide-react';
-import { getCSRDashboardData } from '@/app/actions/csr-actions';
-import { getManagerStatusLogs } from '@/app/actions/manager-actions';
+import { getSaleCustomerHistory, getSaleStatusLogs } from '@/app/actions/sale-actions';
 import { logoutStaffAction } from '@/app/actions/auth-staff';
 import { filterCsrRequests, type CsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
 import { SkeletonTopBar, SkeletonFilterBar, SkeletonManagerInsights, SkeletonTableRows } from '@/components/skeletons/DashboardSkeleton';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
-import type { RequestRow, StatusLogRow } from '@/lib/types';
+import type { ReportRequestRow, StatusLogRow } from '@/lib/types';
 
-// Code-split ManagerInsights (recharts + ~730 บรรทัด) ออกจาก bundle หลักของหน้านี้ — เหตุผล
-// เดียวกับหน้า Manager (app/admin/manager/staff-approvals/page.tsx) ต่างกันที่หน้านี้ไม่มี tab
-// ซ่อน โชว์ทันทีที่เข้าหน้า ประโยชน์หลักคือลด initial JS ของหน้าให้เล็กลง ใช้
-// SkeletonManagerInsights เดิมเป็น loading fallback ระหว่างรอโหลด chunk
+// Code-split ManagerInsights (recharts + ~730 บรรทัด) — เหตุผลเดียวกับ CSR reports
+// (app/admin/csr/reports/page.tsx) ลด initial JS ของหน้า ใช้ SkeletonManagerInsights เดิม
+// เป็น loading fallback
 const ManagerInsights = dynamic(() => import('@/app/admin/manager/staff-approvals/component/ManagerInsights'), {
   loading: () => <SkeletonManagerInsights />,
   ssr: false,
 });
+
+// "ศูนย์รายงาน (Report Center)" ของ Sale — เดิมเป็น placeholder ("เร็วๆ นี้") บนหน้า
+// app/admin/sale/page.tsx ผู้ใช้ขอให้ต่อยอดเป็นหน้าจริง โดยแสดงสถิติแบบเดียวกับที่ทำให้
+// Manager/CSR แล้ว (reuse ManagerInsights.tsx ตัวเดียวกันเป๊ะ) แต่กรองเฉพาะลูกค้าของ sale
+// คนนี้ตาม org_type + sale_provinces เดิม (ผ่าน getSaleCustomerHistory/getSaleCoverage ที่มี
+// อยู่แล้ว ไม่แตะ logic การกรอง) — โครงหน้าก็อปมาจาก app/admin/csr/reports/page.tsx เกือบทั้งหมด
+// ต่างแค่แหล่งข้อมูล (getSaleCustomerHistory/getSaleStatusLogs แทน getCSRDashboardData/
+// getManagerStatusLogs) และปุ่มย้อนกลับไป /admin/sale
 
 const REQUEST_TYPES = ['รับคืนลดหนี้', 'รับคืน CCR', 'รับคืนแลกเปลี่ยน'];
 
@@ -31,8 +37,7 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 5;
 
-// ── Status config — สีเดียวกับ CSR Dashboard (app/admin/csr/dashboard/page.tsx)
-// ให้สถานะเดียวกันใช้สีเดียวกันทั้งพื้นที่ CSR ──
+// ── Status config — สีเดียวกับที่ใช้ในหน้า CSR Report Center (สถานะชุดเดียวกันทั้งระบบ) ──
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   pending_review:   { label: 'รอตรวจสอบ',       color: 'text-amber-700',   bg: 'bg-amber-50 border-amber-200',     dot: 'bg-amber-400'   },
   approved:         { label: 'อนุมัติแล้ว',      color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', dot: 'bg-emerald-500' },
@@ -61,18 +66,17 @@ function formatCurrency(n: number) {
   return `${n.toLocaleString('th-TH', { maximumFractionDigits: 0 })} บาท`;
 }
 
-export default function CsrReportsPage() {
+export default function SaleReportsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [requests, setRequests] = useState<ReportRequestRow[]>([]);
   const [statusLogs, setStatusLogs] = useState<StatusLogRow[]>([]);
   const [filters, setFilters] = useState<CsrReportFilters>({ status: 'all', requestType: 'all' });
   const [page, setPage] = useState(1);
   const [searchOpen, setSearchOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  // ช่องพิมพ์ค้นหาแยก state ออกจาก filters.search — พิมพ์ตอบสนองทันที (state นี้)
-  // แต่ filters.search (ตัวที่ trigger filterCsrRequests → ManagerInsights คำนวณกราฟ ~15
-  // useMemo ใหม่ทั้งหมด) อัปเดตหลังหยุดพิมพ์ 300ms แทน กันคำนวณซ้ำทุกตัวอักษรที่พิมพ์
+  // ช่องพิมพ์ค้นหาแยก state ออกจาก filters.search — เหตุผลเดียวกับหน้า CSR reports
+  // (app/admin/csr/reports/page.tsx): พิมพ์ตอบสนองทันที filters.search ค่อยตามหลัง 300ms
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebouncedValue(searchInput, 300);
 
@@ -88,11 +92,11 @@ export default function CsrReportsPage() {
 
   useEffect(() => {
     async function load() {
-      const [dashboard, logsResult] = await Promise.all([
-        getCSRDashboardData(),
-        getManagerStatusLogs(),
+      const [history, logsResult] = await Promise.all([
+        getSaleCustomerHistory(),
+        getSaleStatusLogs(),
       ]);
-      setRequests(dashboard.success ? dashboard.requests ?? [] : []);
+      setRequests((history ?? []) as ReportRequestRow[]);
       setStatusLogs(logsResult.success ? logsResult.data ?? [] : []);
       setLoading(false);
     }
@@ -151,7 +155,7 @@ export default function CsrReportsPage() {
     if (filters.requestType && filters.requestType !== 'all') params.set('requestType', filters.requestType);
     if (filters.search) params.set('search', filters.search);
     const qs = params.toString();
-    return `/admin/csr/reports/export${qs ? `?${qs}` : ''}`;
+    return `/admin/sale/reports/export${qs ? `?${qs}` : ''}`;
   }, [filters]);
 
   if (loading) return (
@@ -172,7 +176,7 @@ export default function CsrReportsPage() {
         <div className="max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 md:gap-3 min-w-0">
             <button
-              onClick={() => router.replace('/admin/csr')}
+              onClick={() => router.replace('/admin/sale')}
               className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground bg-background hover:bg-secondary px-3 py-2 rounded-md transition-colors group shrink-0"
             >
               <ArrowLeft size={15} strokeWidth={2.5} className="group-hover:-translate-x-0.5 transition-transform" />
@@ -304,7 +308,7 @@ export default function CsrReportsPage() {
           </div>
         </div>
 
-        {/* ── สรุปสถิติด้านบน (reuse ManagerInsights) ── */}
+        {/* ── สรุปสถิติด้านบน (reuse ManagerInsights ตัวเดียวกับ Manager/CSR) ── */}
         <ManagerInsights requests={filteredRequests} statusLogs={filteredStatusLogs} />
 
         {/* ── ตารางรายการด้านล่าง ── */}
