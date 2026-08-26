@@ -5,6 +5,7 @@ import { ClipboardList, Pill, Package, Tag, Calendar, PenLine, ArrowLeft, Loader
 import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult, type OrgContactsResult } from './ReviewSuccessCard';
 import type { ReturnFormData } from '../form-types';
 import { getErrorMessage } from '@/lib/error-message';
+import { useToast } from '@/components/ui/toast';
 
 interface SubmitResult {
   refId?: string;
@@ -75,6 +76,7 @@ export default function ReviewPage({
   sendEmailActionFn,
   getEmailRecipientsFn,
 }: StepProps) {
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [status,  setStatus]  = useState<'idle' | 'success' | 'error'>('idle');
   const [refId,   setRefId]   = useState('');
@@ -107,7 +109,7 @@ export default function ReviewPage({
       setStatus('success');
     } catch (error: unknown) {
       console.error("Error:", error);
-      alert("บันทึกไม่สำเร็จ: " + getErrorMessage(error));
+      toast.error(`บันทึกไม่สำเร็จ: ${getErrorMessage(error)}`);
       setStatus('error');
     } finally {
       setLoading(false);

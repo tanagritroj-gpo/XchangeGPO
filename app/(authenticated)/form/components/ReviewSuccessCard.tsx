@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, Loader2, Download, Copy, Check, Mail, Arro
 import { QRCodeCanvas } from 'qrcode.react';
 import { generatePdfAction } from '@/app/actions/generate-pdf-action';
 import { sendPdfEmailAction } from '@/app/actions/send-pdf-email-action';
+import { useToast } from '@/components/ui/toast';
 
 type PdfState = 'preparing' | 'ready' | 'error';
 export type PdfActionResult = { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null } | { success: false; error: string };
@@ -54,6 +55,7 @@ export function ReviewSuccessCard({
   // ลูกค้าส่งหาตัวเองคนเดียวอยู่แล้ว ไม่มีแนวคิด "เลือกผู้รับหลายคน" ในฝั่งนั้น
   getEmailRecipientsFn?: (requestId: number) => Promise<OrgContactsResult>;
 }) {
+  const toast = useToast();
   const [pdfState, setPdfState] = useState<PdfState>('preparing');
   const [errorMsg, setErrorMsg] = useState('');
   const [copied, setCopied] = useState(false);
@@ -177,7 +179,7 @@ export function ReviewSuccessCard({
 
   // 5. ฟังก์ชันส่งอีเมล — ฝั่ง CSR ส่งเฉพาะผู้รับที่ติ๊กเลือกไว้ (getEmailRecipientsFn ให้มา)
   // ฝั่งลูกค้าไม่ส่ง recipientEmails เลย (undefined) ให้ sendPdfEmailAction ทำงานแบบเดิมทุกประการ
-  // silent=true ตอนถูกเรียกอัตโนมัติ (ฝั่งลูกค้า) — กัน alert() เด้งเองโดยไม่มีใครกดอะไรเลย
+  // silent=true ตอนถูกเรียกอัตโนมัติ (ฝั่งลูกค้า) — กัน toast แจ้ง error เด้งเองโดยไม่มีใครกดอะไรเลย
   const handleEmailCopy = async (silent = false) => {
     setEmailState('sending');
     const result = await sendEmailActionFn(requestId, getEmailRecipientsFn ? selectedEmails : undefined);
@@ -187,7 +189,7 @@ export function ReviewSuccessCard({
     } else {
       setEmailState('error');
       // เพิ่มบรรทัดนี้ เพื่อให้มันเด้งบอกว่าพังเพราะอะไร
-      if (!silent) alert(`สาเหตุที่ส่งไม่สำเร็จ: ${result.error}`);
+      if (!silent) toast.error(`สาเหตุที่ส่งไม่สำเร็จ: ${result.error}`);
     }
   };
 

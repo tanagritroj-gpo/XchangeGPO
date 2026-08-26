@@ -26,6 +26,7 @@ import {
 import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows } from '@/components/skeletons/DashboardSkeleton';
 import { getStatusLabel } from '@/lib/tracking-status';
 import { filterCsrRequests } from '@/lib/csr-report-filters';
+import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, StatusLogRow, SlaQueueRow, SlaRuleRow } from '@/lib/types';
 
@@ -84,6 +85,7 @@ function formatDateTime(dateStr: string) {
 
 export default function SlaMonitoringPage() {
   const router = useRouter();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<SlaTab>('dashboard');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -132,10 +134,10 @@ export default function SlaMonitoringPage() {
     try {
       const res = await updateSlaRule(statusName, edit);
       if (res.success) {
-        alert('บันทึกกฎ SLA เรียบร้อยแล้ว');
+        toast.success('บันทึกกฎ SLA เรียบร้อยแล้ว');
         fetchData();
       } else {
-        alert('เกิดข้อผิดพลาด: ' + (res.error || 'ไม่ทราบสาเหตุ'));
+        toast.error(res.error || 'ไม่ทราบสาเหตุ');
       }
     } finally {
       setSavingStatus(null);

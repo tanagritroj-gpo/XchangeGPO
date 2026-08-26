@@ -4,6 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { expandToOrgTypes } from '@/lib/sale-coverage';
 import { getErrorMessage } from '@/lib/error-message';
+import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import type { DrugItemRow } from '@/lib/types';
 import { z } from 'zod';
 import { parseOrError, positiveIntId } from '@/lib/validate-input';
@@ -41,6 +42,31 @@ export async function getSaleCustomerHistory() {
   }
 
   return data || [];
+}
+
+// ดึง status_logs ทั้งหมด — ใช้คำนวณสถิติของ "ศูนย์รายงาน (Report Center)" ฝั่ง Sale
+// (เวลาเฉลี่ยแต่ละขั้นตอน, เหตุผลการปฏิเสธยอดนิยม — ผ่าน ManagerInsights.tsx/
+// lib/manager-stats.ts ตัวเดียวกับที่ Manager/CSR ใช้) — เหมือน getManagerStatusLogs()
+// ใน manager-actions.ts ทุกประการ (query ไม่กรองตามแผนกเลย เพราะ status_logs ไม่มีคอลัมน์
+// ผูกกับใบงานของแผนกไหนโดยตรง ต้องกรองฝั่ง client ด้วย request_id ที่อยู่ในขอบเขตที่ sale
+// คนนี้ดูแลอีกที — pattern เดียวกับที่ export route ของ CSR ทำอยู่แล้ว) แยกไฟล์เพราะ
+// action ของแต่ละแผนกอยู่คนละไฟล์กันตามธรรมเนียมเดิมของ repo นี้ ไม่ได้ไปแก้ตัวที่ Manager/CSR
+// ใช้อยู่ (กันผลกระทบข้ามแผนก)
+export async function getSaleStatusLogs() {
+  try {
+    const session = await getStaffSession();
+    assertDepartmentAccess(session, 'sale');
+
+    const { data, error } = await supabaseAdmin
+      .from('status_logs')
+      .select('id, request_id, staff_id, status_name, log_date, staff_remark, department, actor_type, drug_item_id, rejection_reason_code')
+      .order('log_date', { ascending: true });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true, data: data || [] };
+  } catch (e: unknown) {
+    return { success: false, error: getErrorMessage(e) };
+  }
 }
 
 // รายละเอียดใบงานเดี่ยว (stepper/timeline/รายการยา) — ใช้รูปแบบเดียวกับ

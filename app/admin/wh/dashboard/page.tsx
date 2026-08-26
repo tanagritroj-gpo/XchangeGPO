@@ -10,6 +10,7 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import WHDrugRow from './component/WHDrugrow';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
 import { NotificationBell } from '@/components/NotificationBell';
+import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow, StaffSessionInfo } from '@/lib/types';
 
@@ -257,6 +258,7 @@ function WHRequestList({ items, onItemUpdate, onConfirmCheckedIn, emptyText }: {
 // ── Main Component ─────────────────────────────────────────────
 export default function WHDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const [data, setData] = useState<WHRequestRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [staff, setStaff] = useState<StaffSessionInfo | null>(null);
@@ -310,7 +312,7 @@ export default function WHDashboard() {
         req.id !== requestId ? req : { ...req, current_status: 'checked_in', _confirmStep: 'storage' }
       ));
     } else {
-      alert('ยืนยันไม่สำเร็จ: ' + res.error);
+      toast.error(`ยืนยันไม่สำเร็จ: ${res.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
     }
   };
 

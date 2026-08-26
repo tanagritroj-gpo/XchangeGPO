@@ -7,6 +7,7 @@ import { stampCheckedIn, stampReceiving, rejectWHItem } from '@/app/actions/wh-a
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
+import { useToast } from '@/components/ui/toast';
 import type { DrugItemRow } from '@/lib/types';
 
 // หมายเหตุตรวจสภาพ/จัดเก็บ — preset ให้เลือกเร็วๆ ไม่ต้องพิมพ์เองทุกครั้ง (ยังพิมพ์
@@ -79,6 +80,7 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
   reqConfirmed: boolean;
   onUpdate: (itemId: number, newStatus: 'checked_in' | 'receiving' | 'rejected') => void;
 }) {
+  const toast = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionModal, setActionModal] = useState<ActionModal>(null);
   const [reasonCode, setReasonCode] = useState('');
@@ -104,11 +106,11 @@ export default function WHDrugRow({ item, reqConfirmed, onUpdate }: {
         onUpdate(item.id, actionModal);
         setActionModal(null);
       } else {
-        alert('บันทึกไม่สำเร็จ: ' + res.error);
+        toast.error(`บันทึกไม่สำเร็จ: ${res.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
       console.error("Error:", err);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setIsProcessing(false);
     }

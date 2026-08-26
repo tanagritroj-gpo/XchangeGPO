@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ReceiptText, AlertTriangle, ArrowLeftRight, MoreHorizontal, Building2, Package, Check, FileText, Calendar, ArrowRight } from 'lucide-react';
 import { getStaffNextDocNumber } from '@/app/actions/staff-form-actions';
+import { useToast } from '@/components/ui/toast';
 import OrganizationPicker from './OrganizationPicker';
 import type { ReturnFormData } from '../../../../(authenticated)/form/form-types';
 
@@ -40,6 +41,7 @@ const InfoBox = ({ children }: { children: React.ReactNode }) => (
 );
 
 export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
+  const toast = useToast();
   const [selectedType, setSelectedType] = useState('');
   const [otherDetail, setOtherDetail] = useState('');
   const [today, setToday] = useState('');
@@ -62,9 +64,9 @@ export default function Step1InfoStaff({ next, updateData }: Step1StaffProps) {
   }, []);
 
   const handleNext = async () => {
-    if (!selectedCustomer) return alert('กรุณาค้นหาและเลือกหน่วยงานก่อนครับ');
-    if (!selectedType) return alert('กรุณาเลือกประเภทรายการ');
-    if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return alert('กรุณาระบุรายละเอียดเพิ่มเติม');
+    if (!selectedCustomer) return toast.error('กรุณาค้นหาและเลือกหน่วยงานก่อนครับ');
+    if (!selectedType) return toast.error('กรุณาเลือกประเภทรายการ');
+    if (selectedType === 'อื่นๆ' && !otherDetail.trim()) return toast.error('กรุณาระบุรายละเอียดเพิ่มเติม');
 
     // doc_number ไม่ต้องพกไปกับ formData อีกต่อไป — เลขจริงถูกจองแบบ atomic ตอน submit จริง
     // ใน create_exchange_request เอง (ค่าที่โชว์ด้านบนเป็นแค่ตัวอย่าง ไม่ผูกมัด)

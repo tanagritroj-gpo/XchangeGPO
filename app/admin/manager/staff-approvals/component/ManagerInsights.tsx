@@ -9,7 +9,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
 } from 'recharts';
 import type { LucideIcon } from 'lucide-react';
-import type { RequestRow, StatusLogRow, DrugItemRow } from '@/lib/types';
+import type { StatusLogRow, ReportRequestRow, ReportDrugItemRow } from '@/lib/types';
 
 // ── Helper: จัดกลุ่มข้อมูลรายเดือน/รายปี ──
 const MONTH_LABELS_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -223,7 +223,7 @@ function ViewToggle<T extends string>({ value, options, onChange }: {
 }
 
 // ── Main Component ──
-export default function ManagerInsights({ requests, statusLogs }: { requests: RequestRow[]; statusLogs: StatusLogRow[] }) {
+export default function ManagerInsights({ requests, statusLogs }: { requests: ReportRequestRow[]; statusLogs: StatusLogRow[] }) {
   const [drugPeriodMode, setDrugPeriodMode] = useState<'month' | 'year'>('month');
   const [requestTrendMetric, setRequestTrendMetric] = useState<'count' | 'value'>('count');
   const [valuePeriodMode, setValuePeriodMode] = useState<'month' | 'year'>('month');
@@ -260,7 +260,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
     const thisYearReqs = requests.filter(r => r.created_at && inYear(r.created_at, now.getFullYear()));
     const lastYearReqs = requests.filter(r => r.created_at && inYear(r.created_at, now.getFullYear() - 1));
 
-    const sumValue = (arr: RequestRow[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
+    const sumValue = (arr: ReportRequestRow[]) => arr.reduce((s, r) => s + (Number(r.total_value) || 0), 0);
 
     return {
       monthLabel: `${MONTH_LABELS_TH[now.getMonth()]} ${String(now.getFullYear() + 543).slice(2)}`,
@@ -433,7 +433,7 @@ export default function ManagerInsights({ requests, statusLogs }: { requests: Re
   // Bonus: ยาที่ถูกส่งคืนบ่อยที่สุด (เดิม)
   const topReturnedDrugs = useMemo(() => {
     const map: Record<string, number> = {};
-    requests.forEach(r => (r.drug_items || []).forEach((i: DrugItemRow) => {
+    requests.forEach(r => (r.drug_items || []).forEach((i: ReportDrugItemRow) => {
       map[i.drug_name] = (map[i.drug_name] || 0) + (Number(i.qty) || 1);
     }));
     return Object.entries(map).map(([name, qty]) => ({ name, qty })).sort((a, b) => b.qty - a.qty).slice(0, 6);

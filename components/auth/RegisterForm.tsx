@@ -10,6 +10,7 @@ import { SignaturePad } from '@/components/auth/SignaturePad';
 import { PasswordInput } from '@/components/ui/password-input';
 import { SOUTHERN_PROVINCES, ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { UserPlus, Sparkles, Building2, AlertCircle, User, CheckCircle2, PenLine, Check, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 // หลังลงทะเบียนสำเร็จ โชว์ modal นี้ค้างไว้สักพักก่อนพากลับหน้าหลัก — กัน
 // ลูกค้าค้างอยู่หน้าลงทะเบียนเดิมแล้วงงว่าต้องทำอะไรต่อ (เดิมใช้ alert() เฉยๆ
@@ -50,6 +51,7 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export function RegisterForm() {
   const router = useRouter();
+  const toast = useToast();
   const [signature, setSignature] = useState<string>("");
   const [isSigned, setIsSigned] = useState(false);
   const [signatureError, setSignatureError] = useState("");
@@ -79,11 +81,11 @@ export function RegisterForm() {
         setShowSuccessModal(true);
         setTimeout(() => router.push('/'), SUCCESS_REDIRECT_DELAY_MS);
       } else {
-        alert("เกิดข้อผิดพลาด: " + result.error);
+        toast.error(result.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
         setLoading(false);
       }
     } catch (err: unknown) {
-      alert("เกิดข้อผิดพลาด: " + getErrorMessage(err));
+      toast.error(getErrorMessage(err));
       setLoading(false);
     }
   };

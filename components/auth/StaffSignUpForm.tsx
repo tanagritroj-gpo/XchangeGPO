@@ -8,6 +8,7 @@ import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-cover
 import { PasswordInput } from '@/components/ui/password-input';
 import { SignaturePad } from '@/components/auth/SignaturePad';
 import { CheckCircle2, PenLine, ArrowLeft } from 'lucide-react';
+import { useToast } from '@/components/ui/toast';
 
 interface StaffSignUpFormValues {
   employee_id: string;
@@ -24,6 +25,7 @@ interface StaffSignUpFormValues {
 
 export function StaffSignUpForm() {
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [signature, setSignature] = useState('');
@@ -37,8 +39,8 @@ export function StaffSignUpForm() {
     if (isSale) {
       const types = Array.isArray(data.sale_customer_types) ? data.sale_customer_types : data.sale_customer_types ? [data.sale_customer_types] : [];
       const provinces = Array.isArray(data.sale_provinces) ? data.sale_provinces : data.sale_provinces ? [data.sale_provinces] : [];
-      if (types.length === 0) { alert('กรุณาเลือกประเภทลูกค้าที่ดูแลอย่างน้อย 1 รายการ'); return; }
-      if (provinces.length === 0) { alert('กรุณาเลือกจังหวัดที่ดูแลอย่างน้อย 1 จังหวัด'); return; }
+      if (types.length === 0) { toast.error('กรุณาเลือกประเภทลูกค้าที่ดูแลอย่างน้อย 1 รายการ'); return; }
+      if (provinces.length === 0) { toast.error('กรุณาเลือกจังหวัดที่ดูแลอย่างน้อย 1 จังหวัด'); return; }
     }
     if (!signature) {
       setSignatureError('กรุณาลงลายเซ็นก่อนดำเนินการต่อ');
@@ -50,7 +52,7 @@ export function StaffSignUpForm() {
     if (result.success) {
       setShowModal(true); // เปลี่ยนเป็นการแสดง Modal แทน
     } else {
-      alert("เกิดข้อผิดพลาด: " + result.error);
+      toast.error(result.error || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ');
     }
     setLoading(false);
   };

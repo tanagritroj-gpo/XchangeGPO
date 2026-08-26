@@ -5,6 +5,7 @@ import { CheckCircle2, AlertTriangle, Loader2, Check, X, Receipt, ArrowLeftRight
 import { updateDrugCompliance, approveDrugItem, rejectDrugItem } from '@/app/actions/csr-actions';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
 import { REJECTION_REASONS } from '@/lib/rejection-reasons';
+import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { DrugItemRow } from '@/lib/types';
 
@@ -19,6 +20,7 @@ const DEFAULT_TYPE_STYLE = { icon: MoreHorizontal, color: 'text-slate-600', bg: 
 type CSRDrugItem = DrugItemRow & { request_type?: string };
 
 export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrugItem; onUpdate: () => void; readOnly?: boolean }) {
+  const toast = useToast();
   const isExchangeRequest = item.request_type === 'รับคืนแลกเปลี่ยน';
   const [productType, setProductType] = useState(item.product_type || '');
   // ใบงาน "รับคืนแลกเปลี่ยน" ต้องเลือกประเภทสินค้าก่อน ถึงจะอนุมัติได้ — ปฏิเสธยังกดได้ตามปกติ
@@ -66,12 +68,12 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
       if (!res.success) {
         setProductType(prevType);
         setStatus(prevStatus);
-        alert('บันทึกประเภทสินค้าไม่สำเร็จ: ' + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
+        toast.error(`บันทึกประเภทสินค้าไม่สำเร็จ: ${('error' in res && res.error) || 'ไม่ทราบสาเหตุ'}`);
       }
     } catch (err) {
       setProductType(prevType);
       setStatus(prevStatus);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ บันทึกประเภทสินค้าไม่สำเร็จ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ บันทึกประเภทสินค้าไม่สำเร็จ');
       console.error(err);
     } finally {
       setIsTypeSaving(false);
@@ -115,11 +117,11 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
         setRemark('');
         onUpdate(); // ★ แจ้ง parent ให้ refetch ข้อมูล — จำเป็นสำหรับ isAllItemsReviewed ที่ระดับ card
       } else {
-        alert('เกิดข้อผิดพลาด: ' + (('error' in res && res.error) || 'ไม่ทราบสาเหตุ'));
+        toast.error(('error' in res && res.error) || 'ไม่ทราบสาเหตุ');
       }
     } catch (err) {
       console.error(err);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
     } finally {
       setIsSubmitting(false);
     }

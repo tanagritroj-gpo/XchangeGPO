@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { X, Package, Calendar, Tag, Banknote, Pill, ClipboardList, PackageOpen, ChevronDown, Plus, ArrowLeft, ArrowRight, Camera, ImagePlus } from 'lucide-react';
 import type { ReturnFormData, DrugItemEntry } from '../form-types';
 import { MAX_DELIVERY_PHOTOS as MAX_PHOTOS, MAX_DELIVERY_PHOTO_BYTES as MAX_PHOTO_BYTES } from '@/lib/delivery-photo-limits';
+import { useToast } from '@/components/ui/toast';
 
 interface StepProps {
   next:       () => void;
@@ -122,6 +123,7 @@ function DrugCard({ item, index, onRemove }: { item: DrugItemEntry; index: numbe
 }
 
 export default function Step2Items({ next, back, updateData, formData, allowDeliveryPhoto }: StepProps) {
+  const toast = useToast();
   const [items, setItems] = useState<DrugItemEntry[]>(formData?.items || []);
   const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', unitPrice: '', val: '', inv: '' });
   const drugNameInputRef = useRef<HTMLInputElement>(null);
@@ -186,15 +188,15 @@ export default function Step2Items({ next, back, updateData, formData, allowDeli
   );
 
   const addItemToList = () => {
-    if (items.length >= MAX) return alert(`จำกัดสูงสุด ${MAX} รายการ`);
-    if (!canAddItem) return alert('กรุณากรอกชื่อยา จำนวน หน่วย Lot No. และวันหมดอายุให้ครบถ้วน');
+    if (items.length >= MAX) return toast.error(`จำกัดสูงสุด ${MAX} รายการ`);
+    if (!canAddItem) return toast.error('กรุณากรอกชื่อยา จำนวน หน่วย Lot No. และวันหมดอายุให้ครบถ้วน');
     setItems([...items, { ...temp, val: tempComputedVal.toFixed(2), id: Date.now() }]);
     setTemp({ drugName: '', qty: '', unit: '', lot: '', exp: '', unitPrice: '', val: '', inv: '' });
     drugNameInputRef.current?.focus();
   };
 
   const handleNext = () => {
-    if (items.length === 0) return alert('กรุณาเพิ่มรายการยาอย่างน้อย 1 รายการ');
+    if (items.length === 0) return toast.error('กรุณาเพิ่มรายการยาอย่างน้อย 1 รายการ');
     const totalValue = items.reduce((s, i) => s + parseFloat(i.val || '0'), 0);
     updateData((prev) => ({ ...prev, items, totalValue, deliveryNotePhotoUrls: photos }));
     next();
