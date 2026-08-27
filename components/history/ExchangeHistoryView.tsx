@@ -168,7 +168,7 @@ function RequestCard({ request, showSubmitter }: { request: HistoryRequestRow; s
 
   return (
     <div
-      className={`rounded-2xl border border-border border-l-4 bg-white p-6 shadow-sm transition-shadow hover:shadow-md ${tone.border}`}
+      className={`rounded-2xl border border-border border-l-4 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${tone.border}`}
     >
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="min-w-0">
@@ -215,9 +215,9 @@ function RequestCard({ request, showSubmitter }: { request: HistoryRequestRow; s
 
       <a
         href={`/customer/tracking?ref=${request.ref_id}`}
-        className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-50 py-2.5 text-xs font-bold text-teal-700 transition-colors hover:bg-teal-100"
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-50 py-2.5 text-xs font-bold text-teal-700 transition-all hover:bg-teal-100 hover:-translate-y-0.5"
       >
-        ดูประวัติ Timeline ทั้งหมด
+        ติดตามสถานะคำร้อง
         <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
       </a>
     </div>
@@ -236,14 +236,14 @@ function StatCard({
   tone: { iconBg: string; iconText: string };
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl border border-border bg-white p-2.5">
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
       <div
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tone.iconBg} ${tone.iconText}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.iconBg} ${tone.iconText}`}
       >
-        <Icon className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
+        <Icon className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-base font-black leading-tight text-foreground">{value}</p>
+        <p className="truncate text-lg font-black leading-tight text-foreground">{value}</p>
         <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
     </div>
@@ -332,7 +332,7 @@ export function ExchangeHistoryView({
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex items-center gap-3.5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-600 to-teal-700 text-white shadow-lg shadow-teal-200">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-200">
           <HeaderIcon className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
         <div>
@@ -383,8 +383,10 @@ export function ExchangeHistoryView({
       {loading ? (
         <ExchangeCardsSkeleton cards={3} />
       ) : history.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-20 text-center">
-          <Inbox className="h-8 w-8 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-teal-100 bg-teal-50/30 py-20 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+            <Inbox className="h-7 w-7 text-teal-300" strokeWidth={1.5} aria-hidden="true" />
+          </div>
           <p className="text-sm font-bold text-muted-foreground">{emptyText}</p>
           <p className="text-xs text-muted-foreground">{emptySubtext}</p>
         </div>
@@ -393,7 +395,7 @@ export function ExchangeHistoryView({
           <div
             role="tablist"
             aria-label="กรองประวัติตามสถานะ"
-            className="-mx-6 flex gap-1 overflow-x-auto border-b border-border px-6"
+            className="flex gap-2 overflow-x-auto pb-1"
           >
             {tabs.map((tab) => {
               const TabIcon = tab.icon;
@@ -404,18 +406,18 @@ export function ExchangeHistoryView({
                   role="tab"
                   aria-selected={active}
                   onClick={() => setActiveKey(tab.key)}
-                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-3 text-xs font-bold transition-colors ${
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-all ${
                     active
-                      ? `border-teal-600 ${tab.iconTone}`
-                      : 'border-transparent text-muted-foreground hover:text-slate-600'
+                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
+                      : 'border border-teal-100 bg-white text-teal-700 hover:bg-teal-50'
                   }`}
                 >
-                  <TabIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
+                  <TabIcon className={`h-3.5 w-3.5 ${active ? 'text-white' : tab.iconTone}`} strokeWidth={2} aria-hidden="true" />
                   {tab.label}
                   <span
                     className={`rounded-full px-1.5 py-0.5 text-[10px] ${
                       active
-                        ? 'bg-teal-50 text-teal-700'
+                        ? 'bg-white/20 text-white'
                         : 'bg-slate-100 text-muted-foreground'
                     }`}
                   >
@@ -427,8 +429,10 @@ export function ExchangeHistoryView({
           </div>
 
           {activeTab && activeTab.items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-16 text-center">
-              <Inbox className="h-7 w-7 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-teal-100 bg-teal-50/30 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+                <Inbox className="h-6 w-6 text-teal-300" strokeWidth={1.5} aria-hidden="true" />
+              </div>
               <p className="text-sm font-bold text-muted-foreground">ยังไม่มีคำร้องในสถานะนี้</p>
             </div>
           ) : (

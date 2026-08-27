@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Check, Phone, Mail, User } from 'lucide-react';
 import { searchB2BCustomers } from '@/app/actions/staff-form-actions';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 
 interface Customer {
   id: number;
@@ -34,22 +35,25 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showResults, setShowResults] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const debouncedQuery = useDebouncedValue(query, 350);
 
+  // เคลียร์ผลลัพธ์ทันทีตอนพิมพ์สั้นกว่า 2 ตัวอักษร — ไม่ผ่าน debounce เพราะเป็นการล้าง
+  // ค่าเก่าออกจากจอ ไม่ใช่การยิงค้นหาใหม่ (ต่างจากด้านล่างที่ debounce เฉพาะจุดยิงค้นหา)
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
     if (query.trim().length < 2) {
       setResults([]);
       setError('');
-      return;
     }
+  }, [query]);
 
-    debounceRef.current = setTimeout(async () => {
+  useEffect(() => {
+    if (debouncedQuery.trim().length < 2) return;
+
+    (async () => {
       setLoading(true);
       setError('');
-      const res = await searchB2BCustomers(query);
+      const res = await searchB2BCustomers(debouncedQuery);
       if (res.success) {
         setResults(res.data ?? []);
         setShowResults(true);
@@ -58,12 +62,8 @@ export default function CustomerPicker({ selected, onSelect, onClear }: Customer
         setResults([]);
       }
       setLoading(false);
-    }, 350);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [query]);
+    })();
+  }, [debouncedQuery]);
 
   // ปิด dropdown เมื่อคลิกข้างนอก
   useEffect(() => {

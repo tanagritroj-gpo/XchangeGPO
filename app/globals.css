@@ -83,3 +83,26 @@
     padding: 0;
   }
 }
+
+/* ══ Mascot "GPO Spark" — ปุ่มลอยเปิดแชท (ChatWidget.tsx) ══
+   idle เด้งเบาๆ ตลอดเวลา (translateY+rotate เล็กน้อย, GPU-accelerated ผ่าน
+   transform ล้วนๆ ไม่กิน CPU) โบกมือตอน hover — ก็อปมาจาก mascot kit ที่ผู้ใช้
+   ส่งมาตรงๆ (gpo_spark.css) เก็บชื่อ class เดิมไว้เผื่ออ้างอิงกับไฟล์ต้นฉบับ */
+.gpo-spark { animation: spark-idle 3.6s ease-in-out infinite; }
+.gpo-spark:hover { animation: spark-wave 1.2s ease-in-out 1; }
+
+@keyframes spark-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(-1deg); }
+}
+@keyframes spark-wave {
+  0% { transform: rotate(0deg) translateY(0); }
+  20% { transform: rotate(-5deg) translateY(-4px); }
+  40% { transform: rotate(6deg) translateY(-8px); }
+  60% { transform: rotate(-4deg) translateY(-4px); }
+  80% { transform: rotate(3deg) translateY(-2px); }
+  100% { transform: rotate(0deg) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gpo-spark { animation: none !important; }
+}

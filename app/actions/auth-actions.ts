@@ -318,3 +318,126 @@ export async function logoutCustomer() {
   if (token) await supabaseAdmin.from('sessions').delete().eq('token', token);
   cookieStore.delete('customer_session');
 }
+
+// ══ จัดการบัญชีตัวเอง (self-service, หน้า /account) — คู่ขนานกับหมวดเดียวกันของ staff
+// (auth-staff.ts) บางส่วน: password ยืนยันตัวตนด้วย "รหัสผ่านปัจจุบัน" โดยตรง (ไม่ใช่ OTP),
+// authenticate ด้วย getCustomerSession() เอง ไม่รับ customerId จาก client เพื่อกันการปลอมแปลง
+// แก้บัญชีคนอื่น และบันทึกลง customer_account_change_logs (audit trail แยกจาก
+// customer_password_reset_logs และแยกจาก staff_account_change_logs โดยสิ้นเชิง) ทุกครั้งที่แก้
+// สำเร็จ — ต่างจาก staff ตรงที่ลูกค้ามีฟอร์มที่ 2 เพิ่ม (ข้อมูลติดต่อ) ที่ไม่ต้องยืนยันรหัสผ่าน
+// เพราะไม่ใช่ identity credential (แค่ contact_name/phone/position ที่แสดงในเอกสาร/หน้าบัญชี
+// อยู่แล้ว) — ไม่แตะ hospital_name/customer_code/province เพราะเป็นข้อมูลระดับ organizations
+// ที่ผู้ติดต่อรายบุคคลไม่ควรแก้เอง (กระทบผู้ติดต่อคนอื่นในหน่วยงานเดียวกัน)
+//
+// ★ ไม่มีฟังก์ชันแก้อีเมล — ตั้งใจตัดออก (เคยมี updateCustomerEmail แล้วในช่วงพัฒนา) เพราะ
+// อีเมลผูกกับ "Sign in with Google" (จับคู่ Google account ด้วยอีเมลที่ verify มา ดู
+// loginCustomerByVerifiedEmail ด้านบน) ถ้าให้ลูกค้าแก้อีเมลเองได้จะทำให้ Google Sign-In เดิม
+// หลุดทันที (ต้องแก้ปัญหานั้นด้วยกลไก stable-identity-anchor เพิ่ม ซึ่งผู้ใช้พิจารณาแล้วตัดสินใจ
+// ตัดฟีเจอร์แก้อีเมลออกไปเลยแทน ให้อีเมลเป็นค่าคงที่ที่แก้ได้เฉพาะ CSR ผ่านกระบวนการอนุมัติปกติ
+// ง่ายและปลอดภัยกว่า) ══
+
+const ContactInfoSchema = z.object({
+  contact_name: z.string().trim().min(1, 'กรุณากรอกชื่อผู้ติดต่อ').max(100),
+  position: z.string().trim().min(1, 'กรุณากรอกตำแหน่ง').max(100),
+  phone: z.string().trim().regex(/^[0-9+\-\s]{9,15}$/, 'รูปแบบเบอร์โทรไม่ถูกต้อง'),
+});
+
+async function verifyCurrentCustomerPassword(customerId: number, currentPassword: string): Promise<boolean> {
+  const { data: customer } = await supabaseAdmin
+    .from('b2b_customers')
+    .select('password_hash')
+    .eq('id', customerId)
+    .maybeSingle();
+  if (!customer?.password_hash) return false;
+  return bcrypt.compare(currentPassword, customer.password_hash);
+}
+
+// --- เปลี่ยนรหัสผ่าน (รู้รหัสเดิม) — ต่างจาก resetCustomerPassword ด้านบนตรงที่ยืนยันด้วย
+// รหัสผ่านเดิมโดยตรง (ไม่ใช่ OTP) แล้ว revoke เฉพาะ session อื่นทั้งหมด "ยกเว้น session
+// ปัจจุบัน" (resetCustomerPassword revoke ทุก session รวมของตัวเองด้วย เพราะฝั่งนั้นเพิ่งยืนยัน
+// ตัวตนใหม่ผ่าน OTP ไม่ได้ถืออยู่ใน session เดิมอีกต่อไป) ──
+export async function updateCustomerPassword(currentPassword: string, newPassword: string) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('customer_session')?.value;
+    const session = await getCustomerSession();
+    if (!session || !token) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    const rateLimit = await checkRateLimit(`customer-account-update:${session.id}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
+    }
+
+    const passwordOk = await verifyCurrentCustomerPassword(session.id, currentPassword);
+    if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ password_hash: hashedPassword })
+      .eq('id', session.id);
+
+    if (error) throw error;
+
+    // revoke session อื่นทั้งหมด เก็บ session ปัจจุบัน (ที่เพิ่งยืนยันรหัสผ่านเดิมสำเร็จ) ไว้
+    // ไม่ให้หลุดออกจากระบบกลางทาง
+    await supabaseAdmin
+      .from('sessions')
+      .delete()
+      .eq('customer_id', session.id)
+      .eq('actor_type', 'customer')
+      .neq('token', token);
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('customer_account_change_logs').insert({
+      customer_id: session.id, field: 'password', old_value: null, new_value: null, ip,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Update Customer Password Error:', error);
+    Sentry.captureException(error, { tags: { area: 'customer-account-update' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// --- แก้ไขข้อมูลติดต่อ (ชื่อผู้ติดต่อ/เบอร์โทร/ตำแหน่ง) — ไม่ต้องยืนยันรหัสผ่านปัจจุบัน
+// เพราะไม่ใช่ identity credential ต่างจากอีเมล/รหัสผ่านด้านบน ──
+export async function updateCustomerContactInfo(payload: { contact_name: string; phone: string; position: string }) {
+  try {
+    const session = await getCustomerSession();
+    if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+
+    const rateLimit = await checkRateLimit(`customer-account-update:${session.id}`, 5, 300);
+    if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const parsed = ContactInfoSchema.safeParse(payload);
+    if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message || 'ข้อมูลที่กรอกไม่ถูกต้อง' };
+    const { contact_name, phone, position } = parsed.data;
+
+    const { error } = await supabaseAdmin
+      .from('b2b_customers')
+      .update({ contact_name, phone, position })
+      .eq('id', session.id);
+
+    if (error) throw error;
+
+    const oldSummary = `ชื่อ: ${session.contact_name ?? '-'}, โทร: ${session.phone ?? '-'}, ตำแหน่ง: ${session.position ?? '-'}`;
+    const newSummary = `ชื่อ: ${contact_name}, โทร: ${phone}, ตำแหน่ง: ${position}`;
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('customer_account_change_logs').insert({
+      customer_id: session.id, field: 'contact_info', old_value: oldSummary, new_value: newSummary, ip,
+    });
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('Update Customer Contact Info Error:', error);
+    Sentry.captureException(error, { tags: { area: 'customer-account-update' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
