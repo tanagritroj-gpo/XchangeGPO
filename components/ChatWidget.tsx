@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { MessageCircle, X, Send, Loader2, Bot } from 'lucide-react';
+import { X, Send, Loader2, Bot } from 'lucide-react';
 import { CHATBOT_GREETING } from '@/lib/chatbot-knowledge';
 import { getErrorMessage } from '@/lib/error-message';
 
@@ -135,15 +135,17 @@ export function ChatWidget() {
     <>
       {/* หน้าต่างแชท */}
       {open && (
-        <div className="fixed bottom-36 right-4 z-[60] flex h-[70vh] max-h-[560px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl md:bottom-24 md:right-6">
-          {/* Header */}
-          <div className="flex items-center gap-2.5 bg-gradient-to-br from-teal-600 to-teal-700 px-4 py-3.5 text-white">
+        <div className="fixed bottom-36 right-4 z-[60] flex h-[70dvh] max-h-[560px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-2xl md:bottom-24 md:right-6">
+          {/* Header — โทนน้ำเงินเดียวกับ mascot "GPO Spark" (#0B73E8 → #0D3D91 ตรงกับ
+              gradient "blue" ในไฟล์ SVG ของมาสคอต) แยกจากโทน teal/emerald ของแอปหลัก
+              ตั้งใจให้ผู้ช่วยแชทมีเอกลักษณ์สีเป็นของตัวเอง ผูกกับตัวมาสคอต ไม่ปนกับที่อื่น */}
+          <div className="flex items-center gap-2.5 bg-gradient-to-br from-[#0B73E8] to-[#0D3D91] px-4 py-3.5 text-white">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15">
               <Bot className="h-4 w-4" strokeWidth={2} aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold leading-tight">ผู้ช่วย GPO Xchange</p>
-              <p className="text-[11px] leading-tight text-teal-100">ตอบคำถามนโยบายคืนสินค้า</p>
+              <p className="text-[11px] leading-tight text-blue-100">ตอบคำถามนโยบายคืนสินค้า</p>
             </div>
             <button
               onClick={() => setOpen(false)}
@@ -161,7 +163,7 @@ export function ChatWidget() {
                 <div
                   className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed ${
                     m.role === 'user'
-                      ? 'rounded-br-sm bg-teal-600 text-white'
+                      ? 'rounded-br-sm bg-[#0B73E8] text-white'
                       : 'rounded-bl-sm border border-slate-100 bg-white text-slate-700'
                   }`}
                 >
@@ -192,13 +194,13 @@ export function ChatWidget() {
               placeholder="พิมพ์คำถาม..."
               disabled={streaming}
               maxLength={500}
-              className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-teal-400 disabled:bg-slate-50"
+              className="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-blue-400 disabled:bg-slate-50"
             />
             <button
               type="submit"
               disabled={streaming || !input.trim()}
               aria-label="ส่งข้อความ"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-600 text-white transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0B73E8] text-white transition-colors hover:bg-[#0D3D91] disabled:cursor-not-allowed disabled:opacity-40"
             >
               {streaming ? (
                 <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} aria-hidden="true" />
@@ -210,16 +212,24 @@ export function ChatWidget() {
         </div>
       )}
 
-      {/* ปุ่มลอย */}
+      {/* ปุ่มลอย — mascot "GPO Spark" ตอนปิดอยู่ (idle bob ตลอดเวลา, โบกมือตอน hover
+          ผ่าน CSS ล้วนๆ ดู app/globals.css) สลับกลับเป็นปุ่ม X ปกติตอนเปิดแชทแล้ว
+          (ไม่เอาไอคอนปิดไปวาดทับหน้ามาสคอต แยกเป็นปุ่มฟังก์ชันธรรมดาชัดเจนกว่า) —
+          ใหญ่ขึ้นกว่าปุ่มเดิม (h-14/56px) ให้เห็นตัวมาสคอตชัด แต่ยังจำกัดขนาดบนมือถือ
+          (h-16/64px) ไม่ให้ไปบังเนื้อหา ขยายเต็มที่เฉพาะจอ md ขึ้นไปที่มีที่ว่างเยอะกว่า */}
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? 'ปิดหน้าต่างแชท' : 'เปิดหน้าต่างแชท'}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg shadow-teal-900/20 transition-transform duration-150 hover:bg-teal-700 active:scale-95 md:bottom-6 md:right-6"
+        className={`fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-[60] flex items-center justify-center rounded-full shadow-lg transition-transform duration-150 active:scale-95 md:bottom-6 md:right-6 ${
+          open
+            ? 'h-14 w-14 bg-[#0B73E8] text-white shadow-blue-900/20 hover:bg-[#0D3D91]'
+            : 'gpo-spark h-16 w-16 overflow-hidden border-4 border-white shadow-blue-900/20 md:h-20 md:w-20'
+        }`}
       >
         {open ? (
           <X className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         ) : (
-          <MessageCircle className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+          <img src="/mascot/gpo_spark_avatar_1x1.svg" alt="" className="h-full w-full object-cover" />
         )}
       </button>
     </>

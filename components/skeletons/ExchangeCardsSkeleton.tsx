@@ -8,10 +8,10 @@ export function ExchangeStatCardsSkeleton() {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-2.5 rounded-xl border border-border bg-white p-2.5">
-          <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+        <div key={i} className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5">
+          <Skeleton className="h-10 w-10 rounded-xl shrink-0" />
           <div className="min-w-0 flex-1 space-y-1.5">
-            <Skeleton className="h-4 w-8 rounded" />
+            <Skeleton className="h-5 w-8 rounded" />
             <Skeleton className="h-2 w-14 rounded" />
           </div>
         </div>
@@ -45,7 +45,7 @@ export function ExchangeCardsSkeleton({ cards = 3 }: { cards?: number }) {
   return (
     <div className="space-y-6">
       <ExchangeStatCardsSkeleton />
-      <div className="-mx-6 flex gap-3 overflow-x-auto border-b border-border px-6 pb-3">
+      <div className="flex gap-2 overflow-x-auto pb-1">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-8 w-24 rounded-full shrink-0" />
         ))}

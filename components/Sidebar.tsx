@@ -4,19 +4,21 @@ import { logoutCustomer } from '@/app/actions/auth-actions';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
-import { Home, History, Building2, LogOut, Loader2 } from 'lucide-react';
+import { Home, History, Building2, UserCog, LogOut, Loader2 } from 'lucide-react';
 import type { CustomerSessionInfo } from '@/lib/types';
 
 const navItems = [
   { href: '/welcome', label: 'หน้าหลัก', icon: Home, tint: 'emerald' as const },
   { href: '/customer/history', label: 'ประวัติการยื่นคำร้อง', icon: History, tint: 'blue' as const },
   { href: '/customer/org-history', label: 'ประวัติงานรวมทั้งหน่วยงาน', icon: Building2, tint: 'violet' as const },
+  { href: '/account', label: 'บัญชีผู้ใช้', icon: UserCog, tint: 'amber' as const },
 ];
 
 const tintClasses = {
   emerald: { active: 'bg-emerald-50 text-emerald-700', icon: 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white' },
   blue: { active: 'bg-blue-50 text-blue-700', icon: 'bg-gradient-to-br from-blue-400 to-blue-600 text-white' },
   violet: { active: 'bg-violet-50 text-violet-700', icon: 'bg-gradient-to-br from-violet-400 to-violet-600 text-white' },
+  amber: { active: 'bg-amber-50 text-amber-700', icon: 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' },
 };
 
 export default function Sidebar({ customer }: { customer: CustomerSessionInfo | null }) {
