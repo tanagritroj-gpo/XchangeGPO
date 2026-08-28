@@ -5,7 +5,31 @@ import { getCustomerSession } from '@/app/actions/auth-actions';
 import Link from 'next/link';
 import type { CustomerSessionInfo } from '@/lib/types';
 import { AnalogClock } from '@/components/AnalogClock';
+import { Skeleton } from '@/components/ui/skeleton';
 import { FileEdit, Radar, Search, ClipboardList, BookOpen, ShieldCheck, User, Building2, PenLine, Lock } from 'lucide-react';
+
+// โครง skeleton ของหน้านี้ — มิเรอร์เลย์เอาต์จริง (hero + การ์ดสถานะ, กริดปุ่ม 2×2) ระหว่างรอ
+// session โหลด แทน spinner เปล่าที่ทำให้เนื้อหากระโดดเข้ามาทีเดียว (ลด layout shift)
+function WelcomeSkeleton() {
+  return (
+    <div className="flex flex-col bg-gradient-to-b from-teal-50/60 via-background to-background">
+      <main className="max-w-6xl mx-auto w-full px-6 py-8 space-y-7">
+        <div className="flex flex-col md:flex-row gap-5">
+          <Skeleton className="h-44 rounded-3xl md:flex-1" />
+          <Skeleton className="h-44 rounded-3xl md:w-80 md:shrink-0" />
+        </div>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Skeleton className="h-48 rounded-3xl" />
+          <Skeleton className="h-48 rounded-3xl" />
+        </div>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <Skeleton className="h-48 rounded-3xl" />
+          <Skeleton className="h-48 rounded-3xl" />
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function WelcomePage() {
   const [customer, setCustomer] = useState<CustomerSessionInfo | null>(null);
@@ -32,14 +56,7 @@ export default function WelcomePage() {
     setToday(new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }));
   }, []);
 
-  if (!customer) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-3">
-        <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm text-teal-600 font-medium">กำลังโหลดข้อมูล...</p>
-      </div>
-    </div>
-  );
+  if (!customer) return <WelcomeSkeleton />;
 
   return (
     // ★ เดิม min-h-screen บังคับความสูงเต็มจอเสมอ พอเนื้อหาไม่พอเต็มจอ (เช่นจอสูงๆ) footer เลย
@@ -134,7 +151,7 @@ export default function WelcomePage() {
                   + inset highlight บางๆ ด้านบนให้ดูนูน/glossy) แทนพื้นสีเรียบเดิม */}
               <Link
                 href="/form"
-                className="w-full py-3.5 rounded-2xl font-bold text-white text-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl font-bold text-white text-sm hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 focus-visible:ring-offset-2"
                 style={{
                   background: 'linear-gradient(135deg, #c2410c 0%, #ea580c 55%, #fb923c 100%)',
                   boxShadow: '0 10px 25px -8px rgba(234,88,12,0.55), 0 4px 10px -4px rgba(194,65,12,0.4), inset 0 1px 0 rgba(255,255,255,0.25)',
@@ -146,7 +163,7 @@ export default function WelcomePage() {
           </div>
 
           {/* Card: Track & Trace (ปรับเป็น Link เรียบร้อย) */}
-          <Link href="/customer/tracking" className="group block">
+          <Link href="/customer/tracking" className="group block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2">
             <div className="rounded-3xl border border-blue-100 shadow-sm hover:shadow-lg hover:border-blue-200 transition-all duration-300 overflow-hidden transform hover:-translate-y-1 bg-gradient-to-br from-blue-50 via-white to-white">
               <div className="p-7">
                 <div className="flex items-center gap-3 mb-5">
@@ -169,7 +186,7 @@ export default function WelcomePage() {
 
         {/* ── Info Grid ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <a href="/return-policy" className="group block rounded-3xl border border-amber-100 shadow-sm p-7 hover:shadow-xl hover:border-amber-200 transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-amber-50 via-white to-white">
+          <a href="/return-policy" className="group block rounded-3xl border border-amber-100 shadow-sm p-7 hover:shadow-xl hover:border-amber-200 transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-amber-50 via-white to-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors">
@@ -183,7 +200,7 @@ export default function WelcomePage() {
           </a>
 
           {/* Card: คู่มือการใช้งาน — ชี้ไปคู่มือเวอร์ชัน authenticated (ปุ่มกลับหน้าหลักไป /welcome ไม่ใช่ /) */}
-          <a href="/customer/manual" className="group block rounded-3xl border border-violet-100 shadow-sm p-7 hover:shadow-xl hover:border-violet-200 transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-violet-50 via-white to-white">
+          <a href="/customer/manual" className="group block rounded-3xl border border-violet-100 shadow-sm p-7 hover:shadow-xl hover:border-violet-200 transition-all duration-300 transform hover:-translate-y-1 bg-gradient-to-br from-violet-50 via-white to-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-violet-100 text-violet-600 group-hover:bg-violet-500 group-hover:text-white transition-colors">
