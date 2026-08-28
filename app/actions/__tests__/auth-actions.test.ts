@@ -26,6 +26,7 @@ vi.mock('@/lib/email-service', () => ({
   sendAccountLockedEmail: vi.fn().mockResolvedValue({ error: null }),
   sendSecurityAlertEmail: vi.fn().mockResolvedValue({ error: null }),
 }));
+vi.mock('@/lib/audit', () => ({ logAuditEvent: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('next/headers', () => {
   const store = new Map<string, string>();
   const cookieStore = {
@@ -51,6 +52,7 @@ const mockIsBreached = vi.mocked(pwPolicy.isPasswordBreached);
 const emailSvc = await import('@/lib/email-service');
 const mockLockedEmail = vi.mocked(emailSvc.sendAccountLockedEmail);
 const mockAlertEmail = vi.mocked(emailSvc.sendSecurityAlertEmail);
+const { logAuditEvent: mockAudit } = vi.mocked(await import('@/lib/audit'));
 
 const {
   loginCustomerAction,
@@ -110,6 +112,7 @@ beforeEach(() => {
   mockAssertPassword.mockReturnValue({ ok: true });
   mockIsBreached.mockReset();
   mockIsBreached.mockResolvedValue({ breached: false, checkFailed: false });
+  mockAudit.mockClear();
 });
 
 describe('loginCustomerAction', () => {
@@ -486,5 +489,54 @@ describe('customer session management (Phase 3)', () => {
   it('rejects when not logged in', async () => {
     const res = await getMyCustomerSessions();
     expect(res.success).toBe(false);
+  });
+});
+
+describe('audit — customer auth events (G0-3 phase B)', () => {
+  const auditActions = () => mockAudit.mock.calls.map((c) => (c[0] as { action: string }).action);
+
+  it('logs auth.login.success (method: password) on a good login', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seed({ b2b_customers: [{ id: 1, email: 'cust@example.com', password_hash: hash }] });
+    await loginCustomerAction({ email: 'cust@example.com', password: 'correctpass' });
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'auth', action: 'auth.login.success',
+      actor: expect.objectContaining({ type: 'customer', id: 1 }),
+      detail: { method: 'password' },
+    }));
+  });
+
+  it('logs auth.login.failure reason=bad_password', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seed({ b2b_customers: [{ id: 1, email: 'cust@example.com', password_hash: hash }] });
+    await loginCustomerAction({ email: 'cust@example.com', password: 'nope' });
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.login.failure', detail: expect.objectContaining({ reason: 'bad_password' }),
+    }));
+  });
+
+  it('logs auth.lockout.triggered on the 5th failure', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    seed({ b2b_customers: [{ id: 1, email: 'cust@example.com', password_hash: hash, failed_login_count: 4 }] });
+    await loginCustomerAction({ email: 'cust@example.com', password: 'nope' });
+    expect(auditActions()).toContain('auth.lockout.triggered');
+  });
+
+  it('logs auth.login.success (method: google) via loginCustomerByVerifiedEmail', async () => {
+    seed({ b2b_customers: [{ id: 7, email: 'g@example.com', access_expires_at: new Date(Date.now() + 86_400_000).toISOString(), cancelled_at: null }] });
+    await loginCustomerByVerifiedEmail('g@example.com');
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.login.success', detail: { method: 'google' },
+    }));
+  });
+
+  it('logs auth.logout only for a user-initiated logout, not for an expired-session cleanup', async () => {
+    seedCustomerSession({ id: 4 });
+    await setCustomerCookie(CUST_TOKEN);
+    const { logoutCustomer } = await import('../auth-actions');
+    await logoutCustomer();                     // user
+    await logoutCustomer('expired');            // system cleanup
+    const logouts = mockAudit.mock.calls.filter((c) => (c[0] as any).action === 'auth.logout');
+    expect(logouts).toHaveLength(1);
   });
 });

@@ -14,25 +14,47 @@ import { getErrorMessage } from '@/lib/error-message';
 import { sendCustomerOtpEmail, sendAccountLockedEmail, sendSecurityAlertEmail } from '@/lib/email-service';
 import { recordLoginLocation, touchSessionLastSeen } from '@/lib/known-login';
 import { parseDeviceLabel, sessionShortId } from '@/lib/device';
+import { logAuditEvent } from '@/lib/audit';
 
 const nowThai = () => new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 
-// เมื่อ login ลูกค้าสำเร็จ — บันทึกตำแหน่ง + แจ้งอีเมลถ้าเป็นตำแหน่งที่ไม่เคยเห็น
-async function afterCustomerLogin(customer: { id: number; email: string | null }, ip: string) {
+// เมื่อ login ลูกค้าสำเร็จ — audit, บันทึกตำแหน่ง, แจ้งอีเมลถ้าเป็นตำแหน่งที่ไม่เคยเห็น
+async function afterCustomerLogin(
+  customer: { id: number; email: string | null },
+  ctx: { ip: string; userAgent?: string | null; method: 'password' | 'google' },
+) {
+  const actor = { type: 'customer' as const, id: customer.id, label: customer.email ?? null };
+  void logAuditEvent({
+    category: 'auth', action: 'auth.login.success', outcome: 'success',
+    actor, ip: ctx.ip, userAgent: ctx.userAgent, detail: { method: ctx.method },
+  });
   try {
-    const { isNewLocation } = await recordLoginLocation({ type: 'customer', id: customer.id }, ip);
-    if (isNewLocation && customer.email) {
-      sendSecurityAlertEmail({
-        to: customer.email,
-        action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
-        whenText: nowThai(),
-        ip,
-        detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านทันที',
-      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    const { isNewLocation } = await recordLoginLocation({ type: 'customer', id: customer.id }, ctx.ip);
+    if (isNewLocation) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.new_location', actor, ip: ctx.ip, userAgent: ctx.userAgent,
+      });
+      if (customer.email) {
+        sendSecurityAlertEmail({
+          to: customer.email,
+          action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
+          whenText: nowThai(),
+          ip: ctx.ip,
+          detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านทันที',
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+      }
     }
   } catch (e) {
     Sentry.captureException(e, { level: 'warning', tags: { area: 'known-login' } });
   }
+}
+
+function auditCustomerLoginFailure(ctx: { ip: string; userAgent?: string | null; reason: string; customerId?: number }) {
+  void logAuditEvent({
+    category: 'auth', action: 'auth.login.failure', outcome: 'failure',
+    actor: ctx.customerId ? { type: 'customer', id: ctx.customerId } : { type: 'anon' },
+    ip: ctx.ip, userAgent: ctx.userAgent, detail: { reason: ctx.reason },
+  });
 }
 
 // remember-me: ไม่ติ๊ก = 8 ชม. / ติ๊ก = 30 วัน (ยืนยันโดยผู้ใช้ 28 ส.ค. 2569)
@@ -119,7 +141,11 @@ export async function loginCustomerByVerifiedEmail(email: string) {
   const created = await createCustomerSession(customer.id);
   if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
 
-  await afterCustomerLogin({ id: customer.id, email: cleanEmail }, getClientIp(await headers()));
+  const gHdrs = await headers();
+  await afterCustomerLogin(
+    { id: customer.id, email: cleanEmail },
+    { ip: getClientIp(gHdrs), userAgent: gHdrs.get('user-agent'), method: 'google' },
+  );
   return { success: true };
 }
 
@@ -142,12 +168,20 @@ export async function loginCustomerAction(payload: { email: string; password: st
   // ไล่ทีละอีเมลๆ ละไม่กี่ครั้ง หลบ cap ต่อบัญชีได้สบายๆ) เพดานตั้งกว้างกว่าของเดิม (20 vs 10)
   // เพราะ IP เดียวอาจมีผู้ใช้จริงหลายคน (เช่น รพ./ร้านยาที่ใช้ NAT เดียวกัน) ไม่อยากบล็อก
   // คนปกติเกินจำเป็น เช็คก่อน per-email เพราะเป็นเกราะกว้างกว่า
-  const ip = getClientIp(await headers());
+  const hdrs = await headers();
+  const ip = getClientIp(hdrs);
+  const ua = hdrs.get('user-agent');
   const ipRateLimit = await checkRateLimit(`login-customer-ip:${ip}`, 20, 300);
-  if (!ipRateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  if (!ipRateLimit.allowed) {
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'rate_limited' });
+    return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  }
 
   const rateLimit = await checkRateLimit(`login-customer:${cleanEmail}`, 10, 300);
-  if (!rateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  if (!rateLimit.allowed) {
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'rate_limited' });
+    return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  }
 
   const { data: customer, error } = await supabaseAdmin
     .from('b2b_customers')
@@ -157,6 +191,7 @@ export async function loginCustomerAction(payload: { email: string; password: st
 
   if (error || !customer || !customer.password_hash) {
     await bcrypt.compare(payload.password, DUMMY_HASH); // กัน timing attack
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'no_account' });
     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
   }
 
@@ -164,6 +199,7 @@ export async function loginCustomerAction(payload: { email: string; password: st
   const lock = lockStatus(customer.locked_until);
   if (lock.locked) {
     await bcrypt.compare(payload.password, DUMMY_HASH);
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'locked', customerId: customer.id });
     return { success: false, error: lockedMessage(lock.minutesLeft) };
   }
 
@@ -173,10 +209,19 @@ export async function loginCustomerAction(payload: { email: string; password: st
     await supabaseAdmin.from('b2b_customers')
       .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
       .eq('id', customer.id);
-    if (f.justLocked && customer.email) {
-      sendAccountLockedEmail({
-        to: customer.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
-      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'bad_password', customerId: customer.id });
+    if (f.justLocked) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.lockout.triggered',
+        actor: { type: 'customer', id: customer.id, label: customer.email },
+        ip, userAgent: ua,
+        detail: { minutes: lockDurationMinutes(f.failed_login_count), failed_count: f.failed_login_count },
+      });
+      if (customer.email) {
+        sendAccountLockedEmail({
+          to: customer.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      }
     }
     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
   }
@@ -200,7 +245,7 @@ export async function loginCustomerAction(payload: { email: string; password: st
   const created = await createCustomerSession(customer.id, { remember: payload.remember === true });
   if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
 
-  await afterCustomerLogin({ id: customer.id, email: customer.email }, getClientIp(await headers()));
+  await afterCustomerLogin({ id: customer.id, email: customer.email }, { ip, userAgent: ua, method: 'password' });
   return { success: true };
 }
 
@@ -306,6 +351,10 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
 
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('customer_password_reset_logs').insert({ customer_id: customer.id, ip });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.reset', outcome: 'success',
+      actor: { type: 'customer', id: customer.id, label: cleanEmail }, ip, detail: { via: 'otp' },
+    });
 
     sendSecurityAlertEmail({ to: cleanEmail, action: 'ตั้งรหัสผ่านใหม่ (ผ่าน OTP)', whenText: nowThai(), ip })
       .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
@@ -346,7 +395,7 @@ export async function getCustomerSession() {
       found: !!data,
       expiresAt: data?.expires_at ?? null,
     });
-    await logoutCustomer();
+    await logoutCustomer("expired");
     return null;
   }
 
@@ -363,7 +412,7 @@ export async function getCustomerSession() {
   await touchSessionLastSeen(token, (data as { last_seen_at: string | null }).last_seen_at);
 
   if (customerRow.cancelled_at || new Date(customerRow.access_expires_at) < new Date()) {
-    await logoutCustomer();
+    await logoutCustomer(customerRow.cancelled_at ? "cancelled" : "access_ended");
     return null;
   }
 
@@ -383,10 +432,27 @@ export async function getCustomerSession() {
 }
 
 // Logout — ลบ session ออกจาก DB จริง ไม่ใช่แค่ลบ cookie ฝั่งเดียว
-export async function logoutCustomer() {
+// `reason` แยกการกดออกเองของผู้ใช้ ('user') ออกจากการที่ getCustomerSession ล้าง session
+// ที่หมดอายุ/ถูกยกเลิก (จะไม่ยิง audit event ในเคสหลังเพื่อไม่ให้ log ท่วม)
+export async function logoutCustomer(reason: 'user' | 'expired' | 'cancelled' | 'access_ended' = 'user') {
   const cookieStore = await cookies();
   const token = cookieStore.get('customer_session')?.value;
-  if (token) await supabaseAdmin.from('sessions').delete().eq('token', token);
+  if (token) {
+    if (reason === 'user') {
+      const { data: sess } = await supabaseAdmin
+        .from('sessions').select('customer_id, b2b_customers(email)')
+        .eq('token', token).eq('actor_type', 'customer').maybeSingle();
+      const cust = sess ? (Array.isArray(sess.b2b_customers) ? sess.b2b_customers[0] : sess.b2b_customers) : null;
+      if (sess?.customer_id) {
+        void logAuditEvent({
+          category: 'auth', action: 'auth.logout',
+          actor: { type: 'customer', id: sess.customer_id as number, label: (cust?.email as string) ?? null },
+          ip: getClientIp(await headers()),
+        });
+      }
+    }
+    await supabaseAdmin.from('sessions').delete().eq('token', token);
+  }
   cookieStore.delete('customer_session');
 }
 
@@ -479,6 +545,10 @@ export async function updateCustomerPassword(currentPassword: string, newPasswor
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('customer_account_change_logs').insert({
       customer_id: session.id, field: 'password', old_value: null, new_value: null, ip,
+    });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.changed', outcome: 'success',
+      actor: { type: 'customer', id: session.id, label: session.email }, ip,
     });
 
     sendSecurityAlertEmail({ to: session.email, action: 'เปลี่ยนรหัสผ่าน', whenText: nowThai(), ip })
@@ -579,6 +649,11 @@ export async function revokeCustomerSession(sid: string) {
   if (match.token === currentToken) return { success: false, error: 'ไม่สามารถออกจากเซสชันปัจจุบันจากที่นี่ได้ ใช้ปุ่มออกจากระบบแทน' };
 
   await supabaseAdmin.from('sessions').delete().eq('token', match.token);
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'customer', id: session.id, label: session.email },
+    ip: getClientIp(await headers()), detail: { scope: 'one' },
+  });
   return { success: true };
 }
 
@@ -587,11 +662,17 @@ export async function revokeOtherCustomerSessions() {
   if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
   const currentToken = (await cookies()).get('customer_session')?.value ?? '';
 
-  await supabaseAdmin
+  const { data: del } = await supabaseAdmin
     .from('sessions')
     .delete()
     .eq('customer_id', session.id)
     .eq('actor_type', 'customer')
-    .neq('token', currentToken);
+    .neq('token', currentToken)
+    .select('token');
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'customer', id: session.id, label: session.email },
+    ip: getClientIp(await headers()), detail: { scope: 'others', count: del?.length ?? 0 },
+  });
   return { success: true };
 }

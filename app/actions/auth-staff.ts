@@ -20,6 +20,7 @@ import {
 } from '@/lib/mfa';
 import { parseDeviceLabel, sessionShortId } from '@/lib/device';
 import { recordLoginLocation, touchSessionLastSeen } from '@/lib/known-login';
+import { logAuditEvent } from '@/lib/audit';
 
 const nowThai = () => new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -82,23 +83,52 @@ async function createStaffSession(staffId: string, opts: { mfaPending: boolean }
   return session.token as string;
 }
 
-// After a staff login completes (full session), record the location and alert
-// the account owner by email if it's a location we've never seen for them.
-async function afterStaffLogin(user: { id: string; email: string | null }, ip: string) {
+// After a staff login completes (full session): audit it, record the location,
+// and alert the account owner by email if it's a location we've never seen.
+async function afterStaffLogin(
+  user: { id: string; email: string | null; username?: string | null },
+  ctx: { ip: string; userAgent?: string | null; method: 'password' | 'trusted_device' },
+) {
+  const actor = { type: 'staff' as const, id: user.id, label: user.username ?? null };
+  void logAuditEvent({
+    category: 'auth', action: 'auth.login.success', outcome: 'success',
+    actor, ip: ctx.ip, userAgent: ctx.userAgent, detail: { method: ctx.method },
+  });
   try {
-    const { isNewLocation } = await recordLoginLocation({ type: 'staff', id: user.id }, ip);
-    if (isNewLocation && user.email) {
-      sendSecurityAlertEmail({
-        to: user.email,
-        action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
-        whenText: nowThai(),
-        ip,
-        detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านและแจ้งผู้ดูแลระบบทันที',
-      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    const { isNewLocation } = await recordLoginLocation({ type: 'staff', id: user.id }, ctx.ip);
+    if (isNewLocation) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.new_location', actor, ip: ctx.ip, userAgent: ctx.userAgent,
+      });
+      if (user.email) {
+        sendSecurityAlertEmail({
+          to: user.email,
+          action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
+          whenText: nowThai(),
+          ip: ctx.ip,
+          detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านและแจ้งผู้ดูแลระบบทันที',
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+      }
     }
   } catch (e) {
     Sentry.captureException(e, { level: 'warning', tags: { area: 'known-login' } });
   }
+}
+
+// Staff login/2FA that did NOT result in a session (failure or challenge issued).
+function auditStaffAuthFailure(
+  action: 'auth.login.failure' | 'auth.mfa.challenge.failure',
+  ctx: { ip: string; userAgent?: string | null; reason: string; username?: string | null; staffId?: string },
+) {
+  void logAuditEvent({
+    category: 'auth', action, outcome: 'failure',
+    actor: ctx.staffId
+      ? { type: 'staff', id: ctx.staffId, label: ctx.username ?? null }
+      : { type: 'anon' },
+    ip: ctx.ip, userAgent: ctx.userAgent,
+    // username only when it matched a real account (avoid logging outsiders' PII / enabling enumeration via the log)
+    detail: { reason: ctx.reason, ...(ctx.staffId && ctx.username ? { username: ctx.username } : {}) },
+  });
 }
 
 interface StaffRegisterPayload {
@@ -212,6 +242,11 @@ export async function registerStaff(payload: StaffRegisterPayload) {
       }
       throw error;
     }
+    void logAuditEvent({
+      category: 'admin_action', action: 'admin.staff.registered', outcome: 'success',
+      actor: { type: 'anon' }, ip,
+      detail: { username: payload.username, employee_id: payload.employee_id, department: payload.department },
+    });
     return { success: true };
   } catch (error: unknown) {
     console.error("Staff Registration Error:", error);
@@ -237,12 +272,20 @@ export async function loginStaffAction(payload: { username: string; password: st
     // stuffing ที่กระจายยิงหลาย username พร้อมกันจาก IP เดียว เพดานตั้งกว้างกว่าของเดิม
     // (20 vs 10) เพราะ IP เดียวอาจมีพนักงานหลายคน login จากเครือข่ายเดียวกัน (office/สาขา)
     // ไม่อยากบล็อกคนปกติเกินจำเป็น เช็คก่อน per-username เพราะเป็นเกราะกว้างกว่า
-    const ip = getClientIp(await headers());
+    const h = await headers();
+    const ip = getClientIp(h);
+    const ua = h.get('user-agent');
     const ipRateLimit = await checkRateLimit(`login-staff-ip:${ip}`, 20, 300);
-    if (!ipRateLimit.allowed) return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+    if (!ipRateLimit.allowed) {
+      auditStaffAuthFailure('auth.login.failure', { ip, userAgent: ua, reason: 'rate_limited' });
+      return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+    }
 
     const rateLimit = await checkRateLimit(`login-staff:${username}`, 10, 300);
-    if (!rateLimit.allowed) return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+    if (!rateLimit.allowed) {
+      auditStaffAuthFailure('auth.login.failure', { ip, userAgent: ua, reason: 'rate_limited' });
+      return { success: false, error: "เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่" };
+    }
 
     const { data: user, error } = await supabaseAdmin
       .from('staff_users')
@@ -253,6 +296,7 @@ export async function loginStaffAction(payload: { username: string; password: st
     // ข้อความเดียวกันไม่ว่า username หรือ password ผิด กัน user enumeration
     if (error || !user) {
       await bcrypt.compare(password, DUMMY_HASH); // กัน timing attack
+      auditStaffAuthFailure('auth.login.failure', { ip, userAgent: ua, reason: 'no_account' });
       return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
     }
 
@@ -260,6 +304,9 @@ export async function loginStaffAction(payload: { username: string; password: st
     const lock = lockStatus(user.locked_until);
     if (lock.locked) {
       await bcrypt.compare(password, DUMMY_HASH);
+      auditStaffAuthFailure('auth.login.failure', {
+        ip, userAgent: ua, reason: 'locked', staffId: user.id, username: user.username,
+      });
       return { success: false, error: lockedMessage(lock.minutesLeft) };
     }
 
@@ -269,15 +316,31 @@ export async function loginStaffAction(payload: { username: string; password: st
       await supabaseAdmin.from('staff_users')
         .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
         .eq('id', user.id);
-      if (f.justLocked && user.email) {
-        sendAccountLockedEmail({
-          to: user.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
-        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      auditStaffAuthFailure('auth.login.failure', {
+        ip, userAgent: ua, reason: 'bad_password', staffId: user.id, username: user.username,
+      });
+      if (f.justLocked) {
+        void logAuditEvent({
+          category: 'auth', action: 'auth.lockout.triggered',
+          actor: { type: 'staff', id: user.id, label: user.username },
+          ip, userAgent: ua,
+          detail: { minutes: lockDurationMinutes(f.failed_login_count), failed_count: f.failed_login_count },
+        });
+        if (user.email) {
+          sendAccountLockedEmail({
+            to: user.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
+          }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+        }
       }
       return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
     }
 
-    if (!user.is_approved) return { success: false, error: "บัญชีนี้ยังไม่ได้รับการอนุมัติ" };
+    if (!user.is_approved) {
+      auditStaffAuthFailure('auth.login.failure', {
+        ip, userAgent: ua, reason: 'not_approved', staffId: user.id, username: user.username,
+      });
+      return { success: false, error: "บัญชีนี้ยังไม่ได้รับการอนุมัติ" };
+    }
 
     // login สำเร็จ — เคลียร์ตัวนับ lockout
     if ((user.failed_login_count ?? 0) > 0 || user.locked_until) {
@@ -292,17 +355,14 @@ export async function loginStaffAction(payload: { username: string; password: st
 
     if (user.mfa_enabled) {
       // อุปกรณ์ที่เชื่อถือ (จดจำไว้ 30 วัน) → ข้ามการกรอก TOTP
-      const h = await headers();
       const deviceToken = (await cookies()).get(STAFF_DEVICE_COOKIE)?.value;
       if (deviceToken) {
-        const rotated = await consumeTrustedDevice(user.id, deviceToken, {
-          userAgent: h.get('user-agent'), ip: getClientIp(h),
-        });
+        const rotated = await consumeTrustedDevice(user.id, deviceToken, { userAgent: ua, ip });
         if (rotated) {
           const token = await createStaffSession(user.id, { mfaPending: false });
           if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
           (await cookies()).set(STAFF_DEVICE_COOKIE, rotated, deviceCookieOptions(TRUSTED_DEVICE_DAYS * 86400));
-          await afterStaffLogin(user, getClientIp(h));
+          await afterStaffLogin(user, { ip, userAgent: ua, method: 'trusted_device' });
           return { success: true, mfa: 'trusted' as const, role: user.role, department: user.department };
         }
       }
@@ -316,7 +376,7 @@ export async function loginStaffAction(payload: { username: string; password: st
       // ยังอยู่ในช่วงผ่อนผัน — เข้าระบบได้ตามปกติ แต่ client จะเตือนให้ไปตั้งค่า MFA
       const token = await createStaffSession(user.id, { mfaPending: false });
       if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
-      await afterStaffLogin(user, getClientIp(await headers()));
+      await afterStaffLogin(user, { ip, userAgent: ua, method: 'password' });
       return {
         success: true,
         mfa: 'grace' as const,
@@ -351,7 +411,15 @@ export async function approveStaff(staffId: string) {
     .update({ is_approved: true })
     .eq('id', staffId);
 
-  return error ? { success: false, error: error.message } : { success: true };
+  if (error) return { success: false, error: error.message };
+
+  void logAuditEvent({
+    category: 'admin_action', action: 'admin.staff.approved', outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    target: { type: 'staff', id: staffId },
+    ip: getClientIp(await headers()),
+  });
+  return { success: true };
 }
 
 // --- ดึงรายชื่อพนักงานที่รออนุมัติ ---
@@ -462,7 +530,7 @@ export async function verifyStaffMfa(payload: { code: string; rememberDevice?: b
 
     const { data: sess } = await supabaseAdmin
       .from('sessions')
-      .select('token, expires_at, staff_users!inner(id, role, department, email, mfa_enabled, failed_login_count, locked_until)')
+      .select('token, expires_at, staff_users!inner(id, username, role, department, email, mfa_enabled, failed_login_count, locked_until)')
       .eq('token', token)
       .eq('actor_type', 'staff')
       .maybeSingle();
@@ -483,16 +551,21 @@ export async function verifyStaffMfa(payload: { code: string; rememberDevice?: b
     const lock = lockStatus(staff.locked_until);
     if (lock.locked) return { success: false, error: lockedMessage(lock.minutesLeft) };
 
+    const hdrs = await headers();
+    const mfaIp = getClientIp(hdrs);
+    const mfaUa = hdrs.get('user-agent');
+
     const raw = (payload.code ?? '').trim();
     const digits = raw.replace(/\s+/g, '');
     let ok = false;
+    let via: 'totp' | 'recovery_code' | null = null;
     if (/^\d{6}$/.test(digits)) {
       const secret = await getStaffMfaSecret(staff.id);
-      ok = secret ? verifyTotp(secret, digits) : false;
+      if (secret && verifyTotp(secret, digits)) { ok = true; via = 'totp'; }
     }
     if (!ok) {
       // recovery code (รูปแบบ XXXXX-XXXXX) — normalize ภายใน; 6 หลักล้วนถูกปฏิเสธเพราะสั้นเกิน
-      ok = await consumeRecoveryCode(staff.id, raw);
+      if (await consumeRecoveryCode(staff.id, raw)) { ok = true; via = 'recovery_code'; }
     }
 
     if (!ok) {
@@ -500,11 +573,21 @@ export async function verifyStaffMfa(payload: { code: string; rememberDevice?: b
       await supabaseAdmin.from('staff_users')
         .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
         .eq('id', staff.id);
-      if (f.justLocked && staff.email) {
-        sendAccountLockedEmail({
-          to: staff.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(),
-          ip: getClientIp(await headers()),
-        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      auditStaffAuthFailure('auth.mfa.challenge.failure', {
+        ip: mfaIp, userAgent: mfaUa, reason: 'bad_code', staffId: staff.id, username: staff.username,
+      });
+      if (f.justLocked) {
+        void logAuditEvent({
+          category: 'auth', action: 'auth.lockout.triggered',
+          actor: { type: 'staff', id: staff.id, label: staff.username },
+          ip: mfaIp, userAgent: mfaUa,
+          detail: { minutes: lockDurationMinutes(f.failed_login_count), failed_count: f.failed_login_count, at: 'mfa' },
+        });
+        if (staff.email) {
+          sendAccountLockedEmail({
+            to: staff.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip: mfaIp,
+          }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+        }
       }
       return { success: false, error: 'รหัสยืนยันไม่ถูกต้อง' };
     }
@@ -522,16 +605,26 @@ export async function verifyStaffMfa(payload: { code: string; rememberDevice?: b
     }
     cookieStore.set('staff_session', token, staffCookieOptions(STAFF_SESSION_SECONDS));
 
-    const h = await headers();
     if (payload.rememberDevice) {
-      const rawDevice = await createTrustedDevice(staff.id, {
-        userAgent: h.get('user-agent'), ip: getClientIp(h),
-      });
+      const rawDevice = await createTrustedDevice(staff.id, { userAgent: mfaUa, ip: mfaIp });
       if (rawDevice) {
         cookieStore.set(STAFF_DEVICE_COOKIE, rawDevice, deviceCookieOptions(TRUSTED_DEVICE_DAYS * 86400));
+        void logAuditEvent({
+          category: 'auth', action: 'auth.trusted_device.added',
+          actor: { type: 'staff', id: staff.id, label: staff.username },
+          ip: mfaIp, userAgent: mfaUa, detail: { device_label: parseDeviceLabel(mfaUa) },
+        });
       }
     }
-    await afterStaffLogin({ id: staff.id, email: staff.email }, getClientIp(h));
+    void logAuditEvent({
+      category: 'auth', action: 'auth.mfa.challenge.success', outcome: 'success',
+      actor: { type: 'staff', id: staff.id, label: staff.username },
+      ip: mfaIp, userAgent: mfaUa, detail: { via },
+    });
+    await afterStaffLogin(
+      { id: staff.id, email: staff.email, username: staff.username },
+      { ip: mfaIp, userAgent: mfaUa, method: 'password' },
+    );
 
     return { success: true, role: staff.role, department: staff.department };
   } catch (error: unknown) {
@@ -545,7 +638,21 @@ export async function verifyStaffMfa(payload: { code: string; rememberDevice?: b
 export async function logoutStaffAction() {
   const cookieStore = await cookies();
   const token = cookieStore.get('staff_session')?.value;
-  if (token) await supabaseAdmin.from('sessions').delete().eq('token', token);
+  if (token) {
+    const { data: sess } = await supabaseAdmin
+      .from('sessions')
+      .select('staff_users(id, username)')
+      .eq('token', token).eq('actor_type', 'staff').maybeSingle();
+    const su = sess ? (Array.isArray(sess.staff_users) ? sess.staff_users[0] : sess.staff_users) : null;
+    await supabaseAdmin.from('sessions').delete().eq('token', token);
+    if (su) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.logout',
+        actor: { type: 'staff', id: su.id as string, label: su.username as string },
+        ip: getClientIp(await headers()),
+      });
+    }
+  }
   cookieStore.delete('staff_session');
 }
 
@@ -656,6 +763,10 @@ export async function resetStaffPassword(username: string, otp: string, newPassw
 
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('staff_password_reset_logs').insert({ staff_id: staff.id, ip });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.reset', outcome: 'success',
+      actor: { type: 'staff', id: staff.id, label: cleanUsername }, ip, detail: { via: 'otp' },
+    });
 
     if (staff.email) {
       sendSecurityAlertEmail({ to: staff.email, action: 'ตั้งรหัสผ่านใหม่ (ผ่าน OTP)', whenText: nowThai(), ip })
@@ -852,6 +963,10 @@ export async function updateStaffPassword(currentPassword: string, newPassword: 
     await supabaseAdmin.from('staff_account_change_logs').insert({
       staff_id: session.id, field: 'password', old_value: null, new_value: null, ip,
     });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.changed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username }, ip,
+    });
 
     if (session.email) {
       sendSecurityAlertEmail({ to: session.email, action: 'เปลี่ยนรหัสผ่าน', whenText: nowThai(), ip })
@@ -942,15 +1057,20 @@ export async function confirmMfaEnrollment(code: string) {
     (await cookies()).set('staff_session', s.token, staffCookieOptions(STAFF_SESSION_SECONDS));
 
     const ip = getClientIp(await headers());
+    const ua = (await headers()).get('user-agent');
     await supabaseAdmin.from('staff_account_change_logs').insert({
       staff_id: s.id, field: 'mfa', old_value: null, new_value: 'enrolled', ip,
+    });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.mfa.enrolled', outcome: 'success',
+      actor: { type: 'staff', id: s.id, label: s.username }, ip, userAgent: ua,
     });
     if (s.email) {
       sendSecurityAlertEmail({
         to: s.email, action: 'เปิดใช้งาน MFA (การยืนยันตัวตนสองชั้น)', whenText: nowThai(), ip,
       }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
     }
-    await afterStaffLogin({ id: s.id, email: s.email }, ip);
+    await afterStaffLogin({ id: s.id, email: s.email, username: s.username }, { ip, userAgent: ua, method: 'password' });
 
     return { success: true, recoveryCodes: plain, role: s.role, department: s.department };
   } catch (error: unknown) {
@@ -1052,6 +1172,13 @@ export async function resetStaffMfa(staffId: string) {
       staff_id: staffId, field: 'mfa', old_value: 'enrolled',
       new_value: `reset by @${session.username}`, ip,
     });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.mfa.reset', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'staff', id: staffId },
+      ip,
+      detail: { target_username: target.username, grace_days: MFA_RESET_GRACE_DAYS },
+    });
     if (target.email) {
       sendSecurityAlertEmail({
         to: target.email, action: 'MFA ถูกรีเซ็ตโดยผู้จัดการ', whenText: nowThai(), ip,
@@ -1128,6 +1255,11 @@ export async function revokeStaffSession(sid: string) {
   if (match.token === currentToken) return { success: false, error: 'ไม่สามารถออกจากเซสชันปัจจุบันจากที่นี่ได้ ใช้ปุ่มออกจากระบบแทน' };
 
   await supabaseAdmin.from('sessions').delete().eq('token', match.token);
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    ip: getClientIp(await headers()), detail: { scope: 'one' },
+  });
   return { success: true };
 }
 
@@ -1137,12 +1269,18 @@ export async function revokeOtherStaffSessions() {
   if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
   const currentToken = (await cookies()).get('staff_session')?.value ?? '';
 
-  await supabaseAdmin
+  const { data: del } = await supabaseAdmin
     .from('sessions')
     .delete()
     .eq('staff_id', session.id)
     .eq('actor_type', 'staff')
-    .neq('token', currentToken);
+    .neq('token', currentToken)
+    .select('token');
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    ip: getClientIp(await headers()), detail: { scope: 'others', count: del?.length ?? 0 },
+  });
   return { success: true };
 }
 
@@ -1157,5 +1295,10 @@ export async function revokeStaffTrustedDevice(id: string) {
     .delete()
     .eq('id', id)
     .eq('staff_id', session.id);
+  void logAuditEvent({
+    category: 'auth', action: 'auth.trusted_device.revoked', outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    target: { type: 'trusted_device', id }, ip: getClientIp(await headers()),
+  });
   return { success: true };
 }

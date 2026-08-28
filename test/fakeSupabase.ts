@@ -29,6 +29,8 @@ class FakeQueryBuilder {
   private wantsMaybeSingle = false;
   private wantsCount = false;
   private projectColumns?: string[];
+  private orderBy: Array<{ col: string; ascending: boolean }> = [];
+  private limitN?: number;
 
   constructor(
     private tables: Tables,
@@ -149,12 +151,36 @@ class FakeQueryBuilder {
     return this;
   }
 
-  order(..._args: any[]) {
+  // Real ordering + limit for select — several actions (audit-actions keyset
+  // pagination, "latest OTP" lookups, dashboards) genuinely depend on these.
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderBy.push({ col, ascending: opts?.ascending ?? true });
     return this;
   }
 
-  limit(..._args: any[]) {
+  limit(n?: number) {
+    if (typeof n === 'number') this.limitN = n;
     return this;
+  }
+
+  private orderAndLimit(rows: Row[]): Row[] {
+    let out = rows;
+    if (this.orderBy.length > 0) {
+      out = [...rows].sort((a, b) => {
+        for (const { col, ascending } of this.orderBy) {
+          const av = a[col];
+          const bv = b[col];
+          if (av === bv) continue;
+          if (av == null) return ascending ? -1 : 1;
+          if (bv == null) return ascending ? 1 : -1;
+          const cmp = av < bv ? -1 : 1;
+          return ascending ? cmp : -cmp;
+        }
+        return 0;
+      });
+    }
+    if (typeof this.limitN === 'number') out = out.slice(0, this.limitN);
+    return out;
   }
 
   single() {
@@ -185,7 +211,7 @@ class FakeQueryBuilder {
       let data: any;
 
       if (this.mode === 'select') {
-        const rows = this.matched();
+        const rows = this.orderAndLimit(this.matched());
         if (this.wantsSingle) {
           data = rows[0];
           if (!data) {

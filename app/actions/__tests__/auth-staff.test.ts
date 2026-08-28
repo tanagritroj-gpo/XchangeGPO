@@ -56,6 +56,7 @@ vi.mock('@/lib/known-login', () => ({
   recordLoginLocation: vi.fn().mockResolvedValue({ isNewLocation: false }),
   touchSessionLastSeen: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@/lib/audit', () => ({ logAuditEvent: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('next/headers', () => {
   const store = new Map<string, string>();
   const cookieStore = {
@@ -82,6 +83,7 @@ const mockValidatePassword = vi.mocked(pwPolicy.validateNewPassword);
 const emailSvc = await import('@/lib/email-service');
 const mockLockedEmail = vi.mocked(emailSvc.sendAccountLockedEmail);
 const mockAlertEmail = vi.mocked(emailSvc.sendSecurityAlertEmail);
+const { logAuditEvent: mockAudit } = vi.mocked(await import('@/lib/audit'));
 const mfaLib = await import('@/lib/mfa');
 const mockConsumeRecovery = vi.mocked(mfaLib.consumeRecoveryCode);
 const mockReplaceRecovery = vi.mocked(mfaLib.replaceRecoveryCodes);
@@ -94,7 +96,7 @@ const {
   requestStaffPasswordReset, resetStaffPassword, loginStaffAction,
   updateStaffUsername, updateStaffEmail, updateStaffPassword,
   verifyStaffMfa, startMfaEnrollment, confirmMfaEnrollment, regenerateRecoveryCodes,
-  getStaffMfaStatusList, resetStaffMfa,
+  getStaffMfaStatusList, resetStaffMfa, approveStaff, logoutStaffAction,
   getMyStaffSessionsAndDevices, revokeStaffSession, revokeOtherStaffSessions, revokeStaffTrustedDevice,
 } = await import('../auth-staff');
 
@@ -216,6 +218,7 @@ beforeEach(() => {
   mockCreateTrustedDevice.mockResolvedValue('raw-device-token');
   mockRevokeTrustedDevices.mockReset();
   mockRevokeTrustedDevices.mockResolvedValue(undefined);
+  mockAudit.mockClear();
   process.env.MFA_SECRET_KEY = 'test-mfa-key-0123456789';
 });
 
@@ -1057,5 +1060,99 @@ describe('staff session management', () => {
     const res = await revokeStaffTrustedDevice('55555555-5555-5555-5555-555555555555');
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('staff_trusted_devices')).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit logging (G0-3 phase B) — auth events
+// ─────────────────────────────────────────────────────────────────────────────
+
+function auditActions() {
+  return mockAudit.mock.calls.map((c) => (c[0] as { action: string }).action);
+}
+
+describe('audit — staff auth events', () => {
+  it('logs auth.login.success on a grace-window login', async () => {
+    const hash = await (await import('bcryptjs')).hash('correctpass', 10);
+    const grace = new Date(Date.now() + 10 * 86400_000).toISOString();
+    seed({ staff_users: [{ id: 's1', username: 'dofcoffee', password_hash: hash, role: 'staff', is_approved: true, department: 'csr', mfa_enabled: false, mfa_grace_until: grace }] });
+    await loginStaffAction({ username: 'dofcoffee', password: 'correctpass' });
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'auth', action: 'auth.login.success', outcome: 'success',
+      actor: expect.objectContaining({ type: 'staff', id: 's1' }),
+      detail: { method: 'password' },
+    }));
+  });
+
+  it('logs auth.login.failure with reason on a wrong password', async () => {
+    seed({ staff_users: [{ id: 's1', username: 'dofcoffee', email: 'd@e.com', password_hash: 'realhash', role: 'staff', is_approved: true, department: 'csr' }] });
+    await loginStaffAction({ username: 'dofcoffee', password: 'wrong' });
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.login.failure', outcome: 'failure',
+      detail: expect.objectContaining({ reason: 'bad_password' }),
+    }));
+  });
+
+  it('logs auth.login.failure reason=no_account for an unknown username (anon actor)', async () => {
+    seed({ staff_users: [] });
+    await loginStaffAction({ username: 'ghost', password: 'x' });
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.login.failure', actor: { type: 'anon' },
+      detail: expect.objectContaining({ reason: 'no_account' }),
+    }));
+  });
+
+  it('logs auth.lockout.triggered on the 5th failure', async () => {
+    seed({ staff_users: [{ id: 's1', username: 'dofcoffee', email: 'd@e.com', password_hash: 'realhash', role: 'staff', is_approved: true, department: 'csr', failed_login_count: 4 }] });
+    await loginStaffAction({ username: 'dofcoffee', password: 'wrong' });
+    expect(auditActions()).toContain('auth.lockout.triggered');
+  });
+
+  it('logs auth.mfa.challenge.failure then success across two verifyStaffMfa calls', async () => {
+    seedPendingMfaSession({ mfa_enabled: true });
+    await setSessionCookie(VALID_TOKEN);
+    await verifyStaffMfa({ code: '000000' });
+    expect(auditActions()).toContain('auth.mfa.challenge.failure');
+
+    mockAudit.mockClear();
+    seedAuthedStaff({ mfa_enabled: true });
+    await setSessionCookie(VALID_TOKEN);
+    await verifyStaffMfa({ code: '123456' });
+    expect(auditActions()).toContain('auth.mfa.challenge.success');
+  });
+
+  it('logs auth.logout with the staff actor', async () => {
+    seedAuthedStaff();
+    await setSessionCookie(VALID_TOKEN);
+    await logoutStaffAction();
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.logout', actor: expect.objectContaining({ type: 'staff', id: 's1' }),
+    }));
+  });
+
+  it('logs admin.staff.approved when a manager approves', async () => {
+    seedAuthedStaff({ role: 'manager' });
+    await setSessionCookie(VALID_TOKEN);
+    await approveStaff('44444444-4444-4444-4444-444444444444');
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'admin_action', action: 'admin.staff.approved',
+      target: { type: 'staff', id: '44444444-4444-4444-4444-444444444444' },
+    }));
+  });
+
+  it('logs auth.mfa.reset when a manager resets another staff', async () => {
+    const MANAGER_TOKEN = '22222222-2222-2222-2222-222222222222';
+    const manager = { id: '33333333-3333-3333-3333-333333333333', username: 'boss', full_name: 'Boss', role: 'manager', department: 'manager', is_approved: true, email: 'boss@e.com', password_hash: 'x', sale_customer_types: null, sale_provinces: null, signature_url: null, mfa_enabled: true, mfa_grace_until: null };
+    const target = { id: '44444444-4444-4444-4444-444444444444', username: 'target', full_name: 'T', role: 'staff', department: 'csr', is_approved: true, email: 't@e.com', mfa_enabled: true, mfa_enrolled_at: '2026-08-01T00:00:00Z', mfa_grace_until: null };
+    fakeAdmin.seed({
+      staff_users: [manager, target],
+      sessions: [{ token: MANAGER_TOKEN, actor_type: 'staff', staff_id: manager.id, expires_at: new Date(Date.now() + 3600_000).toISOString(), mfa_pending: false, staff_users: manager }],
+      staff_mfa_recovery_codes: [], staff_account_change_logs: [],
+    });
+    await setSessionCookie(MANAGER_TOKEN);
+    await resetStaffMfa(target.id);
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'auth.mfa.reset', target: { type: 'staff', id: target.id },
+    }));
   });
 });
