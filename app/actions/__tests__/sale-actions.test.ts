@@ -14,7 +14,7 @@ adminModule.admin = fakeAdmin.client;
 const { getStaffSession } = await import('../auth-staff');
 const mockGetStaffSession = vi.mocked(getStaffSession);
 
-const { getSaleCoverage, getSaleCustomerHistory, getSaleRequestDetail } = await import('../sale-actions');
+const { getSaleCoverage, getSaleCustomerHistory, getSaleStatusLogs, getSaleRequestDetail } = await import('../sale-actions');
 
 // covers 'government' bucket → expands to ['gov_hospital', 'gov_other'] (see lib/sale-coverage.ts),
 // scoped to the 7 southern provinces this role is meant to cover
@@ -102,6 +102,80 @@ describe('getSaleCustomerHistory', () => {
   it('fails closed to an empty array (not an error) when the RPC errors', async () => {
     fakeAdmin.setRpcHandler('get_sale_customer_history', () => ({ data: null, error: { message: 'db down' } }));
     await expect(getSaleCustomerHistory()).resolves.toEqual([]);
+  });
+});
+
+describe('getSaleStatusLogs — must not leak out-of-coverage status_logs to the browser', () => {
+  // status_logs for three requests: 1 & 2 are inside this rep's coverage (returned by the
+  // get_sale_customer_history RPC), 99 is a request in some other region/org-type this rep
+  // must never see. The old implementation returned all three rows and let the client filter.
+  function seedLogsAcrossScopes() {
+    fakeAdmin.seed({
+      status_logs: [
+        { id: 10, request_id: 1, status_name: 'approved', log_date: '2026-01-01', staff_remark: 'in-scope note A' },
+        { id: 11, request_id: 2, status_name: 'rejected', log_date: '2026-01-02', staff_remark: 'in-scope note B', rejection_reason_code: 'expired' },
+        { id: 12, request_id: 99, status_name: 'rejected', log_date: '2026-01-03', staff_remark: 'CONFIDENTIAL out-of-region note', rejection_reason_code: 'internal' },
+      ],
+    });
+  }
+
+  it('rejects a caller outside the sale department', async () => {
+    mockGetStaffSession.mockResolvedValue({ ...SALE_STAFF_SOUTH_GOV, department: 'wh', role: 'staff' } as any);
+    const res = await getSaleStatusLogs();
+    expect(res).toEqual({ success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' });
+  });
+
+  it('does not leak rows to a manager from another department either (empty, no coverage)', async () => {
+    seedLogsAcrossScopes();
+    mockGetStaffSession.mockResolvedValue({ ...SALE_STAFF_SOUTH_GOV, department: 'csr', role: 'manager' } as any);
+    const res: any = await getSaleStatusLogs();
+    expect(res).toEqual({ success: true, data: [] });
+  });
+
+  it('returns only the status_logs whose request_id is within the coverage the RPC reported', async () => {
+    seedLogsAcrossScopes();
+    fakeAdmin.setRpcHandler('get_sale_customer_history', () => ({ data: [{ id: 1 }, { id: 2 }], error: null }));
+
+    const res: any = await getSaleStatusLogs();
+
+    expect(res.success).toBe(true);
+    expect(res.data.map((l: any) => l.id).sort()).toEqual([10, 11]);
+    // the out-of-region note must never reach the caller, filtered or not
+    expect(JSON.stringify(res.data)).not.toContain('CONFIDENTIAL');
+  });
+
+  it('passes exactly the session-derived coverage to the RPC, never client input', async () => {
+    seedLogsAcrossScopes();
+    let capturedParams: any;
+    fakeAdmin.setRpcHandler('get_sale_customer_history', (params) => {
+      capturedParams = params;
+      return { data: [{ id: 1 }], error: null };
+    });
+
+    await getSaleStatusLogs();
+
+    expect(capturedParams).toEqual({
+      p_org_types: expect.arrayContaining(['gov_hospital', 'gov_other']),
+      p_provinces: ['สงขลา', 'ตรัง'],
+    });
+  });
+
+  it('fails closed to an empty list (never "all rows") when the coverage RPC errors', async () => {
+    seedLogsAcrossScopes();
+    fakeAdmin.setRpcHandler('get_sale_customer_history', () => ({ data: null, error: { message: 'db down' } }));
+
+    const res: any = await getSaleStatusLogs();
+
+    expect(res).toEqual({ success: true, data: [] });
+  });
+
+  it('returns an empty list (not every row) when the rep has coverage but zero in-scope requests', async () => {
+    seedLogsAcrossScopes();
+    fakeAdmin.setRpcHandler('get_sale_customer_history', () => ({ data: [], error: null }));
+
+    const res: any = await getSaleStatusLogs();
+
+    expect(res).toEqual({ success: true, data: [] });
   });
 });
 
