@@ -6,20 +6,100 @@ import crypto from 'crypto';
 import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/get-client-ip';
+import { assertPasswordAllowed, isPasswordBreached, validateNewPassword } from '@/lib/password-policy';
+import { lockStatus, lockedMessage, recordFailure, lockDurationMinutes, CLEARED } from '@/lib/account-lockout';
 import { getErrorMessage } from '@/lib/error-message';
-import { sendStaffOtpEmail } from '@/lib/email-service';
+import { sendStaffOtpEmail, sendAccountLockedEmail, sendSecurityAlertEmail } from '@/lib/email-service';
+import QRCode from 'qrcode';
+import { generateTotpSecret, totpAuthUri, verifyTotp } from '@/lib/totp';
+import {
+  saveStaffMfaSecret, getStaffMfaSecret, generateRecoveryCodes, replaceRecoveryCodes,
+  consumeRecoveryCode, countUnusedRecoveryCodes,
+  createTrustedDevice, consumeTrustedDevice, revokeAllTrustedDevices, TRUSTED_DEVICE_DAYS,
+} from '@/lib/mfa';
+import { parseDeviceLabel, sessionShortId } from '@/lib/device';
+import { recordLoginLocation, touchSessionLastSeen } from '@/lib/known-login';
 
-function getClientIp(headerList: Headers): string {
-  // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
-  const forwarded = headerList.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  const realIp = headerList.get('x-real-ip');
-  if (realIp) return realIp;
-  return 'unknown';
-}
+const nowThai = () => new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
+
+// --- MFA / session lifetimes (Phase 2 of 13-mfa-remember-me-design.md) ---
+const STAFF_SESSION_SECONDS = 60 * 60 * 8;   // password re-auth every 8h, always
+const MFA_PENDING_SECONDS = 60 * 10;         // window to complete the 2nd factor
+const MFA_GRACE_DAYS = 14;                   // new staff: time to enroll before it's forced
+const MFA_RESET_GRACE_DAYS = 3;              // after a manager reset: time to re-enroll
+const STAFF_DEVICE_COOKIE = 'staff_mfa_device';
+
+function staffCookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge,
+  };
+}
+
+// Trusted-device cookie: sameSite 'strict' — it must never ride along on a
+// cross-site navigation, since possessing it skips the 2nd factor.
+function deviceCookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict' as const,
+    path: '/',
+    maxAge,
+  };
+}
+
+// Create a staff session row + cookie. `mfaPending` sessions are short-lived and are
+// treated as unauthenticated by getStaffSession() until the 2nd factor is cleared.
+async function createStaffSession(staffId: string, opts: { mfaPending: boolean }) {
+  const ttl = opts.mfaPending ? MFA_PENDING_SECONDS : STAFF_SESSION_SECONDS;
+  const h = await headers();
+  const { data: session, error } = await supabaseAdmin
+    .from('sessions')
+    .insert({
+      actor_type: 'staff',
+      staff_id: staffId,
+      mfa_pending: opts.mfaPending,
+      expires_at: new Date(Date.now() + ttl * 1000).toISOString(),
+      user_agent: h.get('user-agent'),
+      ip: getClientIp(h),
+      last_seen_at: new Date().toISOString(),
+    })
+    .select('token')
+    .single();
+  if (error || !session) {
+    console.error('Staff session creation failed:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-login' } });
+    return null;
+  }
+  (await cookies()).set('staff_session', session.token, staffCookieOptions(ttl));
+  return session.token as string;
+}
+
+// After a staff login completes (full session), record the location and alert
+// the account owner by email if it's a location we've never seen for them.
+async function afterStaffLogin(user: { id: string; email: string | null }, ip: string) {
+  try {
+    const { isNewLocation } = await recordLoginLocation({ type: 'staff', id: user.id }, ip);
+    if (isNewLocation && user.email) {
+      sendSecurityAlertEmail({
+        to: user.email,
+        action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
+        whenText: nowThai(),
+        ip,
+        detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านและแจ้งผู้ดูแลระบบทันที',
+      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
+  } catch (e) {
+    Sentry.captureException(e, { level: 'warning', tags: { area: 'known-login' } });
+  }
+}
 
 interface StaffRegisterPayload {
   employee_id: string;
@@ -43,11 +123,35 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // --- ลงทะเบียนพนักงาน ---
 export async function registerStaff(payload: StaffRegisterPayload) {
   try {
+    // ★ Rate limit ต่อ IP — เป็น server action ที่เรียกได้โดยไม่ต้อง login และในนี้มีการ
+    // อัปโหลดไฟล์ลายเซ็นเข้า bucket `signatures` ก่อนตรวจสิทธิ์ใด ๆ (พบระหว่าง security
+    // audit 28 ส.ค. 2569 — P0-5 ว่าเดิมไม่มี rate limit เลย ต่างจากทุกจุด auth อื่นในระบบ)
+    // ผูกกับ IP อย่างเดียว: employee_id/username ผู้ยิงสแปมสุ่มใหม่ได้ทุกครั้ง (unique
+    // constraint กันแค่แถวซ้ำ ไม่กันปริมาณ) — 8 ครั้ง/ชม. กว้างพอสำหรับ onboarding พนักงาน
+    // จริงจากออฟฟิศเดียว (ผ่าน NAT IP เดียวกัน) แต่บล็อกบอทที่ยิงสร้างแถว pending + ไฟล์ขยะ
+    // (ถ้าเกินโควตาระหว่าง onboarding จริง: รอ 1 ชม. หรือให้ผู้จัดการช่วยสร้างบัญชีที่เหลือ)
+    const ip = getClientIp(await headers());
+    const ipRateLimit = await checkRateLimit(`register-staff-ip:${ip}`, 8, 3600);
+    if (!ipRateLimit.allowed) {
+      return { success: false, error: 'ลงทะเบียนถี่เกินไป กรุณาลองใหม่ในภายหลัง' };
+    }
+
     // ★ email บังคับทุกแผนกแล้ว (เดิมเฉพาะ sale) — เช็คซ้ำฝั่ง server แม้ client บังคับ
     // required ไว้แล้ว (กันกรณีเลี่ยงผ่าน form โดยตรง เหมือน pattern อื่นในระบบ)
     const email = payload.email?.trim();
     if (!email || !EMAIL_RE.test(email)) {
       return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
+    }
+
+    // ★ นโยบายรหัสผ่าน (P0-2) — เดิม registerStaff ไม่ตรวจรหัสผ่านเลย
+    const pw = await validateNewPassword(payload.password, {
+      identifiers: [email, payload.username, payload.employee_id, payload.full_name],
+    });
+    if (!pw.ok) return { success: false, error: pw.error };
+    if (pw.breachCheckFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'registerStaff' },
+      });
     }
 
     if (!payload.signature_url?.startsWith('data:image/png;base64,')) {
@@ -70,7 +174,7 @@ export async function registerStaff(payload: StaffRegisterPayload) {
       return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(payload.password, salt);
     const userRole = payload.department === 'manager' ? 'manager' : 'staff';
 
@@ -97,6 +201,8 @@ export async function registerStaff(payload: StaffRegisterPayload) {
           sale_provinces: saleProvinces,
           email,
           signature_url: signaturePath,
+          // MFA is mandatory; give a new hire MFA_GRACE_DAYS to enroll before login forces it.
+          mfa_grace_until: new Date(Date.now() + MFA_GRACE_DAYS * 86400_000).toISOString(),
         }
       ]);
 
@@ -140,7 +246,7 @@ export async function loginStaffAction(payload: { username: string; password: st
 
     const { data: user, error } = await supabaseAdmin
       .from('staff_users')
-      .select('id, username, password_hash, role, is_approved, department')
+      .select('id, username, email, password_hash, role, is_approved, department, failed_login_count, locked_until, mfa_enabled, mfa_grace_until')
       .eq('username', username)
       .single();
 
@@ -150,37 +256,80 @@ export async function loginStaffAction(payload: { username: string; password: st
       return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
     }
 
+    // ★ Account lockout (audit §P1-4) — เช็คก่อน bcrypt.compare แต่ยัง compare DUMMY กัน timing
+    const lock = lockStatus(user.locked_until);
+    if (lock.locked) {
+      await bcrypt.compare(password, DUMMY_HASH);
+      return { success: false, error: lockedMessage(lock.minutesLeft) };
+    }
+
     const isMatch = await bcrypt.compare(password, user.password_hash);
-    if (!isMatch) return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
+    if (!isMatch) {
+      const f = recordFailure(user.failed_login_count ?? 0);
+      await supabaseAdmin.from('staff_users')
+        .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
+        .eq('id', user.id);
+      if (f.justLocked && user.email) {
+        sendAccountLockedEmail({
+          to: user.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      }
+      return { success: false, error: "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง" };
+    }
 
     if (!user.is_approved) return { success: false, error: "บัญชีนี้ยังไม่ได้รับการอนุมัติ" };
 
-    const { data: session, error: sessErr } = await supabaseAdmin
-      .from('sessions')
-      .insert({
-        actor_type: 'staff',
-        staff_id: user.id,
-        expires_at: new Date(Date.now() + 60 * 60 * 8 * 1000).toISOString(),
-      })
-      .select('token')
-      .single();
-
-    if (sessErr || !session) {
-      console.error('Staff login: session creation failed:', sessErr);
-      Sentry.captureException(sessErr, { tags: { area: 'staff-login' } });
-      return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+    // login สำเร็จ — เคลียร์ตัวนับ lockout
+    if ((user.failed_login_count ?? 0) > 0 || user.locked_until) {
+      await supabaseAdmin.from('staff_users').update(CLEARED).eq('id', user.id);
     }
 
-    const cookieStore = await cookies();
-    cookieStore.set('staff_session', session.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 8
-    });
+    // ── ปัจจัยที่สอง (MFA) — บังคับทุก role, มี grace period ให้ enroll ──
+    // (ดู 13-mfa-remember-me-design.md §2.4)
+    const graceMsLeft = user.mfa_grace_until
+      ? new Date(user.mfa_grace_until).getTime() - Date.now()
+      : -1;
 
-    return { success: true, role: user.role, department: user.department };
+    if (user.mfa_enabled) {
+      // อุปกรณ์ที่เชื่อถือ (จดจำไว้ 30 วัน) → ข้ามการกรอก TOTP
+      const h = await headers();
+      const deviceToken = (await cookies()).get(STAFF_DEVICE_COOKIE)?.value;
+      if (deviceToken) {
+        const rotated = await consumeTrustedDevice(user.id, deviceToken, {
+          userAgent: h.get('user-agent'), ip: getClientIp(h),
+        });
+        if (rotated) {
+          const token = await createStaffSession(user.id, { mfaPending: false });
+          if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+          (await cookies()).set(STAFF_DEVICE_COOKIE, rotated, deviceCookieOptions(TRUSTED_DEVICE_DAYS * 86400));
+          await afterStaffLogin(user, getClientIp(h));
+          return { success: true, mfa: 'trusted' as const, role: user.role, department: user.department };
+        }
+      }
+      // ต้องยืนยัน TOTP/recovery code ก่อน — สร้าง session ค้างไว้ (client จะโชว์ช่องกรอกรหัส)
+      const token = await createStaffSession(user.id, { mfaPending: true });
+      if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+      return { success: true, mfa: 'challenge' as const };
+    }
+
+    if (graceMsLeft > 0) {
+      // ยังอยู่ในช่วงผ่อนผัน — เข้าระบบได้ตามปกติ แต่ client จะเตือนให้ไปตั้งค่า MFA
+      const token = await createStaffSession(user.id, { mfaPending: false });
+      if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+      await afterStaffLogin(user, getClientIp(await headers()));
+      return {
+        success: true,
+        mfa: 'grace' as const,
+        role: user.role,
+        department: user.department,
+        graceDaysLeft: Math.max(1, Math.ceil(graceMsLeft / 86400_000)),
+      };
+    }
+
+    // เกินกำหนดผ่อนผันและยังไม่ตั้งค่า — บังคับ enroll ก่อนใช้งานต่อ
+    const token = await createStaffSession(user.id, { mfaPending: true });
+    if (!token) return { success: false, error: "เกิดข้อผิดพลาด กรุณาลองใหม่" };
+    return { success: true, mfa: 'enroll' as const };
   } catch (error: unknown) {
     console.error("Login Error:", error);
     Sentry.captureException(error, { tags: { area: 'staff-login' } });
@@ -228,7 +377,7 @@ export async function getStaffSession() {
 
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, staff_users!inner(id, username, full_name, role, department, is_approved, sale_customer_types, sale_provinces, email, signature_url)')
+    .select('expires_at, mfa_pending, last_seen_at, staff_users!inner(id, username, full_name, role, department, is_approved, sale_customer_types, sale_provinces, email, signature_url, mfa_enabled, mfa_grace_until)')
     .eq('token', token)
     .eq('actor_type', 'staff')
     .maybeSingle();
@@ -241,6 +390,12 @@ export async function getStaffSession() {
   }
 
   if (!data || new Date(data.expires_at) < new Date()) return null;
+
+  // ยังยืนยันปัจจัยที่สองไม่ครบ — ยังไม่ถือว่า login สมบูรณ์ (หน้า MFA challenge / บังคับ
+  // enroll ใช้ getStaffSessionPending() แทน)
+  if (data.mfa_pending) return null;
+
+  await touchSessionLastSeen(token, data.last_seen_at as string | null);
 
   const staffUser = Array.isArray(data.staff_users)
     ? data.staff_users[0]
@@ -258,7 +413,132 @@ export async function getStaffSession() {
     sale_provinces: staffUser.sale_provinces as string[] | null,
     email: staffUser.email as string | null,
     signature_url: staffUser.signature_url as string | null,
+    mfa_enabled: staffUser.mfa_enabled as boolean,
+    mfa_grace_until: staffUser.mfa_grace_until as string | null,
   };
+}
+
+// เหมือน getStaffSession แต่ "ยอมรับ" session ที่ยังค้างปัจจัยที่สอง (mfa_pending) ด้วย —
+// ใช้เฉพาะหน้า/แอ็กชันที่เกี่ยวกับการยืนยัน MFA หรือบังคับ enroll เท่านั้น
+export async function getStaffSessionPending() {
+  const token = (await cookies()).get('staff_session')?.value;
+  if (!token || !UUID_RE.test(token)) return null;
+
+  const { data } = await supabaseAdmin
+    .from('sessions')
+    .select('token, expires_at, mfa_pending, staff_users!inner(id, username, full_name, role, department, is_approved, email, mfa_enabled, mfa_enrolled_at, mfa_grace_until)')
+    .eq('token', token)
+    .eq('actor_type', 'staff')
+    .maybeSingle();
+
+  if (!data || new Date(data.expires_at) < new Date()) return null;
+
+  const s = Array.isArray(data.staff_users) ? data.staff_users[0] : data.staff_users;
+  if (!s || !s.is_approved) return null;
+
+  return {
+    token: data.token as string,
+    mfaPending: data.mfa_pending as boolean,
+    id: s.id as string,
+    username: s.username as string,
+    full_name: s.full_name as string | null,
+    role: s.role as string | null,
+    department: s.department as string,
+    email: s.email as string | null,
+    mfa_enabled: s.mfa_enabled as boolean,
+    mfa_enrolled_at: s.mfa_enrolled_at as string | null,
+    mfa_grace_until: s.mfa_grace_until as string | null,
+  };
+}
+
+// --- ยืนยันปัจจัยที่สอง (TOTP หรือ recovery code) — เรียกหลัง loginStaffAction คืน mfa:'challenge' ---
+export async function verifyStaffMfa(payload: { code: string; rememberDevice?: boolean }) {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('staff_session')?.value;
+    if (!token || !UUID_RE.test(token)) {
+      return { success: false, error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
+    }
+
+    const { data: sess } = await supabaseAdmin
+      .from('sessions')
+      .select('token, expires_at, staff_users!inner(id, role, department, email, mfa_enabled, failed_login_count, locked_until)')
+      .eq('token', token)
+      .eq('actor_type', 'staff')
+      .maybeSingle();
+
+    if (!sess || new Date(sess.expires_at) < new Date()) {
+      return { success: false, error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
+    }
+    const staff = Array.isArray(sess.staff_users) ? sess.staff_users[0] : sess.staff_users;
+    if (!staff || !staff.mfa_enabled) {
+      return { success: false, error: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่' };
+    }
+
+    // rate limit — fail-closed (เดารหัส 6 หลักรัวไม่ได้)
+    const rl = await checkRateLimit(`mfa-verify:${staff.id}`, 5, 300);
+    if (!rl.allowed) return { success: false, error: 'ยืนยันรหัสถี่เกินไป กรุณารอสักครู่' };
+
+    // ใช้ account lockout ตัวเดียวกับรหัสผ่าน
+    const lock = lockStatus(staff.locked_until);
+    if (lock.locked) return { success: false, error: lockedMessage(lock.minutesLeft) };
+
+    const raw = (payload.code ?? '').trim();
+    const digits = raw.replace(/\s+/g, '');
+    let ok = false;
+    if (/^\d{6}$/.test(digits)) {
+      const secret = await getStaffMfaSecret(staff.id);
+      ok = secret ? verifyTotp(secret, digits) : false;
+    }
+    if (!ok) {
+      // recovery code (รูปแบบ XXXXX-XXXXX) — normalize ภายใน; 6 หลักล้วนถูกปฏิเสธเพราะสั้นเกิน
+      ok = await consumeRecoveryCode(staff.id, raw);
+    }
+
+    if (!ok) {
+      const f = recordFailure(staff.failed_login_count ?? 0);
+      await supabaseAdmin.from('staff_users')
+        .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
+        .eq('id', staff.id);
+      if (f.justLocked && staff.email) {
+        sendAccountLockedEmail({
+          to: staff.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(),
+          ip: getClientIp(await headers()),
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      }
+      return { success: false, error: 'รหัสยืนยันไม่ถูกต้อง' };
+    }
+
+    // สำเร็จ — ปลด mfa_pending + ต่ออายุ session เป็น 8 ชม.
+    await supabaseAdmin.from('sessions')
+      .update({
+        mfa_pending: false,
+        expires_at: new Date(Date.now() + STAFF_SESSION_SECONDS * 1000).toISOString(),
+        last_seen_at: new Date().toISOString(),
+      })
+      .eq('token', token);
+    if ((staff.failed_login_count ?? 0) > 0 || staff.locked_until) {
+      await supabaseAdmin.from('staff_users').update(CLEARED).eq('id', staff.id);
+    }
+    cookieStore.set('staff_session', token, staffCookieOptions(STAFF_SESSION_SECONDS));
+
+    const h = await headers();
+    if (payload.rememberDevice) {
+      const rawDevice = await createTrustedDevice(staff.id, {
+        userAgent: h.get('user-agent'), ip: getClientIp(h),
+      });
+      if (rawDevice) {
+        cookieStore.set(STAFF_DEVICE_COOKIE, rawDevice, deviceCookieOptions(TRUSTED_DEVICE_DAYS * 86400));
+      }
+    }
+    await afterStaffLogin({ id: staff.id, email: staff.email }, getClientIp(h));
+
+    return { success: true, role: staff.role, department: staff.department };
+  } catch (error: unknown) {
+    console.error('verifyStaffMfa Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-mfa-verify' } });
+    return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
+  }
 }
 
 // --- ออกจากระบบ (ลบ session ออกจาก DB จริง) ---
@@ -314,7 +594,9 @@ export async function resetStaffPassword(username: string, otp: string, newPassw
     const cleanUsername = username?.trim();
     if (!cleanUsername) return { success: false, error: 'กรุณากรอก Username' };
     if (!/^\d{6}$/.test(otp?.trim() ?? '')) return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
-    if (!newPassword || newPassword.length < 6) return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
+    // ★ นโยบายรหัสผ่าน — ตรวจรูปแบบก่อน (HIBP ตรวจหลังยืนยัน OTP เพื่อไม่ให้ consume OTP ถ้ารหัสผ่านไม่ผ่าน)
+    const pwShape = assertPasswordAllowed(newPassword, { identifiers: [cleanUsername] });
+    if (!pwShape.ok) return { success: false, error: pwShape.error };
     const cleanOtp = otp.trim();
 
     const rateLimit = await checkRateLimit(`staff-pwreset-verify:${cleanUsername}`, 5, 300);
@@ -344,22 +626,41 @@ export async function resetStaffPassword(username: string, otp: string, newPassw
       return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
     }
 
+    // OTP ถูกต้องแล้ว — ตรวจ HIBP ก่อน consume OTP (ถ้ารหัสผ่านเคยรั่ว ผู้ใช้ยังใช้ OTP เดิมลองใหม่ได้)
+    const breach = await isPasswordBreached(newPassword);
+    if (breach.checkFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'resetStaffPassword' },
+      });
+    }
+    if (breach.breached) {
+      return { success: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' };
+    }
+
     await supabaseAdmin.from('otp_logs').update({ used: true }).eq('id', log.id);
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     const { error: updateErr } = await supabaseAdmin
       .from('staff_users')
-      .update({ password_hash: hashedPassword, updated_at: new Date().toISOString() })
+      // reset password ผ่าน OTP ปลดล็อก account lockout ด้วย (audit §P1-4)
+      .update({ password_hash: hashedPassword, updated_at: new Date().toISOString(), failed_login_count: 0, locked_until: null })
       .eq('id', staff.id);
 
     if (updateErr) return { success: false, error: 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ กรุณาลองใหม่' };
 
     await supabaseAdmin.from('sessions').delete().eq('staff_id', staff.id).eq('actor_type', 'staff');
+    // อุปกรณ์หาย/ถูกขโมยมักเป็นสาเหตุที่มารีเซ็ตรหัสผ่าน — เพิกถอนอุปกรณ์ที่เชื่อถือทั้งหมดด้วย
+    await revokeAllTrustedDevices(staff.id);
 
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('staff_password_reset_logs').insert({ staff_id: staff.id, ip });
+
+    if (staff.email) {
+      sendSecurityAlertEmail({ to: staff.email, action: 'ตั้งรหัสผ่านใหม่ (ผ่าน OTP)', whenText: nowThai(), ip })
+        .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
 
     return { success: true };
   } catch (error: unknown) {
@@ -427,6 +728,13 @@ export async function updateStaffUsername(currentPassword: string, newUsername: 
       staff_id: session.id, field: 'username', old_value: session.username, new_value: cleanUsername, ip,
     });
 
+    if (session.email) {
+      sendSecurityAlertEmail({
+        to: session.email, action: 'เปลี่ยน Username', whenText: nowThai(), ip,
+        detail: `จาก "${session.username}" เป็น "${cleanUsername}"`,
+      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
+
     return { success: true };
   } catch (error: unknown) {
     console.error('Update Staff Username Error:', error);
@@ -469,6 +777,13 @@ export async function updateStaffEmail(currentPassword: string, newEmail: string
       staff_id: session.id, field: 'email', old_value: session.email, new_value: cleanEmail, ip,
     });
 
+    // ส่งไปทั้งอีเมลเดิมและอีเมลใหม่ — ถ้าไม่ใช่เจ้าของทำ อีเมลเดิมยังได้รับแจ้ง
+    sendSecurityAlertEmail({
+      to: [session.email, cleanEmail].filter((e): e is string => !!e),
+      action: 'เปลี่ยนอีเมลบัญชี', whenText: nowThai(), ip,
+      detail: `จาก "${session.email ?? '-'}" เป็น "${cleanEmail}"`,
+    }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+
     return { success: true };
   } catch (error: unknown) {
     console.error('Update Staff Email Error:', error);
@@ -492,14 +807,26 @@ export async function updateStaffPassword(currentPassword: string, newPassword: 
     if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
 
     if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
-    }
+    const pwShape = assertPasswordAllowed(newPassword, {
+      identifiers: [session.username, session.email ?? ''],
+    });
+    if (!pwShape.ok) return { success: false, error: pwShape.error };
 
     const passwordOk = await verifyCurrentPassword(session.id, currentPassword);
     if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
 
-    const salt = await bcrypt.genSalt(10);
+    // ★ HIBP หลังยืนยันรหัสผ่านปัจจุบัน (ไม่ให้ใช้ endpoint นี้ probe รหัสผ่านโดยไม่รู้รหัสเดิม)
+    const breach = await isPasswordBreached(newPassword);
+    if (breach.checkFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'updateStaffPassword' },
+      });
+    }
+    if (breach.breached) {
+      return { success: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' };
+    }
+
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     const { error } = await supabaseAdmin
@@ -517,11 +844,19 @@ export async function updateStaffPassword(currentPassword: string, newPassword: 
       .eq('staff_id', session.id)
       .eq('actor_type', 'staff')
       .neq('token', token);
+    // เพิกถอนอุปกรณ์ที่เชื่อถือทั้งหมด — ครั้งหน้าที่เข้าจากอุปกรณ์ไหนต้องยืนยัน MFA ใหม่
+    await revokeAllTrustedDevices(session.id);
+    (await cookies()).delete(STAFF_DEVICE_COOKIE);
 
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('staff_account_change_logs').insert({
       staff_id: session.id, field: 'password', old_value: null, new_value: null, ip,
     });
+
+    if (session.email) {
+      sendSecurityAlertEmail({ to: session.email, action: 'เปลี่ยนรหัสผ่าน', whenText: nowThai(), ip })
+        .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
 
     return { success: true };
   } catch (error: unknown) {
@@ -529,4 +864,298 @@ export async function updateStaffPassword(currentPassword: string, newPassword: 
     Sentry.captureException(error, { tags: { area: 'staff-account-update' } });
     return { success: false, error: getErrorMessage(error) };
   }
+}
+
+// ══ MFA — เปิดใช้งาน / จัดการ (Phase 2 ของ 13-mfa-remember-me-design.md) ═══════════
+// การ enroll เข้าถึงได้ทั้งจากหน้าบังคับ (/mfa-setup, session ยัง mfa_pending) และจากหน้า
+// จัดการบัญชี (/admin/account, session สมบูรณ์แล้วในช่วง grace) จึงยืนยันตัวตนด้วย
+// getStaffSessionPending() ตัวเดียว พนักงาน "ปิด" MFA เองไม่ได้ (บังคับ) — มีแต่ผู้จัดการ
+// รีเซ็ตให้ผ่าน resetStaffMfa ด้านล่าง
+
+// สถานะ MFA ของบัญชีตัวเอง — ใช้ทั้งหน้า /mfa-setup และการ์ด MFA ใน /admin/account
+export async function getMyMfaStatus() {
+  const s = await getStaffSessionPending();
+  if (!s) return { success: false as const, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  return {
+    success: true as const,
+    enabled: s.mfa_enabled,
+    enrolledAt: s.mfa_enrolled_at,
+    graceUntil: s.mfa_grace_until,
+    mfaPending: s.mfaPending,
+    recoveryLeft: s.mfa_enabled ? await countUnusedRecoveryCodes(s.id) : 0,
+  };
+}
+
+// เริ่ม enroll — สร้าง secret ใหม่ เก็บลง DB (เข้ารหัส) แต่ mfa_enabled ยัง false จนกว่าจะ
+// ยืนยันโค้ดสำเร็จใน confirmMfaEnrollment คืน QR + manual key ให้ client แสดง
+export async function startMfaEnrollment() {
+  try {
+    const s = await getStaffSessionPending();
+    if (!s) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (s.mfa_enabled) return { success: false, error: 'บัญชีนี้เปิดใช้งาน MFA อยู่แล้ว' };
+
+    const rl = await checkRateLimit(`mfa-enroll:${s.id}`, 5, 3600);
+    if (!rl.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const secret = generateTotpSecret();
+    await saveStaffMfaSecret(s.id, secret);
+    const uri = totpAuthUri(secret, s.username || s.email || 'staff');
+    const qrDataUrl = await QRCode.toDataURL(uri, { margin: 1, width: 224 });
+    return { success: true, qrDataUrl, manualKey: secret };
+  } catch (error: unknown) {
+    console.error('startMfaEnrollment Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-mfa-enroll' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// ยืนยันโค้ดจากแอป → เปิดใช้งาน MFA + สร้าง recovery code 10 ชุด (แสดงครั้งเดียว)
+export async function confirmMfaEnrollment(code: string) {
+  try {
+    const s = await getStaffSessionPending();
+    if (!s) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (s.mfa_enabled) return { success: false, error: 'บัญชีนี้เปิดใช้งาน MFA อยู่แล้ว' };
+
+    const rl = await checkRateLimit(`mfa-enroll:${s.id}`, 5, 3600);
+    if (!rl.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const secret = await getStaffMfaSecret(s.id);
+    if (!secret) return { success: false, error: 'ยังไม่ได้เริ่มการตั้งค่า กรุณาสแกน QR ใหม่' };
+    if (!verifyTotp(secret, (code ?? '').replace(/\s+/g, ''))) {
+      return { success: false, error: 'รหัสยืนยันไม่ถูกต้อง กรุณาลองใหม่' };
+    }
+
+    const { plain, hashes } = generateRecoveryCodes();
+    await replaceRecoveryCodes(s.id, hashes);
+
+    await supabaseAdmin.from('staff_users').update({
+      mfa_enabled: true,
+      mfa_enrolled_at: new Date().toISOString(),
+      mfa_grace_until: null,
+    }).eq('id', s.id);
+
+    // การกรอกโค้ด TOTP สดถือว่าผ่านปัจจัยที่สองสำหรับ session นี้แล้ว
+    await supabaseAdmin.from('sessions').update({
+      mfa_pending: false,
+      expires_at: new Date(Date.now() + STAFF_SESSION_SECONDS * 1000).toISOString(),
+    }).eq('token', s.token);
+    (await cookies()).set('staff_session', s.token, staffCookieOptions(STAFF_SESSION_SECONDS));
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: s.id, field: 'mfa', old_value: null, new_value: 'enrolled', ip,
+    });
+    if (s.email) {
+      sendSecurityAlertEmail({
+        to: s.email, action: 'เปิดใช้งาน MFA (การยืนยันตัวตนสองชั้น)', whenText: nowThai(), ip,
+      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
+    await afterStaffLogin({ id: s.id, email: s.email }, ip);
+
+    return { success: true, recoveryCodes: plain, role: s.role, department: s.department };
+  } catch (error: unknown) {
+    console.error('confirmMfaEnrollment Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-mfa-enroll' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// สร้าง recovery code ชุดใหม่ (ยกเลิกชุดเดิมทั้งหมด) — ต้องยืนยันรหัสผ่านปัจจุบัน
+export async function regenerateRecoveryCodes(currentPassword: string) {
+  try {
+    const session = await getStaffSession();
+    if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+    if (!session.mfa_enabled) return { success: false, error: 'ยังไม่ได้เปิดใช้งาน MFA' };
+
+    const rl = await checkRateLimit(`staff-account-update:${session.id}`, 5, 300);
+    if (!rl.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+    if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
+
+    const passwordOk = await verifyCurrentPassword(session.id, currentPassword);
+    if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
+
+    const { plain, hashes } = generateRecoveryCodes();
+    await replaceRecoveryCodes(session.id, hashes);
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: session.id, field: 'mfa', old_value: 'recovery-codes', new_value: 'regenerated', ip,
+    });
+    if (session.email) {
+      sendSecurityAlertEmail({ to: session.email, action: 'สร้างรหัสสำรอง MFA ชุดใหม่', whenText: nowThai(), ip })
+        .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
+    return { success: true, recoveryCodes: plain };
+  } catch (error: unknown) {
+    console.error('regenerateRecoveryCodes Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-mfa-enroll' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+
+// ══ Manager — จัดการ MFA พนักงาน (หน้า /admin/manager/staff-approvals) ═════════════
+
+// รายชื่อพนักงานที่อนุมัติแล้ว + สถานะ MFA ของแต่ละคน (manager เท่านั้น)
+export async function getStaffMfaStatusList() {
+  const session = await getStaffSession();
+  if (!session || session.role !== 'manager') {
+    return { success: false as const, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' };
+  }
+  const { data, error } = await supabaseAdmin
+    .from('staff_users')
+    .select('id, employee_id, full_name, username, department, role, email, mfa_enabled, mfa_enrolled_at, mfa_grace_until')
+    .eq('is_approved', true)
+    .order('department', { ascending: true })
+    .order('full_name', { ascending: true });
+  if (error) return { success: false as const, error: error.message };
+  return { success: true as const, data: data ?? [] };
+}
+
+// รีเซ็ต MFA ของพนักงานอีกคน — ผู้จัดการเท่านั้น เคลียร์ secret + recovery codes, บังคับออก
+// จากระบบทุกอุปกรณ์, ตั้ง grace 3 วันให้ตั้งค่าใหม่, บันทึก audit + แจ้งอีเมล (ถ้ามี)
+export async function resetStaffMfa(staffId: string) {
+  try {
+    const session = await getStaffSession();
+    if (!session || session.role !== 'manager') {
+      return { success: false, error: 'คุณไม่มีสิทธิ์ดำเนินการนี้' };
+    }
+    if (!UUID_RE.test(staffId ?? '')) return { success: false, error: 'ข้อมูลไม่ถูกต้อง' };
+    if (staffId === session.id) {
+      return { success: false, error: 'ไม่สามารถรีเซ็ต MFA ของตัวเองได้ กรุณาให้ผู้จัดการท่านอื่นดำเนินการ' };
+    }
+
+    const rl = await checkRateLimit(`mfa-reset:${session.id}`, 20, 3600);
+    if (!rl.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
+
+    const { data: target } = await supabaseAdmin
+      .from('staff_users')
+      .select('id, email, full_name, username')
+      .eq('id', staffId)
+      .maybeSingle();
+    if (!target) return { success: false, error: 'ไม่พบพนักงานคนนี้' };
+
+    const { error: updErr } = await supabaseAdmin.from('staff_users').update({
+      mfa_secret: null,
+      mfa_enabled: false,
+      mfa_enrolled_at: null,
+      mfa_grace_until: new Date(Date.now() + MFA_RESET_GRACE_DAYS * 86400_000).toISOString(),
+    }).eq('id', staffId);
+    if (updErr) throw updErr;
+
+    await supabaseAdmin.from('staff_mfa_recovery_codes').delete().eq('staff_id', staffId);
+    // ออกจากระบบทุกอุปกรณ์ของพนักงานคนนั้น + เพิกถอนอุปกรณ์ที่เชื่อถือ (บังคับ enroll ใหม่ตอน login ครั้งหน้า)
+    await supabaseAdmin.from('sessions').delete().eq('staff_id', staffId).eq('actor_type', 'staff');
+    await revokeAllTrustedDevices(staffId);
+
+    const ip = getClientIp(await headers());
+    await supabaseAdmin.from('staff_account_change_logs').insert({
+      staff_id: staffId, field: 'mfa', old_value: 'enrolled',
+      new_value: `reset by @${session.username}`, ip,
+    });
+    if (target.email) {
+      sendSecurityAlertEmail({
+        to: target.email, action: 'MFA ถูกรีเซ็ตโดยผู้จัดการ', whenText: nowThai(), ip,
+        detail: `กรุณาตั้งค่า MFA ใหม่ภายใน ${MFA_RESET_GRACE_DAYS} วัน`,
+      }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    console.error('resetStaffMfa Error:', error);
+    Sentry.captureException(error, { tags: { area: 'staff-mfa-reset' } });
+    return { success: false, error: getErrorMessage(error) };
+  }
+}
+// ══ Phase 3 — อุปกรณ์และเซสชันของตัวเอง (หน้า /admin/account) ═══════════════════
+
+export async function getMyStaffSessionsAndDevices() {
+  const session = await getStaffSession();
+  if (!session) return { success: false as const, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('staff_session')?.value ?? '';
+
+  const [{ data: sessions }, { data: devices }] = await Promise.all([
+    supabaseAdmin
+      .from('sessions')
+      .select('token, user_agent, ip, last_seen_at, created_at, expires_at')
+      .eq('staff_id', session.id)
+      .eq('actor_type', 'staff')
+      .eq('mfa_pending', false),
+    supabaseAdmin
+      .from('staff_trusted_devices')
+      .select('id, label, user_agent, ip, last_used_at, created_at, expires_at')
+      .eq('staff_id', session.id),
+  ]);
+
+  return {
+    success: true as const,
+    sessions: (sessions ?? [])
+      .map((s) => ({
+        sid: sessionShortId(s.token as string),
+        label: parseDeviceLabel(s.user_agent as string | null),
+        ip: (s.ip as string | null) ?? null,
+        lastSeenAt: (s.last_seen_at as string | null) ?? (s.created_at as string),
+        createdAt: s.created_at as string,
+        expiresAt: s.expires_at as string,
+        isCurrent: s.token === currentToken,
+      }))
+      .sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()),
+    devices: (devices ?? [])
+      .map((d) => ({
+        id: d.id as string,
+        label: (d.label as string | null) ?? parseDeviceLabel(d.user_agent as string | null),
+        ip: (d.ip as string | null) ?? null,
+        lastUsedAt: d.last_used_at as string,
+        expiresAt: d.expires_at as string,
+      }))
+      .sort((a, b) => new Date(b.lastUsedAt).getTime() - new Date(a.lastUsedAt).getTime()),
+  };
+}
+
+// เพิกถอน 1 เซสชัน (ระบุด้วย short id ที่ไม่ย้อนกลับเป็น token ได้)
+export async function revokeStaffSession(sid: string) {
+  const session = await getStaffSession();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('staff_session')?.value ?? '';
+
+  const { data: rows } = await supabaseAdmin
+    .from('sessions')
+    .select('token')
+    .eq('staff_id', session.id)
+    .eq('actor_type', 'staff');
+
+  const match = (rows ?? []).find((r) => sessionShortId(r.token as string) === sid);
+  if (!match) return { success: false, error: 'ไม่พบเซสชันนี้' };
+  if (match.token === currentToken) return { success: false, error: 'ไม่สามารถออกจากเซสชันปัจจุบันจากที่นี่ได้ ใช้ปุ่มออกจากระบบแทน' };
+
+  await supabaseAdmin.from('sessions').delete().eq('token', match.token);
+  return { success: true };
+}
+
+// ออกจากทุกอุปกรณ์อื่น (เก็บเครื่องปัจจุบัน)
+export async function revokeOtherStaffSessions() {
+  const session = await getStaffSession();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('staff_session')?.value ?? '';
+
+  await supabaseAdmin
+    .from('sessions')
+    .delete()
+    .eq('staff_id', session.id)
+    .eq('actor_type', 'staff')
+    .neq('token', currentToken);
+  return { success: true };
+}
+
+// ลบอุปกรณ์ที่เชื่อถือ 1 รายการ (ครั้งหน้าที่เข้าจากเครื่องนั้นต้องยืนยัน MFA ใหม่)
+export async function revokeStaffTrustedDevice(id: string) {
+  const session = await getStaffSession();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  if (!UUID_RE.test(id ?? '')) return { success: false, error: 'ข้อมูลไม่ถูกต้อง' };
+
+  await supabaseAdmin
+    .from('staff_trusted_devices')
+    .delete()
+    .eq('id', id)
+    .eq('staff_id', session.id);
+  return { success: true };
 }

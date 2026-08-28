@@ -32,6 +32,7 @@ import { SkeletonTopBar, SkeletonSidebarTabs, SkeletonSimpleRows, SkeletonManage
 import { useToast } from '@/components/ui/toast';
 import { useConfirm } from '@/components/ui/confirm-dialog';
 import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import { ManagerMfaList } from '@/components/mfa/ManagerMfaList';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, PendingStaffRow, StatusLogRow, HistorySummaryRow } from '@/lib/types';
 
@@ -365,6 +366,8 @@ function StaffApprovalPageInner() {
                     </div>
                   )}
                 </div>
+
+                <ManagerMfaList />
               </section>
             )}
 

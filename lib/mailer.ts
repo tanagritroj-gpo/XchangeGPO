@@ -24,7 +24,7 @@ export interface SendGmailAttachment {
 }
 
 export interface SendGmailParams {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
   attachments?: SendGmailAttachment[];

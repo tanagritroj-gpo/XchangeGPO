@@ -1,6 +1,6 @@
 -- บันทึกประวัติการแก้ไขบัญชีตัวเอง (email/password/ข้อมูลติดต่อ) ผ่านหน้า "บัญชีผู้ใช้"
 -- (/account) ฝั่งลูกค้า ที่ยืนยันตัวตนด้วยรหัสผ่านปัจจุบัน (ยกเว้นข้อมูลติดต่อที่ไม่ใช่
--- identity credential) — คู่ขนานกับ staff_account_change_logs (20260822160000) แต่แยกตาราง
+-- identity credential) — คู่ขนานกับ staff_account_change_logs (20260822150416) แต่แยกตาราง
 -- กันเด็ดขาดจากฝั่งพนักงาน ผูกกับ b2b_customers ไม่ใช่ staff_users — แยกจาก
 -- customer_password_reset_logs ที่เป็น audit trail ของ flow "ลืมรหัสผ่าน" (ยืนยันด้วย OTP
 -- แทนรหัสผ่านเดิม) โดยเฉพาะ

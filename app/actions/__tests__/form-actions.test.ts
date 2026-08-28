@@ -61,7 +61,7 @@ function baseFormData(overrides: Partial<ReturnFormData> = {}): ReturnFormData {
 }
 
 // ★ Rebuilds what the real Postgres function create_exchange_request() does (per
-// supabase/migrations/20260816150000_fix_create_exchange_request_overload_and_lockdown.sql):
+// supabase/migrations/20260816123247_fix_create_exchange_request_overload_and_lockdown.sql):
 // insert into requests, insert each drug_items row, return [{request_id, ref_id}]. Registered
 // fresh in beforeEach so every test exercises the exact real insert/shape, not a stubbed return.
 function registerCreateExchangeRequestRpc() {

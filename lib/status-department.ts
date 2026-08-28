@@ -1,5 +1,5 @@
 // แผนกเจ้าของงาน ณ แต่ละ current_status — ★ ต้องตรงกับ CASE ใน public.check_sla_notifications()
-// (supabase/migrations/20260810120500_add_check_sla_notifications_cron.sql) เป๊ะ ไม่มีจุดเดียวที่
+// (supabase/migrations/20260810105559_add_check_sla_notifications_cron.sql) เป๊ะ ไม่มีจุดเดียวที่
 // เป็น source of truth ร่วมกันระหว่าง SQL กับ TypeScript — แก้ที่นี่ต้องแก้ที่นั่นด้วยเสมอ
 //
 // แยกออกมาจาก lib/sla.ts ตั้งใจ (ไม่มี 'server-only'/import supabaseAdmin) เพราะเป็นแค่ data

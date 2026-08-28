@@ -8,8 +8,14 @@ import {
   getCustomerSession,
   updateCustomerPassword,
   updateCustomerContactInfo,
+  getMyCustomerSessions,
+  revokeCustomerSession,
+  revokeOtherCustomerSessions,
 } from '@/app/actions/auth-actions';
+import { DeviceSessionCard } from '@/components/account/DeviceSessionCard';
 import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordStrengthHint } from '@/components/ui/password-strength-hint';
+import { MIN_PASSWORD_LENGTH, assertPasswordAllowed } from '@/lib/password-policy';
 import type { CustomerSessionInfo } from '@/lib/types';
 
 // หน้า "บัญชีผู้ใช้" ฝั่งลูกค้า — คู่ขนานกับ app/admin/account/page.tsx ของ staff บางส่วน
@@ -100,6 +106,11 @@ export default function CustomerAccountPage() {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess('');
+    const pw = assertPasswordAllowed(newPassword, { identifiers: [customer?.email ?? '', customer?.contact_name ?? ''] });
+    if (!pw.ok) {
+      setPasswordError(pw.error!);
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setPasswordError('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
       return;
@@ -197,10 +208,11 @@ export default function CustomerAccountPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={MIN_PASSWORD_LENGTH}
                 className={inputStyle}
-                placeholder="อย่างน้อย 6 ตัวอักษร"
+                placeholder="อย่างน้อย 12 ตัวอักษร"
               />
+              <PasswordStrengthHint value={newPassword} identifiers={[customer?.email ?? '', customer?.contact_name ?? '']} />
             </div>
             <div>
               <label className={labelStyle}>ยืนยันรหัสผ่านใหม่</label>
@@ -264,6 +276,12 @@ export default function CustomerAccountPage() {
           </button>
         </FormCard>
       </form>
+
+      <DeviceSessionCard
+        load={getMyCustomerSessions}
+        revokeSession={revokeCustomerSession}
+        revokeOthers={revokeOtherCustomerSessions}
+      />
     </div>
   );
 }

@@ -244,7 +244,15 @@ class FakeQueryBuilder {
             }
           }
         }
-        const inserted = arr.map((v) => ({ id: this.nextId(this.tableName), ...v }));
+        const inserted = arr.map((v) => {
+          const row: Row = { id: this.nextId(this.tableName), ...v };
+          // `sessions.token` has a gen_random_uuid() default in Postgres — model it so
+          // code that reads back the generated token (e.g. createStaffSession) works.
+          if (this.tableName === 'sessions' && row.token == null) {
+            row.token = `sess-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+          }
+          return row;
+        });
         this.table().push(...inserted);
         data = this.wantsSingle ? inserted[0] : inserted;
         // `.insert(...).select('id')` projection matters here for the same reason as plain
@@ -319,7 +327,7 @@ export function createFakeAdmin() {
   // simulation here, since their real logic lives in SQL migrations, not this
   // file. Tests register a handler per function name via setRpcHandler(),
   // written from the actual migration SQL (e.g. create_exchange_request in
-  // supabase/migrations/20260816150000_*.sql), so a test can still exercise
+  // supabase/migrations/20260816123247_*.sql), so a test can still exercise
   // real insert/error paths through fakeAdmin.client.from(...) inside it.
   const rpcHandlers: Record<string, RpcHandler> = {};
 

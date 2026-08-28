@@ -12,6 +12,16 @@ import {
   updateStaffPassword,
 } from '@/app/actions/auth-staff';
 import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordStrengthHint } from '@/components/ui/password-strength-hint';
+import { MfaAccountCard } from '@/components/mfa/MfaAccountCard';
+import { DeviceSessionCard } from '@/components/account/DeviceSessionCard';
+import {
+  getMyStaffSessionsAndDevices,
+  revokeStaffSession,
+  revokeOtherStaffSessions,
+  revokeStaffTrustedDevice,
+} from '@/app/actions/auth-staff';
+import { MIN_PASSWORD_LENGTH, assertPasswordAllowed } from '@/lib/password-policy';
 import type { StaffSessionInfo } from '@/lib/types';
 
 // หน้ากลาง "จัดการบัญชี" ใช้ร่วมกันทุกแผนก (ไม่ผูกกับ zone ไหนโดยเฉพาะ) — เข้าถึงได้จากการ์ด
@@ -122,6 +132,11 @@ export default function AccountSettingsPage() {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess('');
+    const pw = assertPasswordAllowed(newPassword, { identifiers: [staff?.username ?? '', staff?.email ?? ''] });
+    if (!pw.ok) {
+      setPasswordError(pw.error!);
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setPasswordError('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
       return;
@@ -296,10 +311,11 @@ export default function AccountSettingsPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={MIN_PASSWORD_LENGTH}
                 className={inputStyle}
-                placeholder="อย่างน้อย 6 ตัวอักษร"
+                placeholder="อย่างน้อย 12 ตัวอักษร"
               />
+              <PasswordStrengthHint value={newPassword} identifiers={[staff?.username ?? '', staff?.email ?? '']} />
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">ยืนยันรหัสผ่านใหม่</label>
@@ -307,7 +323,7 @@ export default function AccountSettingsPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={MIN_PASSWORD_LENGTH}
                 className={inputStyle}
                 placeholder="พิมพ์อีกครั้ง"
               />
@@ -322,6 +338,17 @@ export default function AccountSettingsPage() {
             {passwordLoading && <Loader2 className="w-4 h-4 animate-spin" strokeWidth={2.5} />} บันทึกรหัสผ่านใหม่
           </button>
         </form>
+
+        {/* MFA */}
+        <MfaAccountCard />
+
+        {/* อุปกรณ์และเซสชัน */}
+        <DeviceSessionCard
+          load={getMyStaffSessionsAndDevices}
+          revokeSession={revokeStaffSession}
+          revokeOthers={revokeOtherStaffSessions}
+          revokeDevice={revokeStaffTrustedDevice}
+        />
       </div>
     </div>
   );

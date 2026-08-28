@@ -120,6 +120,8 @@ export interface StaffSessionInfo {
   sale_provinces: string[] | null;
   email: string | null;
   signature_url: string | null;
+  mfa_enabled: boolean;
+  mfa_grace_until: string | null;
 }
 
 export interface ClientRow {

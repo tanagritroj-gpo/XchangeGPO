@@ -42,7 +42,7 @@ const {
 
 const CSR_STAFF = {
   id: 'csr-1', username: 'csr1', full_name: 'CSR หนึ่ง', department: 'csr', role: 'staff',
-  sale_customer_types: null, sale_provinces: null, email: null, signature_url: null,
+  sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null,
 };
 
 function baseFormData(overrides: Partial<ReturnFormData> = {}): ReturnFormData {
@@ -60,7 +60,7 @@ function baseFormData(overrides: Partial<ReturnFormData> = {}): ReturnFormData {
 }
 
 // ★ Rebuilds the real create_exchange_request() Postgres function (per
-// supabase/migrations/20260816150000_fix_create_exchange_request_overload_and_lockdown.sql)
+// supabase/migrations/20260816123247_fix_create_exchange_request_overload_and_lockdown.sql)
 // so tests exercise the exact 6-arg shape the staff-submission call site actually sends —
 // this is the regression surface for today's overload bug: createStaffReturnRequest calls
 // rpc('create_exchange_request', { p_b2b_customer_id, p_request_data, p_drug_items,

@@ -20,7 +20,7 @@ const { getSaleCoverage, getSaleCustomerHistory, getSaleRequestDetail } = await 
 // scoped to the 7 southern provinces this role is meant to cover
 const SALE_STAFF_SOUTH_GOV = {
   id: 'sale-1', username: 'sale1', full_name: 'ฝ่ายขายใต้', department: 'sale', role: 'staff',
-  sale_customer_types: ['government'], sale_provinces: ['สงขลา', 'ตรัง'], email: 'sale@example.com', signature_url: null,
+  sale_customer_types: ['government'], sale_provinces: ['สงขลา', 'ตรัง'], email: 'sale@example.com', signature_url: null, mfa_enabled: false, mfa_grace_until: null,
 };
 
 // The fake query builder (test/fakeSupabase.ts) doesn't perform real joins — a

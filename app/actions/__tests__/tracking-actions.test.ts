@@ -26,7 +26,7 @@ const mockCheckRateLimit = vi.mocked(checkRateLimit);
 const { getTrackingTimeline, trackMyRequestByRefId, getRequestTrackingForStaff } = await import('../tracking-actions');
 
 const CUSTOMER = { id: 1, email: 'c@example.com', hospital_name: 'รพ.ทดสอบ', contact_name: 'สมชาย', customer_code: 'C-0007', phone: null, position: null, province: 'สงขลา' };
-const CSR_STAFF = { id: 'csr-1', username: 'csr1', full_name: 'CSR หนึ่ง', department: 'csr', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null };
+const CSR_STAFF = { id: 'csr-1', username: 'csr1', full_name: 'CSR หนึ่ง', department: 'csr', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null };
 
 const FULL_DRUG_ITEM = {
   id: 1, request_id: 1, drug_name: 'Paracetamol', qty: 10, unit: 'กล่อง', lot_number: 'LOT1', exp_date: '2027-01-01',
@@ -62,8 +62,15 @@ describe('getTrackingTimeline — public, no login required', () => {
     fakeAdmin.seed({ requests: [], timeline_summary: [], drug_items: [] });
     const res = await getTrackingTimeline('REF-DOES-NOT-EXIST');
     expect(res).toEqual({ error: 'ไม่พบรหัสอ้างอิงนี้ในระบบ' });
-    // both the general throttle and the miss-specific throttle get checked on a miss
-    expect(mockCheckRateLimit).toHaveBeenCalledWith(expect.stringMatching(/^track:miss:/), 8, 15 * 60);
+    // both the general throttle and the miss-specific throttle get checked on a miss —
+    // and both are deliberately fail-open (public read-only tracking must stay up during a
+    // rate-limit-store outage; enumeration risk in that short window is acceptable)
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      expect.stringMatching(/^track:miss:/), 8, 15 * 60, { failMode: 'open' },
+    );
+    expect(mockCheckRateLimit).toHaveBeenCalledWith(
+      expect.stringMatching(/^track:ip:/), 20, 5 * 60, { failMode: 'open' },
+    );
   });
 
   it('returns a distinct error once the miss-specific throttle is exceeded (slows down ref_id enumeration)', async () => {

@@ -88,7 +88,7 @@ async function uploadDeliveryNotePhotos(dataUris: string[], customerId: number, 
 
 // แค่ตัวอย่างเลขที่จะได้ ไม่ได้จองเลขจริง (ไม่ lock ไม่กันชนกัน) — เลขจริงเกิดขึ้นแบบ atomic
 // ใน create_exchange_request ตอน submit จริงเท่านั้น (ดู migration
-// 20260805000000_fix_doc_number_race_condition.sql)
+// 20260805164944_fix_doc_number_race_condition.sql)
 export async function getNextDocNumber() {
   const session = await getCustomerSession();
   if (!session) throw new Error("กรุณาเข้าสู่ระบบ");
