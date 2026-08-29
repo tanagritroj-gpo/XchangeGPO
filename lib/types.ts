@@ -193,7 +193,7 @@ export interface StatusLogRow {
   rejection_reason_code: string | null;
 }
 
-// กฎ SLA ต่อ status_name — แก้ไขได้เองผ่านหน้า manager (/admin/manager/sla)
+// กฎ SLA ต่อ status_name — แก้ไขได้เองผ่านหน้า manager (/admin/manager/audit-trail)
 export interface SlaRuleRow {
   status_name: string;
   sla_days: number;

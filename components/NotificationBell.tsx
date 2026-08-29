@@ -67,7 +67,7 @@ const ACTIONS_BY_SCOPE = {
 } as const;
 
 // แท็บ "SLA Monitoring" — มีเฉพาะ scope csr/log/wh (แผนกที่ถือใบงานจริง) manager/sale ไม่มี
-// แท็บนี้เพราะ manager มีหน้าเต็มแยกต่างหาก (/admin/manager/sla) และ sale ไม่เกี่ยวกับ SLA
+// แท็บนี้เพราะ manager มีหน้าเต็มแยกต่างหาก (/admin/manager/audit-trail) และ sale ไม่เกี่ยวกับ SLA
 // ใบงานคืน/แลกเปลี่ยน — ดู 06-sla-monitoring-design.md หัวข้อ 6
 const SLA_ACTIONS_BY_SCOPE = {
   csr: {
