@@ -9,6 +9,7 @@ import { buildRegistrationConfirmationPdf } from '@/app/services/registration-pd
 import { checkRateLimit } from '@/lib/rate-limit';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { getErrorMessage } from '@/lib/error-message';
+import { logAuditEvent } from '@/lib/audit';
 import { updateRequestCurrentStatus } from '@/lib/sla';
 import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
 import { sendRegistrationApprovedEmail } from '@/lib/email-service';
@@ -419,7 +420,7 @@ async function generateRegistrationDocument(client: ClientRow, customerCode: str
 // อยู่แล้ว — resolve กลับไปหา clients.id ผ่าน clients.b2b_customer_id ก่อน แล้วค่อย
 // ไปหาไฟล์ใน document_attachments (ที่ผูกกับ clients.id ไม่ใช่ b2b_customers.id)
 export async function getRegistrationDocumentUrl(b2bCustomerId: number) {
-  return withCSRAuth(async () => {
+  return withCSRAuth(async (session) => {
     const { data: clientRow, error: clientErr } = await supabaseAdmin
       .from('clients')
       .select('id')
@@ -448,6 +449,13 @@ export async function getRegistrationDocumentUrl(b2bCustomerId: number) {
       return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
     }
 
+    void logAuditEvent({
+      category: 'data_access', action: 'data.document.viewed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'customer', id: b2bCustomerId },
+      detail: { doc_type: 'registration_document' },
+    });
+
     return { success: true, url: signed.signedUrl };
   });
 }
@@ -461,7 +469,7 @@ export async function getDeliveryNotePhotoUrls(requestId: number) {
   const parsed = parseOrError(z.object({ requestId: positiveIntId }), { requestId });
   if (!parsed.ok) return { success: false as const, error: parsed.error };
 
-  return withCSRAuth(async () => {
+  return withCSRAuth(async (session) => {
     const { data: request, error } = await supabaseAdmin
       .from('requests')
       .select('delivery_note_photo_paths')
@@ -478,6 +486,13 @@ export async function getDeliveryNotePhotoUrls(requestId: number) {
         .createSignedUrl(path, 300);
       return { index, url: signed?.signedUrl ?? null };
     }));
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.document.viewed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'request', id: requestId },
+      detail: { doc_type: 'delivery_note_photo', count: photos.length },
+    });
 
     return { success: true, photos: photos.filter((p): p is { index: number; url: string } => !!p.url) };
   });
@@ -833,7 +848,7 @@ export async function getCustomerRequestHistory(customerId: number) {
 // getStaffRequestDetail ที่ต้องรู้ customerId ล่วงหน้าจากหน้าค้นหาลูกค้าทีละราย)
 export async function getCSRRequestDetail(requestId: number) {
   try {
-    await getCSRSession();
+    const session = await getCSRSession();
 
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
@@ -842,6 +857,13 @@ export async function getCSRRequestDetail(requestId: number) {
       .maybeSingle();
 
     if (reqErr || !request) throw new Error('ไม่พบข้อมูลใบงานนี้');
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.request.detail_viewed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'request', id: requestId },
+      detail: { ref_id: request.ref_id, department: session.department },
+    });
 
     const { data: timelineRaw } = await supabaseAdmin
       .from('timeline_summary')
@@ -867,7 +889,7 @@ export async function getCSRRequestDetail(requestId: number) {
 
 export async function getStaffRequestDetail(requestId: number, customerId: number) {
   try {
-    await getCSRSession();
+    const session = await getCSRSession();
 
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
@@ -878,6 +900,13 @@ export async function getStaffRequestDetail(requestId: number, customerId: numbe
     if (reqErr || !request || request.b2b_customer_id !== customerId) {
       throw new Error('ไม่พบข้อมูลใบงานนี้');
     }
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.request.detail_viewed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'request', id: requestId },
+      detail: { ref_id: request.ref_id, customer_id: customerId, department: session.department },
+    });
 
     const { data: timelineRaw } = await supabaseAdmin
       .from('timeline_summary')

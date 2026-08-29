@@ -4,6 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getStaffSession } from './auth-staff';
 import { assertDepartmentAccess } from '@/lib/staff-permissions';
 import { getErrorMessage } from '@/lib/error-message';
+import { logAuditEvent } from '@/lib/audit';
 import type { DrugItemRow } from '@/lib/types';
 import { z } from 'zod';
 import { parseOrError } from '@/lib/validate-input';
@@ -138,7 +139,7 @@ export async function getUnansweredChatbotQuestions(limit: number = 50) {
 // หรือ org_type/province ของเจ้าของใบงานเลย — เห็นได้ทุกใบงานในระบบไม่จำกัดขอบเขต
 export async function getManagerRequestDetail(requestId: number) {
   try {
-    await getManagerSession();
+    const session = await getManagerSession();
 
     const { data: request, error: reqErr } = await supabaseAdmin
       .from('requests')
@@ -147,6 +148,13 @@ export async function getManagerRequestDetail(requestId: number) {
       .maybeSingle();
 
     if (reqErr || !request) throw new Error('ไม่พบข้อมูลใบงานนี้');
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.request.detail_viewed', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'request', id: requestId },
+      detail: { ref_id: request.ref_id, department: 'manager' },
+    });
 
     const { data: timelineRaw } = await supabaseAdmin
       .from('timeline_summary')

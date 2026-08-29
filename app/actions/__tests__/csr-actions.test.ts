@@ -6,6 +6,7 @@ vi.mock('@/lib/supabase/admin', async () => {
   return { admin: undefined, __fake: createFakeAdmin() };
 });
 vi.mock('../auth-staff', () => ({ getStaffSession: vi.fn() }));
+vi.mock('@/lib/audit', () => ({ logAuditEvent: vi.fn().mockResolvedValue(undefined) }));
 // reviewClient() ตอนอนุมัติ trigger สร้างเอกสาร+ส่งอีเมลเป็น side-effect (non-blocking) —
 // mock resend กันไม่ให้ Resend constructor throw ตอน import (ต้องการ API key จริง)
 vi.mock('resend', () => ({
@@ -20,6 +21,7 @@ adminModule.admin = fakeAdmin.client;
 
 const { getStaffSession } = await import('../auth-staff');
 const mockGetStaffSession = vi.mocked(getStaffSession);
+const { logAuditEvent: mockAudit } = vi.mocked(await import('@/lib/audit'));
 
 const {
   approveRequest,
@@ -50,6 +52,7 @@ function seedRequest(
 beforeEach(() => {
   mockGetStaffSession.mockReset();
   mockGetStaffSession.mockResolvedValue(CSR_STAFF);
+  mockAudit.mockClear();
 });
 
 describe('authorization guard uses department, not role — unlike wh/logistics', () => {
@@ -421,6 +424,18 @@ describe('getRegistrationDocumentUrl', () => {
 
     expect(res.success).toBe(true);
     expect(res.url).toContain('registration/client-1.pdf');
+    // PDPA: opening a customer's registration document is an audited data-access event
+    expect(mockAudit).toHaveBeenCalledWith(expect.objectContaining({
+      category: 'data_access', action: 'data.document.viewed',
+      target: { type: 'customer', id: 42 },
+      actor: expect.objectContaining({ type: 'staff', id: 'csr-1' }),
+    }));
+  });
+
+  it('does NOT audit when the document lookup fails (no data was disclosed)', async () => {
+    fakeAdmin.seed({ clients: [], document_attachments: [] });
+    await getRegistrationDocumentUrl(999);
+    expect(mockAudit).not.toHaveBeenCalled();
   });
 
   it('errors when no clients row links back to this b2b_customer_id', async () => {

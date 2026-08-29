@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { getSaleCustomerHistory, getSaleStatusLogs, getSaleCoverage } from '@/app/actions/sale-actions';
+import { getStaffSession } from '@/app/actions/auth-staff';
 import { computeManagerStats } from '@/lib/manager-stats';
 import { filterCsrRequests, parseCsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
+import { logAuditEvent } from '@/lib/audit';
 import type { ReportRequestRow, ReportDrugItemRow, StatusLogRow } from '@/lib/types';
 
 // ก็อปมาจาก app/admin/csr/reports/export/route.ts เกือบทั้งหมด ต่างแค่แหล่งข้อมูล
@@ -160,6 +162,13 @@ export async function GET(request: NextRequest) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const dateStamp = new Date().toISOString().slice(0, 10);
+
+  void logAuditEvent({
+    category: 'data_access', action: 'data.export.generated', outcome: 'success',
+    actor: { type: 'staff', id: coverage.staffId, label: (await getStaffSession())?.username ?? null },
+    target: { type: 'export', id: 'sale-report' },
+    detail: { export_type: 'sale-report', format: 'xlsx', row_count: requests.length, filters },
+  });
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
