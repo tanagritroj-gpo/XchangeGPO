@@ -21,7 +21,7 @@ const {
   confirmLogisticsBatch,
 } = await import('../logistics-actions');
 
-const LOG_STAFF = { id: 'log-1', username: 'log-1', full_name: 'Test Staff', department: 'log', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null };
+const LOG_STAFF = { id: 'log-1', username: 'log-1', full_name: 'Test Staff', department: 'log', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null };
 
 function seedRequest(
   requestId: number,
@@ -42,14 +42,14 @@ beforeEach(() => {
 
 describe('authorization guard', () => {
   it('rejects staff outside the logistics department', async () => {
-    mockGetStaffSession.mockResolvedValue({ id: 'wh-1', username: 'wh-1', full_name: 'Test Staff', department: 'wh', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null });
+    mockGetStaffSession.mockResolvedValue({ id: 'wh-1', username: 'wh-1', full_name: 'Test Staff', department: 'wh', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null });
     seedRequest(1, [{ id: 1, current_status: 'approved' }]);
     const res = await updateLogisticsStatus(1, 'in_transit', '');
     expect(res).toEqual({ success: false, error: 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลนี้' });
   });
 
   it('allows a manager regardless of their department', async () => {
-    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null });
+    mockGetStaffSession.mockResolvedValue({ id: 'mgr-1', username: 'mgr-1', full_name: 'Test Staff', department: 'manager', role: 'manager', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null });
     seedRequest(1, [{ id: 1, current_status: 'approved' }]);
     const res = await updateLogisticsStatus(1, 'in_transit', '');
     expect(res.success).toBe(true);

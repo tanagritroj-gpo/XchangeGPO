@@ -3,8 +3,11 @@
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import * as Sentry from '@sentry/nextjs';
+import { headers } from 'next/headers';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/get-client-ip';
+import { validateNewPassword } from '@/lib/password-policy';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { sendRegistrationReceivedEmail } from '@/lib/email-service';
 
@@ -21,8 +24,10 @@ const RegisterSchema = z.object({
   // ฝั่ง lookup (login/Google callback/password reset) ด้วยรูปแบบเดียวกัน กันบัญชีซ้ำซ้อนจาก
   // ตัวพิมพ์ต่างกัน และกัน login ผ่าน Google ล้มเหลวถ้า case ไม่ตรงกับตอนลงทะเบียน
   email: z.string().trim().toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง'),
-  // ★ login ลูกค้าใช้ email เป็น username (ไม่มีคอลัมน์ username แยก) คู่กับรหัสผ่านนี้
-  password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร').max(100),
+  // ★ login ลูกค้าใช้ email เป็น username (ไม่มีคอลัมน์ username แยก) คู่กับรหัสผ่านนี้ —
+  // ตรวจรูปแบบเต็ม (ความยาว/ไบต์/blocklist/HIBP) หลัง parse ด้วย assertPasswordAllowed +
+  // isPasswordBreached เพื่อให้คืนข้อความเจาะจงได้ (schema ที่นี่แค่กันค่าว่าง)
+  password: z.string().min(1, 'กรุณากรอกรหัสผ่าน'),
   // base64 PNG data URI จาก SignaturePad (canvas.toDataURL()) ไม่ใช่ URL —
   // ตรวจ + upload ฝั่ง server เอง แทนการเชื่อ URL ที่ client อ้างว่าเป็นไฟล์ของเรา
   signature_url: z.string().startsWith('data:image/png;base64,'),
@@ -36,9 +41,30 @@ export async function registerCustomer(payload: unknown) {
     }
     const data = parsed.data;
 
+    // ★ per-IP limit คู่กับ per-email เดิม (พบระหว่าง security audit 28 ส.ค. 2569 — P0-5) —
+    // per-email กันแค่ "สมัครซ้ำอีเมลเดิม" 3 ครั้ง/ชม. ผู้ยิงสแปมสุ่มอีเมลใหม่ทุกครั้งหลบได้
+    // และในนี้มีการอัปโหลดลายเซ็นเข้า storage — เช็ค IP ก่อน per-email เพราะเป็นเกราะกว้างกว่า
+    // 10 ครั้ง/ชม.: กว้างพอสำหรับหน่วยงานที่ให้ผู้ติดต่อหลายคนสมัครจาก NAT เดียวกัน แต่บล็อกบอท
+    const ip = getClientIp(await headers());
+    const ipAllowed = await checkRateLimit(`register-customer-ip:${ip}`, 10, 3600);
+    if (!ipAllowed.allowed) {
+      return { success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' };
+    }
+
     const allowed = await checkRateLimit(`register:${data.email}`, 3, 3600);
     if (!allowed.allowed) {
       return { success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' };
+    }
+
+    // ★ นโยบายรหัสผ่าน (P0-2) — ตรวจก่อนแตะ storage/hash: รูปแบบ (sync) + HIBP (async)
+    const pw = await validateNewPassword(data.password, {
+      identifiers: [data.email, data.contact_name, data.hospital_name],
+    });
+    if (!pw.ok) return { success: false, error: pw.error };
+    if (pw.breachCheckFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'registerCustomer' },
+      });
     }
 
     const base64Data = data.signature_url.split(',')[1] ?? '';
@@ -60,7 +86,7 @@ export async function registerCustomer(payload: unknown) {
       return { success: false, error: 'บันทึกลายเซ็นไม่สำเร็จ กรุณาลองใหม่' };
     }
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12); // OWASP-recommended cost (hash เดิม cost 10 ยัง compare ผ่าน)
     const passwordHash = await bcrypt.hash(data.password, salt);
 
     // ★ select('id') เท่านั้น — ไม่ใช่ select() เฉยๆ (คืนทุกคอลัมน์รวม password_hash)

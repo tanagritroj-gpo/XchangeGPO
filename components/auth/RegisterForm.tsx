@@ -8,6 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { registerCustomer } from '@/app/actions/auth';
 import { SignaturePad } from '@/components/auth/SignaturePad';
 import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordStrengthHint } from '@/components/ui/password-strength-hint';
+import { passwordField } from '@/lib/password-policy';
 import { SOUTHERN_PROVINCES, ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { UserPlus, Sparkles, Building2, AlertCircle, User, CheckCircle2, PenLine, Check, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
@@ -38,7 +40,7 @@ const registerSchema = z.object({
   phone: z.string().min(9, "เบอร์โทรศัพท์ไม่ถูกต้อง"),
   email: z.string().email("อีเมลไม่ถูกต้อง"),
   // ★ login ลูกค้าใช้ email เป็น username (ไม่มีช่องตั้ง username แยก) คู่กับรหัสผ่านนี้
-  password: z.string().min(6, "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร"),
+  password: passwordField,
   pdpa_consent: z.boolean().refine((val) => val === true, {
     message: "กรุณากดยินยอม PDPA เพื่อดำเนินการต่อ",
   }),
@@ -173,7 +175,8 @@ export function RegisterForm() {
             </div>
             <div className="mt-4">
               <label className={labelStyle}>ตั้งรหัสผ่าน</label>
-              <PasswordInput {...register("password")} placeholder="อย่างน้อย 6 ตัวอักษร" className={inputStyle} />
+              <PasswordInput {...register("password")} placeholder="อย่างน้อย 12 ตัวอักษร" className={inputStyle} />
+              <PasswordStrengthHint value={watch("password") ?? ''} identifiers={[watch("email") ?? '', watch("contact_name") ?? '', watch("hospital_name") ?? '']} />
               {errors.password && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.password.message as string}</p>}
             </div>
             <div className="mt-4">

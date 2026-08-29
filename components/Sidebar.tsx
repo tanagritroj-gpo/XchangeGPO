@@ -58,9 +58,9 @@ export default function Sidebar({ customer }: { customer: CustomerSessionInfo | 
             </div>
             <div className="space-y-1">
               <p className="text-[11px] font-bold text-slate-400 uppercase">หน่วยงาน</p>
-              <div className="flex items-center gap-2 text-[12px] font-bold text-teal-700 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100">
-                <Building2 className="w-4 h-4 shrink-0" />
-                <span className="leading-tight">{customer?.hospital_name}</span>
+              <div className="flex items-start gap-2 text-[12px] font-bold text-teal-700 bg-teal-50 px-3 py-2 rounded-xl border border-teal-100">
+                <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
+                <span className="leading-tight break-words min-w-0">{customer?.hospital_name}</span>
               </div>
             </div>
           </div>
@@ -77,14 +77,14 @@ export default function Sidebar({ customer }: { customer: CustomerSessionInfo | 
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 pl-2.5 pr-4 py-2 rounded-xl text-sm font-bold transition-all ${
+              className={`flex items-center gap-3 pl-2.5 pr-3 py-2 rounded-xl text-sm font-bold leading-tight transition-all ${
                 isActive ? `${t.active} shadow-sm` : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
               }`}
             >
               <span className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${isActive ? `${t.icon} shadow-sm` : 'bg-slate-100 text-slate-400'}`}>
                 <Icon className="w-4 h-4" />
               </span>
-              {label}
+              <span className="min-w-0">{label}</span>
             </Link>
           );
         })}
@@ -96,10 +96,6 @@ export default function Sidebar({ customer }: { customer: CustomerSessionInfo | 
           {isLoggingOut ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LogOut className="w-3.5 h-3.5" />} ออกจากระบบ
         </button>
       </nav>
-
-      <div className="pt-6 border-t border-slate-100">
-        <p className="text-[10px] text-slate-400 text-center">© 2026 GPO Xchange</p>
-      </div>
     </aside>
   );
 }

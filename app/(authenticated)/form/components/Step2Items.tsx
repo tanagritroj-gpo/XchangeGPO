@@ -63,7 +63,12 @@ async function compressImageToDataUri(file: File): Promise<string> {
   });
 }
 
-const UNITS = ['แผง', 'กล่อง', 'ขวด', 'amp', 'ลัง'] as const;
+const UNITS = ['กล่อง', 'ขวด', 'ampoule', 'vial', 'หลอด'] as const;
+// ค่า sentinel ของ option "ระบุหน่วยเพิ่ม" — ไม่ใช่หน่วยจริง ใช้สลับ dropdown ไปเป็นช่องพิมพ์เอง
+// เท่านั้น ค่าที่บันทึกลง DB (drug_items.unit) ยังเป็นข้อความที่ผู้ใช้พิมพ์ตรงๆ เหมือนหน่วยใน
+// รายการ (คอลัมน์เดิม, schema เดิม: lib/return-request-schema.ts → unit: text(50))
+const CUSTOM_UNIT = '__custom__';
+const UNIT_MAX_LEN = 50; // ตรงกับ text(50) ใน DrugItemInputSchema — พิมพ์เกินนี้ backend จะตัดทิ้งอยู่ดี
 const MAX   = 5;
 
 const fieldStyle = "w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-white text-base font-medium text-slate-700 placeholder:text-slate-400 placeholder:font-normal focus:border-teal-400 focus:ring-4 focus:ring-teal-50 outline-none transition-all duration-200";
@@ -126,7 +131,10 @@ export default function Step2Items({ next, back, updateData, formData, allowDeli
   const toast = useToast();
   const [items, setItems] = useState<DrugItemEntry[]>(formData?.items || []);
   const [temp, setTemp] = useState({ drugName: '', qty: '', unit: '', lot: '', exp: '', unitPrice: '', val: '', inv: '' });
+  // true = ผู้ใช้เลือก "ระบุหน่วยเพิ่ม" ในช่องหน่วย → โชว์ช่องพิมพ์เอง แทน dropdown
+  const [customUnit, setCustomUnit] = useState(false);
   const drugNameInputRef = useRef<HTMLInputElement>(null);
+  const customUnitInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   // ★ รูปใบส่งของ — ระดับคำร้อง ไม่ใช่ระดับรายการยา (ใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง
@@ -184,14 +192,15 @@ export default function Step2Items({ next, back, updateData, formData, allowDeli
 
   // Field บังคับของแต่ละรายการยา — เหลือแค่ 5 ตัวนี้ (ราคาต่อหน่วย/เลขใบส่งของ เป็น optional)
   const canAddItem = Boolean(
-    temp.drugName.trim() && temp.qty && temp.unit && temp.lot.trim() && temp.exp
+    temp.drugName.trim() && temp.qty && temp.unit.trim() && temp.lot.trim() && temp.exp
   );
 
   const addItemToList = () => {
     if (items.length >= MAX) return toast.error(`จำกัดสูงสุด ${MAX} รายการ`);
     if (!canAddItem) return toast.error('กรุณากรอกชื่อยา จำนวน หน่วย Lot No. และวันหมดอายุให้ครบถ้วน');
-    setItems([...items, { ...temp, val: tempComputedVal.toFixed(2), id: Date.now() }]);
+    setItems([...items, { ...temp, unit: temp.unit.trim(), val: tempComputedVal.toFixed(2), id: Date.now() }]);
     setTemp({ drugName: '', qty: '', unit: '', lot: '', exp: '', unitPrice: '', val: '', inv: '' });
+    setCustomUnit(false);
     drugNameInputRef.current?.focus();
   };
 
@@ -249,10 +258,34 @@ export default function Step2Items({ next, back, updateData, formData, allowDeli
             </div>
             <div>
               <FieldLabel required>หน่วย</FieldLabel>
-              <SelectField value={temp.unit} onChange={v => set('unit', v)}>
+              <SelectField
+                value={customUnit ? CUSTOM_UNIT : temp.unit}
+                onChange={v => {
+                  if (v === CUSTOM_UNIT) {
+                    setCustomUnit(true);
+                    set('unit', '');
+                    // รอ dropdown re-render เป็นช่องพิมพ์ก่อนแล้วค่อย focus
+                    setTimeout(() => customUnitInputRef.current?.focus(), 0);
+                  } else {
+                    setCustomUnit(false);
+                    set('unit', v);
+                  }
+                }}
+              >
                 <option value="">เลือกหน่วย</option>
                 {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                <option value={CUSTOM_UNIT}>ระบุหน่วยเพิ่ม…</option>
               </SelectField>
+              {customUnit && (
+                <input
+                  ref={customUnitInputRef}
+                  value={temp.unit}
+                  onChange={e => set('unit', e.target.value)}
+                  placeholder="พิมพ์ชื่อหน่วย เช่น ไวอัล, ซอง, หลอด"
+                  maxLength={UNIT_MAX_LEN}
+                  className={`${fieldStyle} mt-2`}
+                />
+              )}
             </div>
           </div>
 

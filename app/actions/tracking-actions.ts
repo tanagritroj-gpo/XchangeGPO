@@ -3,21 +3,13 @@
 import { headers } from 'next/headers';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/get-client-ip';
 import { getCustomerSession } from './auth-actions';
 import { getManagerOrCsrSession } from './manager-actions';
 import { getErrorMessage } from '@/lib/error-message';
 import type { DrugItemRow } from '@/lib/types';
 import { z } from 'zod';
 import { parseOrError } from '@/lib/validate-input';
-
-function getClientIp(headerList: Headers): string {
-  // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
-  const forwarded = headerList.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  const realIp = headerList.get('x-real-ip');
-  if (realIp) return realIp;
-  return 'unknown';
-}
 
 // ── Public: ไม่ต้อง login ────────────────────────────────────
 export async function getTrackingTimeline(refId: string) {
@@ -28,7 +20,10 @@ export async function getTrackingTimeline(refId: string) {
   const ip = getClientIp(headerList);
 
   // throttle รวมต่อ IP กันยิงรัว — 20 ครั้ง / 5 นาที ถือว่าเผื่อเหลือเผื่อขาดสำหรับผู้ใช้จริงที่กดรีเฟรชบ่อยๆ
-  const general = await checkRateLimit(`track:ip:${ip}`, 20, 5 * 60);
+  // failMode 'open': หน้าติดตามสถานะเป็น read-only + public — ถ้า DB สะดุดจนเช็คโควตาไม่ได้
+  // การบล็อกผู้ใช้ทุกคนเสียหายกว่าความเสี่ยง enumeration ในช่วงสั้น ๆ (และตอน DB ล่ม query
+  // ด้านล่างก็ fail ทุกคำขอกลายเป็น "ไม่พบ" อยู่แล้ว ผู้ไล่สุ่มจึงไม่ได้ signature อะไร)
+  const general = await checkRateLimit(`track:ip:${ip}`, 20, 5 * 60, { failMode: 'open' });
   if (!general.allowed) {
     return { error: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่อีกครั้ง' };
   }
@@ -43,7 +38,7 @@ export async function getTrackingTimeline(refId: string) {
   if (reqErr || !request) {
     // ตั้งใจแยก throttle เฉพาะกรณี "หาไม่เจอ" ให้เข้มกว่า throttle ทั่วไป
     // เพื่อชะลอการไล่สุ่ม ref_id (enumeration) โดยไม่กระทบผู้ใช้ที่พิมพ์ถูกอยู่แล้ว
-    const miss = await checkRateLimit(`track:miss:${ip}`, 8, 15 * 60);
+    const miss = await checkRateLimit(`track:miss:${ip}`, 8, 15 * 60, { failMode: 'open' });
     if (!miss.allowed) {
       return { error: 'ค้นหาผิดพลาดหลายครั้งเกินไป กรุณาลองใหม่ภายหลัง' };
     }
@@ -105,7 +100,9 @@ export async function trackMyRequestByRefId(refId: string) {
   if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบ' };
 
   // throttle เบาๆ ต่อ session กันสแปมกดรัว — เข้มน้อยกว่า public เพราะมี login คั่นอยู่แล้ว
-  const limited = await checkRateLimit(`track-private:session:${session.id}`, 60, 5 * 60);
+  // failMode 'open': read-only + login แล้ว (abuse จำกัดอยู่แล้ว) — ไม่บล็อกการดูสถานะคำร้อง
+  // ของตัวเองตอน DB สะดุด
+  const limited = await checkRateLimit(`track-private:session:${session.id}`, 60, 5 * 60, { failMode: 'open' });
   if (!limited.allowed) {
     return { success: false, error: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่' };
   }
@@ -173,8 +170,8 @@ export async function getRequestTrackingForStaff(refId: string) {
     if (!cleaned || cleaned.length > 50) return { success: false, error: 'รหัสอ้างอิงไม่ถูกต้อง' };
 
     // throttle ต่อ staff กันสแปมกดรัว — เข้มน้อยกว่า public เพราะมี login คั่นอยู่แล้ว
-    // (pattern เดียวกับ trackMyRequestByRefId ฝั่งลูกค้า)
-    const limited = await checkRateLimit(`track-staff:staff:${session.id}`, 60, 5 * 60);
+    // (pattern เดียวกับ trackMyRequestByRefId ฝั่งลูกค้า) — failMode 'open' ด้วยเหตุผลเดียวกัน
+    const limited = await checkRateLimit(`track-staff:staff:${session.id}`, 60, 5 * 60, { failMode: 'open' });
     if (!limited.allowed) {
       return { success: false, error: 'ค้นหาบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่' };
     }

@@ -1,6 +1,6 @@
 -- Phase 2: get_org_history เดิมกรองด้วย c.customer_code (มิเรอร์อยู่บน b2b_customers) —
 -- เปลี่ยนให้กรองผ่าน organizations.customer_code ตรงๆ (เจ้าของข้อมูลระดับหน่วยงานตัวจริง
--- ตั้งแต่ Phase 1 — ดู 20260804120000_add_organizations_table.sql) แทน
+-- ตั้งแต่ Phase 1 — ดู 20260804150815_add_organizations_table.sql) แทน
 CREATE OR REPLACE FUNCTION public.get_org_history(p_customer_code text)
  RETURNS json
  LANGUAGE plpgsql

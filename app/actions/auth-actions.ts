@@ -7,8 +7,59 @@ import * as Sentry from '@sentry/nextjs';
 import { cookies, headers } from 'next/headers';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { getClientIp } from '@/lib/get-client-ip';
+import { assertPasswordAllowed, isPasswordBreached } from '@/lib/password-policy';
+import { lockStatus, lockedMessage, recordFailure, lockDurationMinutes, CLEARED } from '@/lib/account-lockout';
 import { getErrorMessage } from '@/lib/error-message';
-import { sendCustomerOtpEmail } from '@/lib/email-service';
+import { sendCustomerOtpEmail, sendAccountLockedEmail, sendSecurityAlertEmail } from '@/lib/email-service';
+import { recordLoginLocation, touchSessionLastSeen } from '@/lib/known-login';
+import { parseDeviceLabel, sessionShortId } from '@/lib/device';
+import { logAuditEvent } from '@/lib/audit';
+
+const nowThai = () => new Date().toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' });
+
+// เมื่อ login ลูกค้าสำเร็จ — audit, บันทึกตำแหน่ง, แจ้งอีเมลถ้าเป็นตำแหน่งที่ไม่เคยเห็น
+async function afterCustomerLogin(
+  customer: { id: number; email: string | null },
+  ctx: { ip: string; userAgent?: string | null; method: 'password' | 'google' },
+) {
+  const actor = { type: 'customer' as const, id: customer.id, label: customer.email ?? null };
+  void logAuditEvent({
+    category: 'auth', action: 'auth.login.success', outcome: 'success',
+    actor, ip: ctx.ip, userAgent: ctx.userAgent, detail: { method: ctx.method },
+  });
+  try {
+    const { isNewLocation } = await recordLoginLocation({ type: 'customer', id: customer.id }, ctx.ip);
+    if (isNewLocation) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.new_location', actor, ip: ctx.ip, userAgent: ctx.userAgent,
+      });
+      if (customer.email) {
+        sendSecurityAlertEmail({
+          to: customer.email,
+          action: 'เข้าสู่ระบบจากอุปกรณ์/สถานที่ใหม่',
+          whenText: nowThai(),
+          ip: ctx.ip,
+          detail: 'หากไม่ใช่คุณ กรุณาเปลี่ยนรหัสผ่านทันที',
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+      }
+    }
+  } catch (e) {
+    Sentry.captureException(e, { level: 'warning', tags: { area: 'known-login' } });
+  }
+}
+
+function auditCustomerLoginFailure(ctx: { ip: string; userAgent?: string | null; reason: string; customerId?: number }) {
+  void logAuditEvent({
+    category: 'auth', action: 'auth.login.failure', outcome: 'failure',
+    actor: ctx.customerId ? { type: 'customer', id: ctx.customerId } : { type: 'anon' },
+    ip: ctx.ip, userAgent: ctx.userAgent, detail: { reason: ctx.reason },
+  });
+}
+
+// remember-me: ไม่ติ๊ก = 8 ชม. / ติ๊ก = 30 วัน (ยืนยันโดยผู้ใช้ 28 ส.ค. 2569)
+const CUSTOMER_SESSION_SECONDS = 8 * 60 * 60;
+const CUSTOMER_REMEMBER_SECONDS = 30 * 24 * 60 * 60;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 
@@ -20,15 +71,6 @@ const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuv';
 // อยู่แล้วทุกแถว ไม่ต้อง backfill)
 const EmailSchema = z.string().trim().min(1, 'กรุณากรอกอีเมล').toLowerCase().email('รูปแบบอีเมลไม่ถูกต้อง');
 
-function getClientIp(headerList: Headers): string {
-  // รองรับทั้งกรณีอยู่หลัง proxy/CDN (Vercel, Cloudflare) และ self-host เปล่าๆ (nginx/traefik)
-  const forwarded = headerList.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0].trim();
-  const realIp = headerList.get('x-real-ip');
-  if (realIp) return realIp;
-  return 'unknown';
-}
-
 function hashOtp(otp: string) {
   return crypto.createHash('sha256').update(otp + process.env.OTP_PEPPER).digest('hex');
 }
@@ -36,13 +78,19 @@ function hashOtp(otp: string) {
 // สร้าง session จริงของแอป (ตาราง `sessions` + cookie httpOnly) ให้ลูกค้าที่ยืนยันตัวตนแล้ว
 // ใช้ร่วมกันทั้ง loginCustomerAction และ loginCustomerByVerifiedEmail (Google OAuth) เพื่อให้มี
 // จุดเดียวที่ออก session จริงของระบบ ไม่กระจายลอจิกซ้ำ
-async function createCustomerSession(customerId: number) {
+async function createCustomerSession(customerId: number, opts: { remember?: boolean } = {}) {
+  const ttlSeconds = opts.remember ? CUSTOMER_REMEMBER_SECONDS : CUSTOMER_SESSION_SECONDS;
+  const h = await headers();
+
   const { data: session, error } = await supabaseAdmin
     .from('sessions')
     .insert({
       actor_type: 'customer',
       customer_id: customerId,
-      expires_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+      expires_at: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      user_agent: h.get('user-agent'),
+      ip: getClientIp(h),
+      last_seen_at: new Date().toISOString(),
     })
     .select('token')
     .single();
@@ -53,7 +101,7 @@ async function createCustomerSession(customerId: number) {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 3600,
+    maxAge: ttlSeconds,
     path: '/',
   });
 
@@ -89,16 +137,22 @@ export async function loginCustomerByVerifiedEmail(email: string) {
     return { success: false, error: 'บัญชีหมดอายุการใช้งาน กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุ' };
   }
 
+  // Google OAuth — ยืนยันตัวตนแล้ว ไม่มี checkbox "จดจำ" ใน flow นี้ → session 8 ชม.
   const created = await createCustomerSession(customer.id);
   if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
 
+  const gHdrs = await headers();
+  await afterCustomerLogin(
+    { id: customer.id, email: cleanEmail },
+    { ip: getClientIp(gHdrs), userAgent: gHdrs.get('user-agent'), method: 'google' },
+  );
   return { success: true };
 }
 
 // ล็อกอินลูกค้าด้วย email (ใช้เป็น username) + รหัสผ่าน — แทนที่ flow OTP เดิม ใช้ pattern
 // เดียวกับ loginStaffAction (bcrypt.compare กับ DUMMY_HASH ตอนไม่เจอบัญชี กัน timing attack,
 // ข้อความ error กลางๆ เดียวกันไม่ว่าจะ email หรือ password ผิด กัน enumeration)
-export async function loginCustomerAction(payload: { email: string; password: string }) {
+export async function loginCustomerAction(payload: { email: string; password: string; remember?: boolean }) {
   const parsedEmail = EmailSchema.safeParse(payload.email);
   if (!parsedEmail.success || !payload.password) {
     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
@@ -114,26 +168,63 @@ export async function loginCustomerAction(payload: { email: string; password: st
   // ไล่ทีละอีเมลๆ ละไม่กี่ครั้ง หลบ cap ต่อบัญชีได้สบายๆ) เพดานตั้งกว้างกว่าของเดิม (20 vs 10)
   // เพราะ IP เดียวอาจมีผู้ใช้จริงหลายคน (เช่น รพ./ร้านยาที่ใช้ NAT เดียวกัน) ไม่อยากบล็อก
   // คนปกติเกินจำเป็น เช็คก่อน per-email เพราะเป็นเกราะกว้างกว่า
-  const ip = getClientIp(await headers());
+  const hdrs = await headers();
+  const ip = getClientIp(hdrs);
+  const ua = hdrs.get('user-agent');
   const ipRateLimit = await checkRateLimit(`login-customer-ip:${ip}`, 20, 300);
-  if (!ipRateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  if (!ipRateLimit.allowed) {
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'rate_limited' });
+    return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  }
 
   const rateLimit = await checkRateLimit(`login-customer:${cleanEmail}`, 10, 300);
-  if (!rateLimit.allowed) return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  if (!rateLimit.allowed) {
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'rate_limited' });
+    return { success: false, error: 'เข้าสู่ระบบถี่เกินไป กรุณารอสักครู่' };
+  }
 
   const { data: customer, error } = await supabaseAdmin
     .from('b2b_customers')
-    .select('id, password_hash, access_expires_at, cancelled_at')
+    .select('id, email, password_hash, access_expires_at, cancelled_at, failed_login_count, locked_until')
     .eq('email', cleanEmail)
     .maybeSingle();
 
   if (error || !customer || !customer.password_hash) {
     await bcrypt.compare(payload.password, DUMMY_HASH); // กัน timing attack
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'no_account' });
     return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
   }
 
+  // ★ Account lockout (audit §P1-4)
+  const lock = lockStatus(customer.locked_until);
+  if (lock.locked) {
+    await bcrypt.compare(payload.password, DUMMY_HASH);
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'locked', customerId: customer.id });
+    return { success: false, error: lockedMessage(lock.minutesLeft) };
+  }
+
   const isMatch = await bcrypt.compare(payload.password, customer.password_hash);
-  if (!isMatch) return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+  if (!isMatch) {
+    const f = recordFailure(customer.failed_login_count ?? 0);
+    await supabaseAdmin.from('b2b_customers')
+      .update({ failed_login_count: f.failed_login_count, locked_until: f.locked_until })
+      .eq('id', customer.id);
+    auditCustomerLoginFailure({ ip, userAgent: ua, reason: 'bad_password', customerId: customer.id });
+    if (f.justLocked) {
+      void logAuditEvent({
+        category: 'auth', action: 'auth.lockout.triggered',
+        actor: { type: 'customer', id: customer.id, label: customer.email },
+        ip, userAgent: ua,
+        detail: { minutes: lockDurationMinutes(f.failed_login_count), failed_count: f.failed_login_count },
+      });
+      if (customer.email) {
+        sendAccountLockedEmail({
+          to: customer.email, minutesLocked: lockDurationMinutes(f.failed_login_count), whenText: nowThai(), ip,
+        }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'account-locked-email' } }));
+      }
+    }
+    return { success: false, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
+  }
 
   // ★ อายุการใช้งานบัญชี 2 ปีนับจากวันอนุมัติ + สวิตช์ "ยกเลิกลูกค้า" ที่ CSR คุมเอง — เช็คหลัง
   // ยืนยันรหัสผ่านถูกต้องแล้วเท่านั้น (ไม่เปิดช่องให้เดาได้ว่าอีเมลนี้มีบัญชีอยู่ไหมจากข้อความ
@@ -146,9 +237,15 @@ export async function loginCustomerAction(payload: { email: string; password: st
     return { success: false, error: 'บัญชีหมดอายุการใช้งาน กรุณาติดต่อเจ้าหน้าที่เพื่อต่ออายุ' };
   }
 
-  const created = await createCustomerSession(customer.id);
+  // login สำเร็จ — เคลียร์ตัวนับ lockout
+  if ((customer.failed_login_count ?? 0) > 0 || customer.locked_until) {
+    await supabaseAdmin.from('b2b_customers').update(CLEARED).eq('id', customer.id);
+  }
+
+  const created = await createCustomerSession(customer.id, { remember: payload.remember === true });
   if (!created) return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
 
+  await afterCustomerLogin({ id: customer.id, email: customer.email }, { ip, userAgent: ua, method: 'password' });
   return { success: true };
 }
 
@@ -194,7 +291,9 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
     if (!parsedEmail.success) return { success: false, error: 'กรุณากรอกอีเมลให้ถูกต้อง' };
     const cleanEmail = parsedEmail.data;
     if (!/^\d{6}$/.test(otp?.trim() ?? '')) return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
-    if (!newPassword || newPassword.length < 6) return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
+    // ★ นโยบายรหัสผ่าน — ตรวจรูปแบบก่อน (HIBP ตรวจหลังยืนยัน OTP เพื่อไม่ให้ consume OTP ถ้าไม่ผ่าน)
+    const pwShape = assertPasswordAllowed(newPassword, { identifiers: [cleanEmail] });
+    if (!pwShape.ok) return { success: false, error: pwShape.error };
     const cleanOtp = otp.trim();
 
     const rateLimit = await checkRateLimit(`customer-pwreset-verify:${cleanEmail}`, 5, 300);
@@ -224,14 +323,26 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
       return { success: false, error: 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ' };
     }
 
+    // OTP ถูกต้องแล้ว — ตรวจ HIBP ก่อน consume OTP
+    const breach = await isPasswordBreached(newPassword);
+    if (breach.checkFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'resetCustomerPassword' },
+      });
+    }
+    if (breach.breached) {
+      return { success: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' };
+    }
+
     await supabaseAdmin.from('otp_logs').update({ used: true }).eq('id', log.id);
 
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     const { error: updateErr } = await supabaseAdmin
       .from('b2b_customers')
-      .update({ password_hash: hashedPassword })
+      // reset password ผ่าน OTP ปลดล็อก account lockout ด้วย (audit §P1-4)
+      .update({ password_hash: hashedPassword, failed_login_count: 0, locked_until: null })
       .eq('id', customer.id);
 
     if (updateErr) return { success: false, error: 'ตั้งรหัสผ่านใหม่ไม่สำเร็จ กรุณาลองใหม่' };
@@ -240,6 +351,13 @@ export async function resetCustomerPassword(email: string, otp: string, newPassw
 
     const ip = getClientIp(await headers());
     await supabaseAdmin.from('customer_password_reset_logs').insert({ customer_id: customer.id, ip });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.reset', outcome: 'success',
+      actor: { type: 'customer', id: customer.id, label: cleanEmail }, ip, detail: { via: 'otp' },
+    });
+
+    sendSecurityAlertEmail({ to: cleanEmail, action: 'ตั้งรหัสผ่านใหม่ (ผ่าน OTP)', whenText: nowThai(), ip })
+      .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
 
     return { success: true };
   } catch (error: unknown) {
@@ -258,7 +376,7 @@ export async function getCustomerSession() {
   // ระดับหน่วยงานตัวจริง) ไม่ได้อ่านคอลัมน์ที่ mirror ไว้บน b2b_customers ตรงๆ อีกต่อไป
   const { data, error } = await supabaseAdmin
     .from('sessions')
-    .select('expires_at, b2b_customers!inner(id, email, contact_name, phone, position, access_expires_at, cancelled_at, organizations!inner(hospital_name, customer_code, province))')
+    .select('expires_at, last_seen_at, b2b_customers!inner(id, email, contact_name, phone, position, access_expires_at, cancelled_at, organizations!inner(hospital_name, customer_code, province))')
     .eq('token', token)
     .eq('actor_type', 'customer')
     .maybeSingle();
@@ -277,7 +395,7 @@ export async function getCustomerSession() {
       found: !!data,
       expiresAt: data?.expires_at ?? null,
     });
-    await logoutCustomer();
+    await logoutCustomer("expired");
     return null;
   }
 
@@ -291,8 +409,10 @@ export async function getCustomerSession() {
   // ทุกครั้งที่โหลดหน้า/เรียก server action (จุดเดียวที่ทุกอย่างฝั่งลูกค้าวิ่งผ่าน) เหมือนที่
   // getStaffSession() เช็ค is_approved ซ้ำทุกครั้ง — กัน session เก่าที่ login ไว้ก่อนหมดอายุ/
   // ก่อนถูกยกเลิกใช้งานต่อได้ทั้งที่ไม่ควรแล้ว
+  await touchSessionLastSeen(token, (data as { last_seen_at: string | null }).last_seen_at);
+
   if (customerRow.cancelled_at || new Date(customerRow.access_expires_at) < new Date()) {
-    await logoutCustomer();
+    await logoutCustomer(customerRow.cancelled_at ? "cancelled" : "access_ended");
     return null;
   }
 
@@ -312,10 +432,27 @@ export async function getCustomerSession() {
 }
 
 // Logout — ลบ session ออกจาก DB จริง ไม่ใช่แค่ลบ cookie ฝั่งเดียว
-export async function logoutCustomer() {
+// `reason` แยกการกดออกเองของผู้ใช้ ('user') ออกจากการที่ getCustomerSession ล้าง session
+// ที่หมดอายุ/ถูกยกเลิก (จะไม่ยิง audit event ในเคสหลังเพื่อไม่ให้ log ท่วม)
+export async function logoutCustomer(reason: 'user' | 'expired' | 'cancelled' | 'access_ended' = 'user') {
   const cookieStore = await cookies();
   const token = cookieStore.get('customer_session')?.value;
-  if (token) await supabaseAdmin.from('sessions').delete().eq('token', token);
+  if (token) {
+    if (reason === 'user') {
+      const { data: sess } = await supabaseAdmin
+        .from('sessions').select('customer_id, b2b_customers(email)')
+        .eq('token', token).eq('actor_type', 'customer').maybeSingle();
+      const cust = sess ? (Array.isArray(sess.b2b_customers) ? sess.b2b_customers[0] : sess.b2b_customers) : null;
+      if (sess?.customer_id) {
+        void logAuditEvent({
+          category: 'auth', action: 'auth.logout',
+          actor: { type: 'customer', id: sess.customer_id as number, label: (cust?.email as string) ?? null },
+          ip: getClientIp(await headers()),
+        });
+      }
+    }
+    await supabaseAdmin.from('sessions').delete().eq('token', token);
+  }
   cookieStore.delete('customer_session');
 }
 
@@ -367,14 +504,26 @@ export async function updateCustomerPassword(currentPassword: string, newPasswor
     if (!rateLimit.allowed) return { success: false, error: 'ทำรายการถี่เกินไป กรุณารอสักครู่' };
 
     if (!currentPassword) return { success: false, error: 'กรุณากรอกรหัสผ่านปัจจุบัน' };
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร' };
-    }
+    const pwShape = assertPasswordAllowed(newPassword, {
+      identifiers: [session.email, session.contact_name ?? ''],
+    });
+    if (!pwShape.ok) return { success: false, error: pwShape.error };
 
     const passwordOk = await verifyCurrentCustomerPassword(session.id, currentPassword);
     if (!passwordOk) return { success: false, error: 'รหัสผ่านปัจจุบันไม่ถูกต้อง' };
 
-    const salt = await bcrypt.genSalt(10);
+    // ★ HIBP หลังยืนยันรหัสผ่านปัจจุบัน
+    const breach = await isPasswordBreached(newPassword);
+    if (breach.checkFailed) {
+      Sentry.captureMessage('HIBP breach check failed (failing open)', {
+        level: 'warning', tags: { area: 'password-policy', flow: 'updateCustomerPassword' },
+      });
+    }
+    if (breach.breached) {
+      return { success: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' };
+    }
+
+    const salt = await bcrypt.genSalt(12);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     const { error } = await supabaseAdmin
@@ -397,6 +546,13 @@ export async function updateCustomerPassword(currentPassword: string, newPasswor
     await supabaseAdmin.from('customer_account_change_logs').insert({
       customer_id: session.id, field: 'password', old_value: null, new_value: null, ip,
     });
+    void logAuditEvent({
+      category: 'auth', action: 'auth.password.changed', outcome: 'success',
+      actor: { type: 'customer', id: session.id, label: session.email }, ip,
+    });
+
+    sendSecurityAlertEmail({ to: session.email, action: 'เปลี่ยนรหัสผ่าน', whenText: nowThai(), ip })
+      .catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
 
     return { success: true };
   } catch (error: unknown) {
@@ -434,10 +590,89 @@ export async function updateCustomerContactInfo(payload: { contact_name: string;
       customer_id: session.id, field: 'contact_info', old_value: oldSummary, new_value: newSummary, ip,
     });
 
+    sendSecurityAlertEmail({
+      to: session.email, action: 'แก้ไขข้อมูลติดต่อ', whenText: nowThai(), ip, detail: newSummary,
+    }).catch((e) => Sentry.captureException(e, { level: 'warning', tags: { area: 'security-alert-email' } }));
+
     return { success: true };
   } catch (error: unknown) {
     console.error('Update Customer Contact Info Error:', error);
     Sentry.captureException(error, { tags: { area: 'customer-account-update' } });
     return { success: false, error: getErrorMessage(error) };
   }
+}
+
+// ══ Phase 3 — เซสชัน/อุปกรณ์ของลูกค้า (หน้า /account) ═══════════════════════════
+// ลูกค้าไม่มีปัจจัยที่สอง จึงไม่มี "อุปกรณ์ที่เชื่อถือ" — แสดงเฉพาะเซสชันที่ยัง active
+// พร้อมปุ่ม "ออกจากอุปกรณ์อื่นทั้งหมด" (ทั้ง security §P3-8 และ UX)
+
+export async function getMyCustomerSessions() {
+  const session = await getCustomerSession();
+  if (!session) return { success: false as const, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('customer_session')?.value ?? '';
+
+  const { data: sessions } = await supabaseAdmin
+    .from('sessions')
+    .select('token, user_agent, ip, last_seen_at, created_at, expires_at')
+    .eq('customer_id', session.id)
+    .eq('actor_type', 'customer');
+
+  return {
+    success: true as const,
+    sessions: (sessions ?? [])
+      .map((s) => ({
+        sid: sessionShortId(s.token as string),
+        label: parseDeviceLabel(s.user_agent as string | null),
+        ip: (s.ip as string | null) ?? null,
+        lastSeenAt: (s.last_seen_at as string | null) ?? (s.created_at as string),
+        createdAt: s.created_at as string,
+        expiresAt: s.expires_at as string,
+        isCurrent: s.token === currentToken,
+      }))
+      .sort((a, b) => new Date(b.lastSeenAt).getTime() - new Date(a.lastSeenAt).getTime()),
+  };
+}
+
+export async function revokeCustomerSession(sid: string) {
+  const session = await getCustomerSession();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('customer_session')?.value ?? '';
+
+  const { data: rows } = await supabaseAdmin
+    .from('sessions')
+    .select('token')
+    .eq('customer_id', session.id)
+    .eq('actor_type', 'customer');
+
+  const match = (rows ?? []).find((r) => sessionShortId(r.token as string) === sid);
+  if (!match) return { success: false, error: 'ไม่พบเซสชันนี้' };
+  if (match.token === currentToken) return { success: false, error: 'ไม่สามารถออกจากเซสชันปัจจุบันจากที่นี่ได้ ใช้ปุ่มออกจากระบบแทน' };
+
+  await supabaseAdmin.from('sessions').delete().eq('token', match.token);
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'customer', id: session.id, label: session.email },
+    ip: getClientIp(await headers()), detail: { scope: 'one' },
+  });
+  return { success: true };
+}
+
+export async function revokeOtherCustomerSessions() {
+  const session = await getCustomerSession();
+  if (!session) return { success: false, error: 'กรุณาเข้าสู่ระบบใหม่' };
+  const currentToken = (await cookies()).get('customer_session')?.value ?? '';
+
+  const { data: del } = await supabaseAdmin
+    .from('sessions')
+    .delete()
+    .eq('customer_id', session.id)
+    .eq('actor_type', 'customer')
+    .neq('token', currentToken)
+    .select('token');
+  void logAuditEvent({
+    category: 'auth', action: 'auth.session.revoked', outcome: 'success',
+    actor: { type: 'customer', id: session.id, label: session.email },
+    ip: getClientIp(await headers()), detail: { scope: 'others', count: del?.length ?? 0 },
+  });
+  return { success: true };
 }

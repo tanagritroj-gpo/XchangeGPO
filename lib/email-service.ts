@@ -7,6 +7,8 @@ import WelcomeEmail from '@/lib/emails/WelcomeEmail';
 import RegistrationApprovedEmail from '@/lib/emails/RegistrationApprovedEmail';
 import CustomerPasswordResetEmail from '@/lib/emails/CustomerPasswordResetEmail';
 import StaffPasswordResetEmail from '@/lib/emails/StaffPasswordResetEmail';
+import SecurityAlertEmail from '@/lib/emails/SecurityAlertEmail';
+import AccountLockedEmail from '@/lib/emails/AccountLockedEmail';
 import PdfDocumentEmail, { type PdfDocumentEmailDrugItem } from '@/lib/emails/PdfDocumentEmail';
 
 // ★ จุดรวมเดียวของ "ระบบส่งอีเมลอะไร ตอนไหน เนื้อหาอะไร" — ไฟล์ business logic (auth.ts,
@@ -75,7 +77,52 @@ export async function sendStaffOtpEmail(params: { to: string; otp: string }): Pr
   });
 }
 
-// ── 5. ส่งลิงก์ PDF ใบรับคืน/แลกเปลี่ยนสินค้า — ใช้ร่วมกันทั้งฝั่งลูกค้า (ผู้รับเดียว) และ
+// ── 5. แจ้งเตือนความปลอดภัย — มีการเปลี่ยน credential (รหัสผ่าน/อีเมล/username/ข้อมูลติดต่อ)
+// ยิงหลังทำสำเร็จเสมอ (best-effort) ให้เจ้าของบัญชีรู้ตัวถ้าไม่ใช่คนทำ — audit §UX-6 ──
+export async function sendSecurityAlertEmail(params: {
+  to: string | string[];
+  action: string;
+  whenText: string;
+  ip?: string | null;
+  detail?: string | null;
+}): Promise<SendResult> {
+  const html = await render(
+    React.createElement(SecurityAlertEmail, {
+      action: params.action,
+      whenText: params.whenText,
+      ip: params.ip ?? null,
+      detail: params.detail ?? null,
+    })
+  );
+  return sendGmailMail({
+    to: params.to,
+    subject: `แจ้งเตือนความปลอดภัย: ${params.action} — GPO Xchange Portal`,
+    html,
+  });
+}
+
+// ── 6. แจ้งบัญชีถูกล็อกชั่วคราวจากการ login ผิดหลายครั้ง (lib/account-lockout.ts) ──
+export async function sendAccountLockedEmail(params: {
+  to: string;
+  minutesLocked: number;
+  whenText: string;
+  ip?: string | null;
+}): Promise<SendResult> {
+  const html = await render(
+    React.createElement(AccountLockedEmail, {
+      minutesLocked: params.minutesLocked,
+      whenText: params.whenText,
+      ip: params.ip ?? null,
+    })
+  );
+  return sendGmailMail({
+    to: params.to,
+    subject: 'บัญชีถูกล็อกชั่วคราว — GPO Xchange Portal',
+    html,
+  });
+}
+
+// ── 7. ส่งลิงก์ PDF ใบรับคืน/แลกเปลี่ยนสินค้า — ใช้ร่วมกันทั้งฝั่งลูกค้า (ผู้รับเดียว) และ
 // ฝั่ง CSR (เรียกวนทีละคนจาก caller เอง ให้แต่ละคนได้อีเมลแยกฉบับ ไม่เห็นกันเอง) ──
 export async function sendPdfDocumentEmail(params: {
   to: string;

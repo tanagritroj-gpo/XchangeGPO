@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { registerStaff } from '@/app/actions/auth-staff';
 import { SOUTHERN_PROVINCES, SALE_CUSTOMER_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordStrengthHint } from '@/components/ui/password-strength-hint';
+import { assertPasswordAllowed } from '@/lib/password-policy';
 import { SignaturePad } from '@/components/auth/SignaturePad';
 import { CheckCircle2, PenLine, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/components/ui/toast';
@@ -83,7 +85,18 @@ export function StaffSignUpForm() {
         {/* PASSWORD */}
         <div>
           <label className={labelStyle}>PASSWORD</label>
-          <PasswordInput {...register("password", { required: "กรุณากำหนดรหัสผ่าน" })} className={inputStyle} placeholder="••••••••" />
+          <PasswordInput
+            {...register("password", {
+              required: "กรุณากำหนดรหัสผ่าน",
+              validate: (v: string) => assertPasswordAllowed(v).ok || assertPasswordAllowed(v).error,
+            })}
+            className={inputStyle}
+            placeholder="อย่างน้อย 12 ตัวอักษร"
+          />
+          <PasswordStrengthHint
+            value={watch("password") ?? ''}
+            identifiers={[watch("email") ?? '', watch("username") ?? '', watch("employee_id") ?? '', watch("full_name") ?? '']}
+          />
           {errors.password && <p className={errorStyle}>{errors.password.message as string}</p>}
         </div>
 

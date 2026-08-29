@@ -1,5 +1,5 @@
 -- ★ URGENT FIX พบระหว่าง code review ก่อน commit — migration ก่อนหน้า
--- (20260816140000_move_delivery_note_photos_to_request_level.sql) ใช้ CREATE OR REPLACE
+-- (20260816082258_move_delivery_note_photos_to_request_level.sql) ใช้ CREATE OR REPLACE
 -- FUNCTION เปลี่ยน signature (เพิ่ม p_delivery_note_photo_paths) ซึ่ง Postgres ไม่ได้ "แทนที่"
 -- ฟังก์ชันเดิม แต่สร้าง overload ใหม่แยกต่างหาก (signature ไม่ตรงกัน) เหมือนที่เคยเกิดมาแล้ว
 -- ตอน 20260717105504_add_staff_params_to_create_exchange_request.sql (ตอนนั้นมี migration
@@ -17,7 +17,7 @@
 --
 -- ยืนยันแล้วด้วย execute_sql ตรงบน production project ก่อนแก้ (pg_proc.proacl แสดง
 -- anon=X/postgres, authenticated=X/postgres จริงบน overload 6 args) — ไฟล์นี้บันทึกการแก้ที่
--- apply ไปทาง MCP ให้ตรงกับ migration history จริงบนรีโมต (ไม่แก้ไฟล์ 20260816140000 ย้อนหลัง
+-- apply ไปทาง MCP ให้ตรงกับ migration history จริงบนรีโมต (ไม่แก้ไฟล์ 20260816082258 ย้อนหลัง
 -- เพราะ Supabase บันทึกว่า migration นั้น apply ไปแล้วตามเนื้อหาเดิม)
 
 -- แก้ข้อ 1: ลบ overload เก่าที่เสียแล้วทิ้ง (ไม่มีใครควรเรียกอยู่แล้ว มีแต่ตัว 6 args ที่ถูกต้อง)

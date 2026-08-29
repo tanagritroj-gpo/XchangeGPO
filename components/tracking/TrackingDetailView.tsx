@@ -28,6 +28,7 @@ import {
   REJECTED_STATUS,
 } from '@/lib/tracking-status';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PdfViewerModal } from '@/components/pdf/PdfViewerModal';
 import { RequestDetailSkeleton } from '@/components/skeletons/HistoryListSkeleton';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
@@ -550,41 +551,9 @@ function TrackingContent({
         </div>
       )}
 
-      {/* ══ โมดัลดูใบรับคืน — pattern เดียวกับตอนสร้างแบบฟอร์มเสร็จใหม่ๆ
-          (ดู ReviewSuccessCard.tsx) ให้ดูใบรับคืนเดิมย้อนหลังได้จากหน้านี้ด้วย ══ */}
-      {pdfModalUrl && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-2 md:p-6 bg-slate-900/60 backdrop-blur-sm print:hidden"
-          onClick={() => setPdfModalUrl(null)}
-        >
-          <div
-            className="relative w-full max-w-3xl h-[85vh] bg-card rounded-lg shadow-lg overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border shrink-0">
-              <h3 className="text-base font-bold text-foreground">ใบรับคืนสินค้า</h3>
-              <div className="flex items-center gap-2">
-                <a
-                  href={pdfModalUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 transition-all"
-                >
-                  📥 เปิดในแท็บใหม่ / ดาวน์โหลด
-                </a>
-                <button
-                  onClick={() => setPdfModalUrl(null)}
-                  className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:bg-slate-100 hover:text-slate-600 transition-all"
-                  aria-label="ปิด"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-            <iframe src={pdfModalUrl} className="flex-1 w-full" title="ใบรับคืนสินค้า" />
-          </div>
-        </div>
-      )}
+      {/* ══ โมดัลดูใบรับคืน — ใช้ component กลางตัวเดียวกับหน้า "ประวัติการยื่นคำร้อง"
+          (ให้ดูใบรับคืนเดิมย้อนหลังได้จากหน้านี้ด้วย) ══ */}
+      {pdfModalUrl && <PdfViewerModal url={pdfModalUrl} onClose={() => setPdfModalUrl(null)} />}
     </div>
   );
 }

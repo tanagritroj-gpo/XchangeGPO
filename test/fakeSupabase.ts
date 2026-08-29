@@ -29,6 +29,8 @@ class FakeQueryBuilder {
   private wantsMaybeSingle = false;
   private wantsCount = false;
   private projectColumns?: string[];
+  private orderBy: Array<{ col: string; ascending: boolean }> = [];
+  private limitN?: number;
 
   constructor(
     private tables: Tables,
@@ -149,12 +151,36 @@ class FakeQueryBuilder {
     return this;
   }
 
-  order(..._args: any[]) {
+  // Real ordering + limit for select — several actions (audit-actions keyset
+  // pagination, "latest OTP" lookups, dashboards) genuinely depend on these.
+  order(col: string, opts?: { ascending?: boolean }) {
+    this.orderBy.push({ col, ascending: opts?.ascending ?? true });
     return this;
   }
 
-  limit(..._args: any[]) {
+  limit(n?: number) {
+    if (typeof n === 'number') this.limitN = n;
     return this;
+  }
+
+  private orderAndLimit(rows: Row[]): Row[] {
+    let out = rows;
+    if (this.orderBy.length > 0) {
+      out = [...rows].sort((a, b) => {
+        for (const { col, ascending } of this.orderBy) {
+          const av = a[col];
+          const bv = b[col];
+          if (av === bv) continue;
+          if (av == null) return ascending ? -1 : 1;
+          if (bv == null) return ascending ? 1 : -1;
+          const cmp = av < bv ? -1 : 1;
+          return ascending ? cmp : -cmp;
+        }
+        return 0;
+      });
+    }
+    if (typeof this.limitN === 'number') out = out.slice(0, this.limitN);
+    return out;
   }
 
   single() {
@@ -185,7 +211,7 @@ class FakeQueryBuilder {
       let data: any;
 
       if (this.mode === 'select') {
-        const rows = this.matched();
+        const rows = this.orderAndLimit(this.matched());
         if (this.wantsSingle) {
           data = rows[0];
           if (!data) {
@@ -244,7 +270,15 @@ class FakeQueryBuilder {
             }
           }
         }
-        const inserted = arr.map((v) => ({ id: this.nextId(this.tableName), ...v }));
+        const inserted = arr.map((v) => {
+          const row: Row = { id: this.nextId(this.tableName), ...v };
+          // `sessions.token` has a gen_random_uuid() default in Postgres — model it so
+          // code that reads back the generated token (e.g. createStaffSession) works.
+          if (this.tableName === 'sessions' && row.token == null) {
+            row.token = `sess-${Math.random().toString(36).slice(2)}-${Date.now()}`;
+          }
+          return row;
+        });
         this.table().push(...inserted);
         data = this.wantsSingle ? inserted[0] : inserted;
         // `.insert(...).select('id')` projection matters here for the same reason as plain
@@ -319,7 +353,7 @@ export function createFakeAdmin() {
   // simulation here, since their real logic lives in SQL migrations, not this
   // file. Tests register a handler per function name via setRpcHandler(),
   // written from the actual migration SQL (e.g. create_exchange_request in
-  // supabase/migrations/20260816150000_*.sql), so a test can still exercise
+  // supabase/migrations/20260816123247_*.sql), so a test can still exercise
   // real insert/error paths through fakeAdmin.client.from(...) inside it.
   const rpcHandlers: Record<string, RpcHandler> = {};
 

@@ -85,6 +85,9 @@ export async function POST(req: NextRequest) {
 
   // ── 2. Rate limit ผูกกับลูกค้าคนนี้ — กันบัญชีเดียว (ถูกขโมย/สคริปต์) ยิงถี่
   // เกินจำเป็น 30 ครั้ง/10 นาที กว้างพอสำหรับสนทนาจริง ──
+  // ใช้ failMode 'closed' (ค่าเริ่มต้น) โดยตั้งใจ — rate limit ตรงนี้กันต้นทุน token ของ
+  // Gemini ถ้า DB สะดุดจนเช็คไม่ได้ ยอมให้แชทบอท (ฟีเจอร์เสริม) ตอบ error ชั่วคราว
+  // ดีกว่าปล่อยให้สคริปต์ยิงถล่ม Gemini ในช่วงนั้น
   const rateResult = await checkRateLimit(`chat:${customer.id}`, 30, 600);
   if (!rateResult.allowed) {
     return Response.json({ error: 'ส่งข้อความถี่เกินไป กรุณาลองใหม่อีกครั้งในอีกสักครู่' }, { status: 429 });

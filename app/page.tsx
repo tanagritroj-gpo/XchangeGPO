@@ -1,10 +1,10 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import Image from 'next/image';
-import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight, Mail, KeyRound, IdCard, Sparkles, Lock, Loader2 } from 'lucide-react';
+import { Building2, User, Search, BookOpen, ChevronLeft, ChevronRight, Mail, KeyRound, IdCard, Sparkles, Lock, Loader2, ShieldCheck } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { loginWithGoogle } from '@/app/actions/auth-google';
-import { loginStaffAction } from '@/app/actions/auth-staff';
+import { loginStaffAction, verifyStaffMfa } from '@/app/actions/auth-staff';
 import { loginCustomerAction } from '@/app/actions/auth-actions';
 import { PasswordInput } from '@/components/ui/password-input';
 import { useToast } from '@/components/ui/toast';
@@ -13,6 +13,14 @@ const GOOGLE_LOGIN_ERRORS: Record<string, string> = {
   'auth-failed': 'เชื่อมต่อกับ Google ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง',
   'google-not-registered':
     'ไม่พบบัญชีลูกค้าที่ผูกกับอีเมล Google นี้ กรุณาเข้าสู่ระบบด้วยรหัสผ่านหรือลงทะเบียนก่อน',
+};
+
+const STAFF_DEPT_ROUTES: Record<string, string> = {
+  manager: '/admin/manager',
+  csr: '/admin/csr',
+  log: '/admin/logistics/dashboard',
+  wh: '/admin/wh/dashboard',
+  sale: '/admin/sale',
 };
 
 export default function HomePage() {
@@ -42,8 +50,13 @@ function HomePageContent() {
 
   const [email, setEmail] = useState('');
   const [customerPassword, setCustomerPassword] = useState('');
+  const [rememberCustomer, setRememberCustomer] = useState(false);
   const [empId, setEmpId] = useState('');
   const [password, setPassword] = useState('');
+  // ── ปัจจัยที่สอง (MFA) สำหรับพนักงาน ──
+  const [showMfaChallenge, setShowMfaChallenge] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [rememberDevice, setRememberDevice] = useState(false);
 
   const isCustomer = activeTab === 'customer';
 
@@ -88,7 +101,7 @@ function HomePageContent() {
     setLoadingLogin(true);
     try {
       if (isCustomer) {
-        const res = await loginCustomerAction({ email, password: customerPassword });
+        const res = await loginCustomerAction({ email, password: customerPassword, remember: rememberCustomer });
         if (res.success) {
           router.push('/welcome');
         } else {
@@ -98,23 +111,43 @@ function HomePageContent() {
       }
 
       const result = await loginStaffAction({ username: empId, password });
-      if (result.success) {
-        const deptRoutes: Record<string, string> = {
-          'manager': '/admin/manager',
-          'csr': '/admin/csr',
-          'log': '/admin/logistics/dashboard',
-          'wh': '/admin/wh/dashboard',
-          'sale': '/admin/sale'
-        };
-
-        const destination = deptRoutes[result.department] || '/dashboard';
-        router.push(destination);
-      } else {
+      if (!result.success) {
         toast.error(result.error || "เข้าสู่ระบบไม่สำเร็จ");
+        return;
       }
+      if (result.mfa === 'enroll') {
+        // เกินกำหนดผ่อนผัน — ต้องตั้งค่า MFA ก่อนใช้งานต่อ
+        router.push('/mfa-setup');
+        return;
+      }
+      if (result.mfa === 'challenge') {
+        setShowMfaChallenge(true);
+        return;
+      }
+      // mfa === 'grace' — เข้าระบบได้ แต่เตือนให้ไปตั้งค่า
+      if (result.mfa === 'grace' && result.graceDaysLeft) {
+        toast.success(`เข้าสู่ระบบสำเร็จ — กรุณาตั้งค่า MFA ภายใน ${result.graceDaysLeft} วัน`);
+      }
+      router.push(STAFF_DEPT_ROUTES[result.department] || '/dashboard');
     } catch {
       toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
     } finally {
+      setLoadingLogin(false);
+    }
+  };
+
+  const handleVerifyMfa = async () => {
+    setLoadingLogin(true);
+    try {
+      const res = await verifyStaffMfa({ code: mfaCode, rememberDevice });
+      if (res.success) {
+        router.push(STAFF_DEPT_ROUTES[res.department ?? ''] || '/dashboard');
+      } else {
+        toast.error(res.error || "ยืนยันรหัสไม่สำเร็จ");
+        setLoadingLogin(false);
+      }
+    } catch {
+      toast.error("เกิดข้อผิดพลาดในการเชื่อมต่อ");
       setLoadingLogin(false);
     }
   };
@@ -250,6 +283,16 @@ function HomePageContent() {
                       tabIndex={isCustomer ? undefined : -1}
                     />
                   </div>
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberCustomer}
+                      onChange={(e) => setRememberCustomer(e.target.checked)}
+                      tabIndex={isCustomer ? undefined : -1}
+                      className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                    />
+                    จดจำการเข้าสู่ระบบไว้ 30 วัน (สำหรับอุปกรณ์ส่วนตัวเท่านั้น)
+                  </label>
                   <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-teal-700 shadow-md transition flex items-center justify-center gap-2">
                     {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังดำเนินการ...</> : 'เข้าสู่ระบบ →'}
                   </button>
@@ -287,40 +330,86 @@ function HomePageContent() {
                 </div>
 
                 <div className={`col-start-1 row-start-1 space-y-4 ${!isCustomer ? '' : 'invisible pointer-events-none'}`} aria-hidden={isCustomer}>
-                  <h2 className="text-sm font-black text-foreground flex items-center gap-2">
-                    <div className="w-1 h-4 rounded-full bg-blue-500" />
-                    เข้าสู่ระบบ
-                  </h2>
-                  <div className="relative">
-                    <IdCard size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
-                    <input
-                      value={empId}
-                      onChange={(e) => setEmpId(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
-                      placeholder="ชื่อผู้ใช้งาน"
-                      tabIndex={!isCustomer ? undefined : -1}
-                    />
-                  </div>
-                  <div className="relative">
-                    <KeyRound size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none z-10" />
-                    <PasswordInput
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
-                      placeholder="รหัสผ่าน"
-                      tabIndex={!isCustomer ? undefined : -1}
-                    />
-                  </div>
-                  <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition flex items-center justify-center gap-2">
-                    {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังดำเนินการ...</> : 'เข้าสู่ระบบ →'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => router.push('/auth/staff-forgot-password')}
-                    className="w-full py-2.5 rounded-xl font-bold text-blue-800 text-xs border border-blue-200 bg-blue-50 hover:bg-blue-100 transition"
-                  >
-                    ลืมรหัสผ่าน?
-                  </button>
+                  {showMfaChallenge ? (
+                    <>
+                      <h2 className="text-sm font-black text-foreground flex items-center gap-2">
+                        <ShieldCheck size={16} strokeWidth={2.25} className="text-blue-600" />
+                        ยืนยันตัวตนสองชั้น
+                      </h2>
+                      <p className="text-xs text-muted-foreground -mt-1">
+                        กรอกรหัส 6 หลักจากแอป Authenticator ของคุณ หรือใช้รหัสสำรอง 1 รหัส
+                      </p>
+                      <div className="relative">
+                        <KeyRound size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+                        <input
+                          value={mfaCode}
+                          onChange={(e) => setMfaCode(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !loadingLogin) handleVerifyMfa(); }}
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          autoFocus
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm tracking-widest focus:outline-none focus:border-blue-400"
+                          placeholder="000000"
+                        />
+                      </div>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={rememberDevice}
+                          onChange={(e) => setRememberDevice(e.target.checked)}
+                          className="rounded border-border"
+                        />
+                        จดจำอุปกรณ์นี้ 30 วัน (ข้ามการยืนยันสองชั้น — เฉพาะอุปกรณ์ส่วนตัว)
+                      </label>
+                      <button onClick={handleVerifyMfa} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition flex items-center justify-center gap-2 disabled:opacity-60">
+                        {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังตรวจสอบ...</> : 'ยืนยัน →'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setShowMfaChallenge(false); setMfaCode(''); setPassword(''); }}
+                        className="w-full py-2.5 rounded-xl font-bold text-blue-800 text-xs border border-blue-200 bg-blue-50 hover:bg-blue-100 transition"
+                      >
+                        ← กลับไปหน้าเข้าสู่ระบบ
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-sm font-black text-foreground flex items-center gap-2">
+                        <div className="w-1 h-4 rounded-full bg-blue-500" />
+                        เข้าสู่ระบบ
+                      </h2>
+                      <div className="relative">
+                        <IdCard size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none" />
+                        <input
+                          value={empId}
+                          onChange={(e) => setEmpId(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                          placeholder="ชื่อผู้ใช้งาน"
+                          tabIndex={!isCustomer ? undefined : -1}
+                        />
+                      </div>
+                      <div className="relative">
+                        <KeyRound size={16} strokeWidth={2} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 pointer-events-none z-10" />
+                        <PasswordInput
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full pl-10 pr-4 py-3 rounded-xl border border-border text-sm focus:outline-none focus:border-blue-400"
+                          placeholder="รหัสผ่าน"
+                          tabIndex={!isCustomer ? undefined : -1}
+                        />
+                      </div>
+                      <button onClick={handleLogin} disabled={loadingLogin} className="w-full py-3 rounded-xl font-bold text-white text-sm bg-blue-800 shadow-md transition flex items-center justify-center gap-2">
+                        {loadingLogin ? <><Loader2 size={16} className="animate-spin" /> กำลังดำเนินการ...</> : 'เข้าสู่ระบบ →'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push('/auth/staff-forgot-password')}
+                        className="w-full py-2.5 rounded-xl font-bold text-blue-800 text-xs border border-blue-200 bg-blue-50 hover:bg-blue-100 transition"
+                      >
+                        ลืมรหัสผ่าน?
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 

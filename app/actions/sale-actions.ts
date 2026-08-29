@@ -44,22 +44,39 @@ export async function getSaleCustomerHistory() {
   return data || [];
 }
 
-// ดึง status_logs ทั้งหมด — ใช้คำนวณสถิติของ "ศูนย์รายงาน (Report Center)" ฝั่ง Sale
-// (เวลาเฉลี่ยแต่ละขั้นตอน, เหตุผลการปฏิเสธยอดนิยม — ผ่าน ManagerInsights.tsx/
-// lib/manager-stats.ts ตัวเดียวกับที่ Manager/CSR ใช้) — เหมือน getManagerStatusLogs()
-// ใน manager-actions.ts ทุกประการ (query ไม่กรองตามแผนกเลย เพราะ status_logs ไม่มีคอลัมน์
-// ผูกกับใบงานของแผนกไหนโดยตรง ต้องกรองฝั่ง client ด้วย request_id ที่อยู่ในขอบเขตที่ sale
-// คนนี้ดูแลอีกที — pattern เดียวกับที่ export route ของ CSR ทำอยู่แล้ว) แยกไฟล์เพราะ
-// action ของแต่ละแผนกอยู่คนละไฟล์กันตามธรรมเนียมเดิมของ repo นี้ ไม่ได้ไปแก้ตัวที่ Manager/CSR
-// ใช้อยู่ (กันผลกระทบข้ามแผนก)
+// ดึง status_logs ของใบงาน "ในขอบเขตที่ sale คนนี้ดูแลเท่านั้น" — ใช้คำนวณสถิติของ
+// "ศูนย์รายงาน (Report Center)" ฝั่ง Sale (เวลาเฉลี่ยแต่ละขั้นตอน, เหตุผลการปฏิเสธยอดนิยม
+// — ผ่าน ManagerInsights.tsx/lib/manager-stats.ts ตัวเดียวกับที่ Manager/CSR ใช้)
+//
+// ★ เดิม query คืน status_logs "ทั้งตาราง" แล้วปล่อยให้หน้า reports (client component)
+// กรอง request_id ที่อยู่ในขอบเขตเอาเอง — ทำให้ response ดิบของ server action นี้มี
+// staff_remark (โน้ตภายในของเจ้าหน้าที่) + rejection_reason_code ของ "ทุกใบงานในระบบ"
+// รวมถึงหน่วยงานนอกจังหวัด/นอกประเภทที่ sale คนอื่นดูแล หลุดถึง browser (เปิด DevTools >
+// Network อ่านได้) ทั้งที่ทุก query อื่นฝั่ง Sale (getSaleCustomerHistory / *ForSale ใน
+// notification-actions / getSaleRequestDetail) scope ด้วย session ฝั่ง server หมด — พบ
+// ระหว่าง authorization audit 29 ส.ค. 2569
+//
+// วิธีแก้: ดึงรายการ request id ที่อยู่ในขอบเขตจาก get_sale_customer_history (RPC เดียว
+// กับ getSaleCustomerHistory ที่ scope ด้วย org_type/province จาก session แล้ว) แล้ว
+// filter status_logs ด้วย .in('request_id', ...) ฝั่ง server — pattern เดียวกับ
+// getManagerStatusLogsDetailed ใน manager-actions.ts (รวมถึง sentinel [-1] กัน .in()
+// array ว่างที่พฤติกรรมไม่แน่นอนข้าม driver)
 export async function getSaleStatusLogs() {
   try {
     const session = await getStaffSession();
     assertDepartmentAccess(session, 'sale');
 
+    // getSaleCustomerHistory() คืน [] เมื่อ session ไม่มีขอบเขต/RPC ล้มเหลว (fail-closed)
+    // → requestIds ว่าง → sentinel [-1] → 0 แถว: ปลอดภัยโดยปริยาย
+    const scopedRequests = (await getSaleCustomerHistory()) as { id?: number }[];
+    const requestIds = scopedRequests
+      .map((r) => r.id)
+      .filter((id): id is number => typeof id === 'number');
+
     const { data, error } = await supabaseAdmin
       .from('status_logs')
       .select('id, request_id, staff_id, status_name, log_date, staff_remark, department, actor_type, drug_item_id, rejection_reason_code')
+      .in('request_id', requestIds.length > 0 ? requestIds : [-1])
       .order('log_date', { ascending: true });
 
     if (error) return { success: false, error: error.message };

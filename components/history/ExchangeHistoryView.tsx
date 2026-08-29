@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Loader2,
   Hash,
@@ -13,8 +13,11 @@ import {
   Wallet,
   History,
   UserRound,
+  Pill,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -25,6 +28,8 @@ import {
   getCurrentStageIndex,
   formatCurrency,
 } from '@/lib/tracking-status';
+import { generatePdfAction } from '@/app/actions/generate-pdf-action';
+import { PdfViewerModal } from '@/components/pdf/PdfViewerModal';
 import { ExchangeCardsSkeleton } from '@/components/skeletons/ExchangeCardsSkeleton';
 import type { RequestRow, DrugItemRow as DrugItemRowType } from '@/lib/types';
 
@@ -37,12 +42,12 @@ type HistoryRequestRow = RequestRow & { submitted_by?: string };
  *  ยกเลิกทั้งใบ (แค่บางรายการถูกปฏิเสธ) การ์ดจะยังโชว์สถานะจริงตามปกติ */
 function getCardTone(request: HistoryRequestRow) {
   if (request.current_status === REJECTED_STATUS) {
-    return { badge: 'bg-red-50 text-red-700', border: 'border-l-red-500' };
+    return { badge: 'bg-red-50 text-red-600', border: 'border-l-red-500', dot: 'bg-red-500' };
   }
   if (request.current_status === 'completed') {
-    return { badge: 'bg-emerald-50 text-emerald-700', border: 'border-l-emerald-500' };
+    return { badge: 'bg-emerald-50 text-emerald-600', border: 'border-l-emerald-500', dot: 'bg-emerald-500' };
   }
-  return { badge: 'bg-amber-50 text-amber-700', border: 'border-l-amber-500' };
+  return { badge: 'bg-amber-50 text-amber-600', border: 'border-l-amber-500', dot: 'bg-amber-500' };
 }
 
 type Group = { key: string; label: string; icon: LucideIcon; iconTone: string };
@@ -74,7 +79,7 @@ const STAGE_GROUPS: Group[] = STAGES.map((stage) => {
 const GROUP_ORDER: Group[] = [ALL_GROUP, ...STAGE_GROUPS, REJECTED_GROUP];
 
 // จำนวนรายการต่อหน้าในแต่ละแท็บสถานะ — เดิมโชว์ทุกรายการรวดเดียว พอสถานะไหนมีเยอะจะเลื่อนยาว
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 8;
 
 function getGroupKey(request: HistoryRequestRow): string {
   if (request.current_status === REJECTED_STATUS) return 'rejected';
@@ -88,53 +93,21 @@ function formatExp(value: string | null) {
   return new Date(value).toLocaleDateString('th-TH', { month: '2-digit', year: '2-digit' });
 }
 
-/** แถวรายการยา 1 ตัว — แยก 2 เลย์เอาต์ชัดเจน:
- *  มือถือ: ซ้อนกันเป็นบรรทัด (ชื่อยา → badge Lot/Exp/จำนวน แบบ wrap ได้ → มูลค่า)
- *  sm ขึ้นไป: grid-cols-12 แนวนอนแบบเดิม
- *  เดิมใช้ grid-cols-12 ตัวเดียวกันทุกขนาดจอ พอมือถือแคบ 5 คอลัมน์ (ชื่อยา/
- *  จำนวน/Lot/Exp/มูลค่า) ถูกบีบจนตัวอักษรชนกัน โดยเฉพาะ Lot ที่มี icon Hash
- *  + font-mono กับ Exp ที่มี icon Calendar ในคอลัมน์แคบเกินไป */
+function formatShortDate(value: string | null | undefined) {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+}
+
+/** แถวรายการยา 1 ตัว — เลย์เอาต์คอมแพ็คบรรทัดเดียว/สองบรรทัดที่ยืดหยุ่นตามความกว้างการ์ด
+ *  (การ์ดในหน้านี้เรียงเป็น grid 2 คอลัมน์บนจอใหญ่ จึงแคบเกินกว่าจะใช้ตาราง 12 คอลัมน์แบบเดิม) */
 function DrugItemRow({ item }: { item: DrugItemRowType }) {
   const itemRejected = item.current_status === REJECTED_STATUS;
-  const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-border bg-slate-50';
+  const rowTone = itemRejected ? 'border-red-100 bg-red-50/60' : 'border-border bg-secondary/40';
 
   return (
-    <div className={`rounded-lg border p-3 text-xs ${rowTone}`}>
-      {/* ── มือถือ: ซ้อนกัน (ซ่อนบน sm ขึ้นไป) ── */}
-      <div className="space-y-2 sm:hidden">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {itemRejected && (
-              <XCircle
-                className="h-3.5 w-3.5 shrink-0 text-red-500"
-                strokeWidth={2.5}
-                aria-label="รายการนี้ถูกปฏิเสธ"
-              />
-            )}
-            <span className="truncate font-bold text-slate-700">{item.drug_name}</span>
-          </div>
-          <span className="shrink-0 font-bold text-teal-600">
-            {formatCurrency(item.value_amount) ?? '-'}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="font-medium text-slate-600">
-            {item.qty} {item.unit}
-          </span>
-          <span className="flex items-center gap-1 font-mono">
-            <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-            {item.lot_number ?? '-'}
-          </span>
-          <span className="flex items-center gap-1">
-            <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-            {formatExp(item.exp_date)}
-          </span>
-        </div>
-      </div>
-
-      {/* ── sm ขึ้นไป: grid แนวนอนเหมือนเดิม (ซ่อนบนมือถือ) ── */}
-      <div className="hidden sm:grid sm:grid-cols-12 sm:items-center sm:gap-2">
-        <div className="col-span-4 flex min-w-0 items-center gap-1.5">
+    <div className={`rounded-md border p-2.5 text-xs ${rowTone}`}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
           {itemRejected && (
             <XCircle
               className="h-3.5 w-3.5 shrink-0 text-red-500"
@@ -143,84 +116,175 @@ function DrugItemRow({ item }: { item: DrugItemRowType }) {
             />
           )}
           <span className="truncate font-bold text-slate-700">{item.drug_name}</span>
-        </div>
-        <div className="col-span-1 font-medium text-slate-600">
-          {item.qty} {item.unit}
-        </div>
-        <div className="col-span-2 flex items-center gap-1 font-mono text-muted-foreground">
-          <Hash className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-          {item.lot_number ?? '-'}
-        </div>
-        <div className="col-span-2 flex items-center gap-1 text-muted-foreground">
-          <Calendar className="h-3 w-3 shrink-0" strokeWidth={2} aria-hidden="true" />
-          {formatExp(item.exp_date)}
-        </div>
-        <div className="col-span-3 text-right font-bold text-teal-600">
+        </span>
+        <span className="shrink-0 font-bold text-primary">
           {formatCurrency(item.value_amount) ?? '-'}
-        </div>
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+        <span className="font-medium text-slate-600">
+          {item.qty} {item.unit}
+        </span>
+        <span className="flex items-center gap-1 font-mono">
+          <Hash className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+          {item.lot_number ?? '-'}
+        </span>
+        <span className="flex items-center gap-1">
+          <Calendar className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />
+          {formatExp(item.exp_date)}
+        </span>
       </div>
     </div>
   );
 }
 
-function RequestCard({ request, showSubmitter }: { request: HistoryRequestRow; showSubmitter?: boolean }) {
-  const tone = getCardTone(request);
+/** ปุ่ม "ตรวจสอบ PDF ใบรับคืน/แลกเปลี่ยน" — เรียก generatePdfAction สดทุกครั้ง (signed URL
+ *  อายุ 5 นาที ไม่ cache) แล้วเปิดใน PdfViewerModal ตัวเดียวกับหน้าติดตามสถานะของลูกค้า
+ *  (generatePdfAction เช็ค customer session + org ownership ภายใน จึงปลอดภัยทั้งหน้า
+ *  ประวัติของตัวเองและประวัติรวมทั้งหน่วยงาน) */
+function RequestPdfButton({ requestId, onOpen }: { requestId: number; onOpen: (url: string) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleClick = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await generatePdfAction(requestId);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      onOpen(result.url);
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div
-      className={`rounded-2xl border border-border border-l-4 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${tone.border}`}
+    <div className="flex-1">
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border py-2.5 text-xs font-bold text-slate-600 transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+      >
+        <FileText className={`h-3.5 w-3.5 ${loading ? 'animate-pulse' : ''}`} strokeWidth={2.5} aria-hidden="true" />
+        {loading ? 'กำลังเตรียมเอกสาร...' : 'ตรวจสอบ PDF ใบรับคืน/แลกเปลี่ยน'}
+      </button>
+      {error && <p className="mt-1 text-[11px] font-medium text-red-500">{error}</p>}
+    </div>
+  );
+}
+
+function RequestCard({
+  request,
+  showSubmitter,
+  showPdf,
+  onOpenPdf,
+}: {
+  request: HistoryRequestRow;
+  showSubmitter?: boolean;
+  showPdf?: boolean;
+  onOpenPdf: (url: string) => void;
+}) {
+  const tone = getCardTone(request);
+  const [expanded, setExpanded] = useState(false);
+
+  const items = request.drug_items ?? [];
+  const cardValue = items.reduce(
+    (sum, item) => (item.current_status === REJECTED_STATUS ? sum : sum + Number(item.value_amount || 0)),
+    0,
+  );
+
+  return (
+    <article
+      className={`flex flex-col rounded-lg border border-border border-l-[3px] bg-card p-4 transition-colors hover:border-primary/40 ${tone.border}`}
     >
-      <div className="mb-5 flex items-center justify-between gap-3">
+      {/* หัวการ์ด — เลขอ้างอิง + ประเภทงาน + สถานะ */}
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-1 flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-black text-foreground">{request.ref_id}</h3>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <h3 className="font-mono text-base font-bold tracking-wide text-foreground">{request.ref_id}</h3>
             {request.request_type && (
-              <span className="rounded-md border border-teal-100 bg-teal-50 px-2 py-0.5 text-[9px] font-bold uppercase text-teal-700">
+              <span className="rounded border border-border bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
                 {request.request_type}
               </span>
             )}
           </div>
-          <p className="text-xs font-medium text-muted-foreground">
-            {new Date(request.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'long' })}
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            ยื่นเมื่อ {new Date(request.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'long' })}
           </p>
           {showSubmitter && request.submitted_by && (
             <p className="mt-1 flex items-center gap-1 text-xs font-bold text-slate-500">
               <UserRound className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />
-              ยื่นโดย: {request.submitted_by}
+              {request.submitted_by}
             </p>
           )}
         </div>
-
-        <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${tone.badge}`}>
+        <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tone.badge}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden="true" />
           {getStatusLabel(request.current_status)}
         </span>
       </div>
 
-      <div className="mb-5 space-y-2">
-        {/* หัวคอลัมน์โชว์เฉพาะ sm ขึ้นไป เพราะมือถือใช้ label แบบ inline ในแต่ละแถวแทน */}
-        <div className="hidden sm:grid sm:grid-cols-12 sm:gap-2 sm:px-3 sm:pb-1 sm:text-[9px] sm:font-bold sm:uppercase sm:tracking-widest sm:text-muted-foreground">
-          <div className="col-span-4">ชื่อยา</div>
-          <div className="col-span-1">จำนวน</div>
-          <div className="col-span-2">Lot</div>
-          <div className="col-span-2">Exp</div>
-          <div className="col-span-3 text-right">มูลค่า</div>
+      {/* แถบสรุป — เติมพื้นที่แนวนอนที่เคยว่าง ด้วยตัวเลขที่ลูกค้าอยากเห็นเร็วๆ */}
+      <div className="mt-3 grid grid-cols-3 divide-x divide-border rounded-md border border-border bg-secondary/40 text-center">
+        <div className="px-2 py-2">
+          <p className="text-sm font-bold text-foreground">{items.length}</p>
+          <p className="text-[11px] text-muted-foreground">รายการยา</p>
         </div>
-
-        <div className="space-y-2">
-          {request.drug_items?.map((item: DrugItemRowType) => (
-            <DrugItemRow key={item.id} item={item} />
-          ))}
+        <div className="px-2 py-2">
+          <p className="text-sm font-bold text-foreground">{formatShortDate(request.updated_at || request.created_at)}</p>
+          <p className="text-[11px] text-muted-foreground">อัปเดตล่าสุด</p>
+        </div>
+        <div className="px-2 py-2">
+          <p className="text-sm font-bold text-primary">{formatCurrency(cardValue) ?? '-'}</p>
+          <p className="text-[11px] text-muted-foreground">มูลค่ารวม</p>
         </div>
       </div>
 
-      <a
-        href={`/customer/tracking?ref=${request.ref_id}`}
-        className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-teal-50 py-2.5 text-xs font-bold text-teal-700 transition-all hover:bg-teal-100 hover:-translate-y-0.5"
-      >
-        ติดตามสถานะคำร้อง
-        <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-      </a>
-    </div>
+      {/* รายการยา — ยุบไว้ก่อนเพื่อให้การ์ดกระชับใน grid กางดูได้ทีละใบ */}
+      {items.length > 0 && (
+        <>
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            className="mt-3 flex items-center justify-between rounded-md px-1 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              <Pill className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+              {expanded ? 'ซ่อนรายการยา' : `ดูรายการยา ${items.length} รายการ`}
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
+              strokeWidth={2.5}
+              aria-hidden="true"
+            />
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-2">
+              {items.map((item) => (
+                <DrugItemRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ปุ่มการทำงาน — PDF ใบรับคืน/แลกเปลี่ยน อยู่คู่กับปุ่มติดตามสถานะ */}
+      <div className="mt-auto flex flex-col gap-2 pt-3">
+        {showPdf && request.id && <RequestPdfButton requestId={request.id} onOpen={onOpenPdf} />}
+        <a
+          href={`/customer/tracking?ref=${request.ref_id}`}
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary py-2.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          ติดตามสถานะคำร้อง
+          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+        </a>
+      </div>
+    </article>
   );
 }
 
@@ -236,15 +300,15 @@ function StatCard({
   tone: { iconBg: string; iconText: string };
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3.5 shadow-sm transition-shadow hover:shadow-md">
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tone.iconBg} ${tone.iconText}`}
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${tone.iconBg} ${tone.iconText}`}
       >
         <Icon className="h-5 w-5" strokeWidth={2} aria-hidden="true" />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-lg font-black leading-tight text-foreground">{value}</p>
-        <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="truncate text-lg font-bold leading-tight text-foreground">{value}</p>
+        <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -256,6 +320,7 @@ export function ExchangeHistoryView({
   subtitle,
   icon: HeaderIcon = History,
   showSubmitter = false,
+  showPdf = true,
   emptyText = 'ยังไม่มีคำร้องคืนสินค้า',
   emptySubtext = 'คำร้องที่คุณยื่นจะแสดงที่นี่',
   headerExtra,
@@ -265,6 +330,9 @@ export function ExchangeHistoryView({
   subtitle: string;
   icon?: LucideIcon;
   showSubmitter?: boolean;
+  /** แสดงปุ่ม "ตรวจสอบ PDF ใบรับคืน/แลกเปลี่ยน" ในแต่ละการ์ด — generatePdfAction เช็ค
+   *  customer session + org ownership ภายใน จึงปลอดภัยทั้งหน้าประวัติตัวเองและประวัติรวมหน่วยงาน */
+  showPdf?: boolean;
   emptyText?: string;
   emptySubtext?: string;
   /** เนื้อหาเสริมใต้หัวข้อ/คำอธิบาย (เช่น tab กรองประเภทงาน) — วางไว้ก่อนแถบสถิติ */
@@ -274,6 +342,7 @@ export function ExchangeHistoryView({
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string>(GROUP_ORDER[0].key);
   const [page, setPage] = useState(1);
+  const [pdfModalUrl, setPdfModalUrl] = useState<string | null>(null);
 
   // สลับแท็บสถานะแล้วต้องกลับไปหน้า 1 เสมอ กันเคสค้างอยู่หน้า 3 ของแท็บเดิม
   // แล้วสลับมาแท็บใหม่ที่มีแค่หน้าเดียว (จะเห็นรายการว่างทั้งที่มีข้อมูลจริง)
@@ -295,10 +364,14 @@ export function ExchangeHistoryView({
     };
   }, [fetcher]);
 
-  const tabs = GROUP_ORDER.map((group) => ({
-    ...group,
-    items: group.key === 'all' ? history : history.filter((r) => getGroupKey(r) === group.key),
-  }));
+  const tabs = useMemo(
+    () =>
+      GROUP_ORDER.map((group) => ({
+        ...group,
+        items: group.key === 'all' ? history : history.filter((r) => getGroupKey(r) === group.key),
+      })),
+    [history],
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -330,15 +403,13 @@ export function ExchangeHistoryView({
   );
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="space-y-6">
       <div className="flex items-center gap-3.5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg shadow-teal-200">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <HeaderIcon className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
         </div>
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground sm:text-3xl">
-            {title}
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
           <p className="text-xs font-medium text-muted-foreground sm:text-sm">{subtitle}</p>
         </div>
       </div>
@@ -351,7 +422,7 @@ export function ExchangeHistoryView({
             icon={ClipboardList}
             value={history.length}
             label="คำร้องทั้งหมด"
-            tone={{ iconBg: 'bg-teal-50', iconText: 'text-teal-600' }}
+            tone={{ iconBg: 'bg-accent', iconText: 'text-accent-foreground' }}
           />
           <StatCard
             icon={Loader2}
@@ -375,17 +446,17 @@ export function ExchangeHistoryView({
             icon={Wallet}
             value={formatCurrency(totalValue) ?? '0 บาท'}
             label="มูลค่ารวมทั้งหมด"
-            tone={{ iconBg: 'bg-slate-100', iconText: 'text-slate-600' }}
+            tone={{ iconBg: 'bg-accent', iconText: 'text-accent-foreground' }}
           />
         </div>
       )}
 
       {loading ? (
-        <ExchangeCardsSkeleton cards={3} />
+        <ExchangeCardsSkeleton cards={4} />
       ) : history.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-teal-100 bg-teal-50/30 py-20 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
-            <Inbox className="h-7 w-7 text-teal-300" strokeWidth={1.5} aria-hidden="true" />
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border bg-card/60 py-20 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+            <Inbox className="h-7 w-7 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
           </div>
           <p className="text-sm font-bold text-muted-foreground">{emptyText}</p>
           <p className="text-xs text-muted-foreground">{emptySubtext}</p>
@@ -406,19 +477,17 @@ export function ExchangeHistoryView({
                   role="tab"
                   aria-selected={active}
                   onClick={() => setActiveKey(tab.key)}
-                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-all ${
+                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors ${
                     active
-                      ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
-                      : 'border border-teal-100 bg-white text-teal-700 hover:bg-teal-50'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border bg-card text-slate-600 hover:border-primary/50'
                   }`}
                 >
-                  <TabIcon className={`h-3.5 w-3.5 ${active ? 'text-white' : tab.iconTone}`} strokeWidth={2} aria-hidden="true" />
+                  <TabIcon className={`h-3.5 w-3.5 ${active ? 'text-primary-foreground' : tab.iconTone}`} strokeWidth={2.5} aria-hidden="true" />
                   {tab.label}
                   <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] ${
-                      active
-                        ? 'bg-white/20 text-white'
-                        : 'bg-slate-100 text-muted-foreground'
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                      active ? 'bg-white/20 text-primary-foreground' : 'bg-secondary text-muted-foreground'
                     }`}
                   >
                     {tab.items.length}
@@ -429,17 +498,25 @@ export function ExchangeHistoryView({
           </div>
 
           {activeTab && activeTab.items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-teal-100 bg-teal-50/30 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
-                <Inbox className="h-6 w-6 text-teal-300" strokeWidth={1.5} aria-hidden="true" />
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card/60 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+                <Inbox className="h-6 w-6 text-slate-300" strokeWidth={1.5} aria-hidden="true" />
               </div>
               <p className="text-sm font-bold text-muted-foreground">ยังไม่มีคำร้องในสถานะนี้</p>
             </div>
           ) : (
             <>
-              <div className="space-y-4">
+              {/* items-start = การ์ดแต่ละใบสูงตามเนื้อหาตัวเอง ไม่ยืดตามใบข้างๆ ในแถวเดียวกัน
+                  (กันเคสกางรายการยาใบซ้ายแล้วใบขวาโตตามเป็นช่องว่าง เหมือนเปิดตาม) */}
+              <div className="grid items-start gap-4 md:grid-cols-2">
                 {pagedItems.map((request) => (
-                  <RequestCard key={request.id} request={request} showSubmitter={showSubmitter} />
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    showSubmitter={showSubmitter}
+                    showPdf={showPdf}
+                    onOpenPdf={setPdfModalUrl}
+                  />
                 ))}
               </div>
 
@@ -452,7 +529,7 @@ export function ExchangeHistoryView({
                     <button
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                       disabled={currentPage === 1}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40"
                       aria-label="หน้าก่อนหน้า"
                     >
                       <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
@@ -461,8 +538,8 @@ export function ExchangeHistoryView({
                       <button
                         key={p}
                         onClick={() => setPage(p)}
-                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors ${
-                          p === currentPage ? 'bg-teal-600 text-white' : 'text-muted-foreground hover:bg-slate-100'
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors ${
+                          p === currentPage ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-secondary'
                         }`}
                       >
                         {p}
@@ -471,7 +548,7 @@ export function ExchangeHistoryView({
                     <button
                       onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                       disabled={currentPage === totalPages}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-slate-100 disabled:pointer-events-none disabled:opacity-40"
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40"
                       aria-label="หน้าถัดไป"
                     >
                       <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
@@ -483,6 +560,8 @@ export function ExchangeHistoryView({
           )}
         </>
       )}
+
+      {pdfModalUrl && <PdfViewerModal url={pdfModalUrl} onClose={() => setPdfModalUrl(null)} />}
     </div>
   );
 }

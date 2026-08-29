@@ -25,7 +25,7 @@ const CUSTOMER_SESSION = {
 };
 const CSR_STAFF = {
   id: 'csr-1', username: 'csr1', full_name: 'CSR หนึ่ง', department: 'csr', role: 'staff',
-  sale_customer_types: null, sale_provinces: null, email: null, signature_url: null,
+  sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null,
 };
 
 function seedOrgAndReps(org: { org_type: string; province: string }, reps: any[]) {

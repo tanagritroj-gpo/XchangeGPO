@@ -7,6 +7,15 @@ vi.mock('@/lib/supabase/admin', async () => {
 });
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 99 }) }));
 vi.mock('@/lib/email-service', () => ({ sendRegistrationReceivedEmail: vi.fn().mockResolvedValue({ error: null }) }));
+// password policy: permissive by default — real policy logic is unit-tested in lib/__tests__/password-policy.test.ts.
+// Here we only verify registerCustomer wires the result through (see the wiring tests below).
+vi.mock('@/lib/password-policy', () => ({
+  validateNewPassword: vi.fn().mockResolvedValue({ ok: true, breachCheckFailed: false }),
+}));
+// registerCustomer อ่าน IP จาก headers() สำหรับ per-IP rate limit (register-customer-ip:)
+vi.mock('next/headers', () => ({
+  headers: vi.fn().mockResolvedValue(new Headers({ 'x-forwarded-for': '203.0.113.7' })),
+}));
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -16,6 +25,8 @@ const { checkRateLimit } = await import('@/lib/rate-limit');
 const mockCheckRateLimit = vi.mocked(checkRateLimit);
 const { sendRegistrationReceivedEmail } = await import('@/lib/email-service');
 const mockSendRegEmail = vi.mocked(sendRegistrationReceivedEmail);
+const { validateNewPassword } = await import('@/lib/password-policy');
+const mockValidatePassword = vi.mocked(validateNewPassword);
 
 const { registerCustomer } = await import('../auth');
 
@@ -46,6 +57,28 @@ beforeEach(() => {
   mockCheckRateLimit.mockResolvedValue({ allowed: true, remaining: 99 });
   mockSendRegEmail.mockReset();
   mockSendRegEmail.mockResolvedValue({ error: null } as any);
+  mockValidatePassword.mockReset();
+  mockValidatePassword.mockResolvedValue({ ok: true, breachCheckFailed: false });
+});
+
+describe('registerCustomer — password policy is enforced (P0-2)', () => {
+  it('checks the new password against the policy, passing account identifiers for the blocklist', async () => {
+    await registerCustomer(validPayload({ email: 'p@hospital.go.th', contact_name: 'สมหญิง', hospital_name: 'รพ.กลาง' }));
+    expect(mockValidatePassword).toHaveBeenCalledWith('password123', {
+      identifiers: ['p@hospital.go.th', 'สมหญิง', 'รพ.กลาง'],
+    });
+  });
+
+  it('rejects (and creates nothing, uploads nothing) when the policy fails the password', async () => {
+    mockValidatePassword.mockResolvedValueOnce({ ok: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' });
+    const uploadSpy = vi.spyOn(fakeAdmin.client.storage.from('signatures'), 'upload');
+
+    const res = await registerCustomer(validPayload());
+
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านนี้เคยปรากฏในเหตุการณ์ข้อมูลรั่วไหลจากบริการอื่น กรุณาใช้รหัสผ่านอื่น' });
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(fakeAdmin.rows('clients')).toHaveLength(0);
+  });
 });
 
 describe('registerCustomer — input validation (schema rejects, does not throw)', () => {
@@ -59,8 +92,8 @@ describe('registerCustomer — input validation (schema rejects, does not throw)
     expect(res.success).toBe(false);
   });
 
-  it('rejects a password under 6 characters', async () => {
-    const res = await registerCustomer(validPayload({ password: '123' }));
+  it('rejects an empty password at the schema layer', async () => {
+    const res = await registerCustomer(validPayload({ password: '' }));
     expect(res.success).toBe(false);
   });
 
@@ -81,11 +114,24 @@ describe('registerCustomer — input validation (schema rejects, does not throw)
 });
 
 describe('registerCustomer — rate limiting and signature handling', () => {
-  it('rejects when the per-email rate limit is exceeded', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, remaining: 0 });
+  it('rejects when the per-IP rate limit is exceeded, before touching storage', async () => {
+    // per-IP check runs first (broader gate) — a bot rotating random emails is capped by this
+    mockCheckRateLimit.mockResolvedValueOnce({ allowed: false, remaining: 0 });
+    const uploadSpy = vi.spyOn(fakeAdmin.client.storage.from('signatures'), 'upload');
     const res = await registerCustomer(validPayload());
     expect(res).toEqual({ success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' });
-    expect(mockCheckRateLimit).toHaveBeenCalledWith('register:newcustomer@example.com', 3, 3600);
+    expect(mockCheckRateLimit).toHaveBeenNthCalledWith(1, 'register-customer-ip:203.0.113.7', 10, 3600);
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(fakeAdmin.rows('clients')).toHaveLength(0);
+  });
+
+  it('rejects when the per-email rate limit is exceeded (2nd gate, after per-IP passes)', async () => {
+    mockCheckRateLimit
+      .mockResolvedValueOnce({ allowed: true, remaining: 9 })   // per-IP passes
+      .mockResolvedValueOnce({ allowed: false, remaining: 0 }); // per-email fails
+    const res = await registerCustomer(validPayload());
+    expect(res).toEqual({ success: false, error: 'พยายามลงทะเบียนถี่เกินไป กรุณาลองใหม่ภายหลัง' });
+    expect(mockCheckRateLimit).toHaveBeenNthCalledWith(2, 'register:newcustomer@example.com', 3, 3600);
   });
 
   it('rejects a signature over the 2MB cap', async () => {

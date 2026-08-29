@@ -6,7 +6,7 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getManagerHubCounts } from '@/app/actions/manager-actions';
 import { getManagerSlaBadgeCount } from '@/app/actions/sla-actions';
 import Link from 'next/link';
-import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2, AlarmClock, Clock, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
+import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2, AlarmClock, Clock, RefreshCw, CheckCircle2, XCircle, ScrollText } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -338,6 +338,20 @@ export default function ManagerHubPage() {
                 </p>
               </div>
               <ArrowRight className="w-4 h-4 text-destructive group-hover:translate-x-1 transition-transform shrink-0" />
+            </div>
+          </Link>
+
+          {/* Tile: บันทึกการตรวจสอบระบบ (audit log — ISO 27001 A.8.16) */}
+          <Link href="/admin/manager/audit" className="hidden md:block group md:col-span-2 md:row-span-1">
+            <div className="relative h-full rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 shrink-0">
+                <ScrollText className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-sm font-bold text-foreground">บันทึกการตรวจสอบระบบ</h2>
+                <p className="text-xs text-muted-foreground truncate">Audit log — เข้าสู่ระบบ / เข้าถึงข้อมูล / จัดการระบบ</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all shrink-0" />
             </div>
           </Link>
         </div>

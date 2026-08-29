@@ -55,10 +55,10 @@ export default function OrgHistoryPage() {
               role="tab"
               aria-selected={activeTab === tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`rounded-full px-4 py-2 text-xs font-bold transition-all ${
+              className={`rounded-full px-4 py-2 text-xs font-bold transition-colors ${
                 activeTab === tab.key
-                  ? 'bg-teal-600 text-white shadow-sm shadow-teal-200'
-                  : 'border border-teal-100 bg-white text-teal-700 hover:bg-teal-50'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-border bg-card text-slate-600 hover:border-primary/50'
               }`}
             >
               {tab.label}

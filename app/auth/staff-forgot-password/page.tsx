@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { IdCard, Mail, KeyRound, CheckCircle2, Home, Loader2, Clock } from 'lucide-react';
 import { requestStaffPasswordReset, resetStaffPassword } from '@/app/actions/auth-staff';
 import { PasswordInput } from '@/components/ui/password-input';
+import { PasswordStrengthHint } from '@/components/ui/password-strength-hint';
+import { assertPasswordAllowed } from '@/lib/password-policy';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 const OTP_VALIDITY_SECONDS = 5 * 60;
@@ -68,6 +70,11 @@ export default function ForgotPasswordPage() {
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const pw = assertPasswordAllowed(newPassword, { identifiers: [username] });
+    if (!pw.ok) {
+      setError(pw.error!);
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError('รหัสผ่านใหม่ทั้งสองช่องไม่ตรงกัน');
       return;
@@ -213,13 +220,14 @@ export default function ForgotPasswordPage() {
                     <div className="relative">
                       <KeyRound size={18} strokeWidth={2.25} className={iconStyle} />
                       <PasswordInput
-                        placeholder="รหัสผ่านใหม่"
+                        placeholder="อย่างน้อย 12 ตัวอักษร"
                         className={inputStyle}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         required
                       />
                     </div>
+                    <div className="-mt-1"><PasswordStrengthHint value={newPassword} identifiers={[username]} /></div>
                     <div className="relative">
                       <KeyRound size={18} strokeWidth={2.25} className={iconStyle} />
                       <PasswordInput

@@ -28,7 +28,7 @@ const {
 function staff(overrides: Partial<{ id: string; department: string; role: string }> = {}) {
   return {
     id: 'staff-1', username: 'u', full_name: 'Staff', role: 'staff', department: 'csr',
-    sale_customer_types: null, sale_provinces: null, email: null, signature_url: null,
+    sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null,
     ...overrides,
   };
 }
