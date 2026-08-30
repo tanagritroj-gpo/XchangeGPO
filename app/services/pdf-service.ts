@@ -8,8 +8,10 @@ import {
   PAGE_H,
   TABLE_MAX_ROWS,
   drawCheck,
+  drawDocStamp,
   drawField,
   drawStrike,
+  drawWatermark,
   tableCell,
   tableRowStrike,
   thaiDateFull,
@@ -20,9 +22,15 @@ import type { RequestRow, DrugItemRow } from '@/lib/types';
 const INK = rgb(0.1, 0.1, 0.12);
 const STRIKE = rgb(0.72, 0.1, 0.1); // แดงเข้ม — เส้นขีดคร่อม + หมายเหตุการตรวจสอบ
 
+export type BuildStamp =
+  | { kind: 'draft' }
+  | { kind: 'verified'; byName: string; at: string; signaturePng?: Uint8Array | null };
+
 type BuildOpts = {
   // PNG ลายเซ็นลูกค้า (resolve จาก storage ฝั่ง action แล้วส่งเข้ามา — โมดูลนี้ไม่แตะ Supabase)
   signaturePng?: Uint8Array | null;
+  // กล่องกำกับสถานะเอกสารมุมขวาล่าง (draft = "ชั่วคราว", verified = "ผ่านการตรวจสอบ" + ลายเซ็น CSR)
+  stamp?: BuildStamp | null;
 };
 
 // item ที่ CSR ตรวจแล้ว "ไม่ผ่านเกณฑ์" (is_compliant === false) — verified PDF จะขีดคร่อม
@@ -46,6 +54,11 @@ export async function buildReturnFormPdf(request: RequestRow, opts: BuildOpts = 
     spec: Parameters<typeof drawField>[4],
     drawOpts?: Parameters<typeof drawField>[5],
   ) => drawField(page, font, INK, value, spec, drawOpts);
+
+  // ── ลายน้ำ "ยังไม่ตรวจสอบ" — เฉพาะฉบับ draft (วาดก่อน ให้อยู่ใต้ข้อมูลที่กรอก) ──
+  if (opts.stamp?.kind === 'draft') {
+    drawWatermark(page, font, 'ยังไม่ตรวจสอบ');
+  }
 
   // ── ส่วนหัว ───────────────────────────────────────────────────────────────
   f(request.doc_number, LAYOUT.doc_number);
@@ -175,6 +188,28 @@ export async function buildReturnFormPdf(request: RequestRow, opts: BuildOpts = 
     // ฟอร์มพิมพ์วงเล็บ "( )" ไว้แล้ว — ใส่แค่ชื่อไว้ตรงกลาง
     f(request.signer_name, LAYOUT.signer_name);
     f(thaiDateFull(request.request_date), LAYOUT.date_bottom);
+  }
+
+  // ── กล่องกำกับสถานะเอกสาร (มุมขวาล่าง) ───────────────────────────────────
+  if (opts.stamp) {
+    if (opts.stamp.kind === 'draft') {
+      drawDocStamp(page, font, { kind: 'draft' });
+    } else {
+      let csrSig = null;
+      if (opts.stamp.signaturePng && opts.stamp.signaturePng.length > 0) {
+        try {
+          csrSig = await pdfDoc.embedPng(opts.stamp.signaturePng);
+        } catch (err) {
+          console.warn('Embed CSR signature failed:', err);
+        }
+      }
+      drawDocStamp(page, font, {
+        kind: 'verified',
+        byName: opts.stamp.byName,
+        atText: thaiDateFull(opts.stamp.at) || '-',
+        signature: csrSig,
+      });
+    }
   }
 
   return await pdfDoc.save();

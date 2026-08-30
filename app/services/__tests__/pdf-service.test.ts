@@ -84,6 +84,16 @@ describe('buildReturnFormPdf', () => {
     await expectValidPdf(bytes);
   });
 
+  it('renders the draft stamp', async () => {
+    await expectValidPdf(await buildReturnFormPdf(makeReq(), { stamp: { kind: 'draft' } }));
+  });
+
+  it('renders the verified stamp with a CSR signature + date', async () => {
+    await expectValidPdf(await buildReturnFormPdf(makeReq(), {
+      stamp: { kind: 'verified', byName: 'ภญ. สมชาย', at: '2026-09-02T09:30:00Z', signaturePng: TINY_PNG },
+    }));
+  });
+
   it('embeds a signature PNG when provided', async () => {
     const pngDoc = await PDFDocument.create();
     const png = await pngDoc.embedPng(TINY_PNG);

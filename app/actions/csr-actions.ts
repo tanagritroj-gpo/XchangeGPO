@@ -695,14 +695,14 @@ export async function approveRequest(requestId: number, remark?: string) {
       });
       await updateRequestCurrentStatus(requestId, 'rejected');
       // แลกเปลี่ยน+customer_portal: สร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลให้ลูกค้า (ครั้งเดียว)
-      const delivered = await deliverVerifiedExchangeDoc(requestId, session.id);
+      const delivered = await deliverVerifiedExchangeDoc(requestId, session);
       revalidatePath('/admin/csr/dashboard');
       return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
     }
 
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'approved', staff_remark: remark || 'อนุมัติใบงาน' });
     await updateRequestCurrentStatus(requestId, 'approved');
-    const delivered = await deliverVerifiedExchangeDoc(requestId, session.id);
+    const delivered = await deliverVerifiedExchangeDoc(requestId, session);
     revalidatePath('/admin/csr/dashboard');
     return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
   });
@@ -742,7 +742,7 @@ export async function rejectRequest(requestId: number, reasonCode: string, detai
     await updateRequestCurrentStatus(requestId, 'rejected');
     await supabaseAdmin.from('drug_items').update({ current_status: 'rejected' }).eq('request_id', requestId);
     // แลกเปลี่ยน+customer_portal: ส่งเอกสารฉบับตรวจสอบแล้ว (ขีดคร่อมทุกราย) + ข้อความแจ้งผลให้ลูกค้า
-    const delivered = await deliverVerifiedExchangeDoc(requestId, session.id);
+    const delivered = await deliverVerifiedExchangeDoc(requestId, session);
     revalidatePath('/admin/csr/dashboard');
     return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
   });

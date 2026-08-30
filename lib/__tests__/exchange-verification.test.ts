@@ -14,6 +14,9 @@ vi.mock('@/lib/send-return-form-email', () => ({
   resolveEmailMode: () => 'verified',
 }));
 vi.mock('@/lib/sale-reps', () => ({ saleEmailsForCustomerCode: vi.fn().mockResolvedValue(['sale@x.com']) }));
+vi.mock('@/lib/resolve-signature', () => ({ resolveStaffSignaturePng: vi.fn().mockResolvedValue(null) }));
+
+const STAFF = { id: 'csr-1', full_name: 'ภญ. สมชาย ใจดี', signature_url: null } as any;
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -73,27 +76,30 @@ describe('deliverVerifiedExchangeDoc', () => {
 
   it('builds the final PDF and emails customer + covering sale, then logs document_sent', async () => {
     seedExchange();
-    const res = await deliverVerifiedExchangeDoc(1, 's1');
-    expect(mockBuild).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }), { kind: 'final', storageDir: 'returns/1' });
+    const res = await deliverVerifiedExchangeDoc(1, STAFF);
+    expect(mockBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1 }),
+      expect.objectContaining({ kind: 'final', storageDir: 'returns/1', stamp: expect.objectContaining({ kind: 'verified', byName: 'ภญ. สมชาย ใจดี' }) }),
+    );
     expect(res?.emailedTo.sort()).toEqual(['cust@x.com', 'sale@x.com']);
     expect(fakeAdmin.rows('status_logs')).toMatchObject([{ status_name: 'document_sent', actor_type: 'staff' }]);
   });
 
   it('skips csr_manual exchanges', async () => {
     seedExchange({ submission_channel: 'csr_manual' });
-    expect(await deliverVerifiedExchangeDoc(1, 's1')).toBeNull();
+    expect(await deliverVerifiedExchangeDoc(1, STAFF)).toBeNull();
     expect(mockBuild).not.toHaveBeenCalled();
   });
 
   it('skips non-exchange requests', async () => {
     seedExchange({ request_type: 'รับคืนลดหนี้' });
-    expect(await deliverVerifiedExchangeDoc(1, 's1')).toBeNull();
+    expect(await deliverVerifiedExchangeDoc(1, STAFF)).toBeNull();
   });
 
   it('does not send twice (guards on an existing document_sent log)', async () => {
     seedExchange();
     fakeAdmin.rows('status_logs').push({ id: 99, request_id: 1, status_name: 'document_sent' });
-    expect(await deliverVerifiedExchangeDoc(1, 's1')).toBeNull();
+    expect(await deliverVerifiedExchangeDoc(1, STAFF)).toBeNull();
     expect(mockEmail).not.toHaveBeenCalled();
   });
 });

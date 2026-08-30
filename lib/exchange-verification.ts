@@ -4,7 +4,10 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { buildAndStoreReturnPdf, finalDir } from '@/lib/return-form-pdf';
 import { sendReturnFormEmail, resolveEmailMode } from '@/lib/send-return-form-email';
 import { saleEmailsForCustomerCode } from '@/lib/sale-reps';
-import type { RequestRow } from '@/lib/types';
+import { resolveStaffSignaturePng } from '@/lib/resolve-signature';
+import type { RequestRow, StaffSessionInfo } from '@/lib/types';
+
+type VerifyingStaff = Pick<StaffSessionInfo, 'id' | 'full_name' | 'signature_url'>;
 
 type ComplianceFields = {
   product_type: string | null;
@@ -88,8 +91,9 @@ export async function logComplianceOverride(params: {
 // best-effort: ไม่ throw ให้กระทบการเปลี่ยนสถานะ — return null ถ้าไม่เข้าเงื่อนไข/พลาด
 export async function deliverVerifiedExchangeDoc(
   requestId: number,
-  staffId: string,
+  staff: VerifyingStaff,
 ): Promise<{ emailedTo: string[] } | null> {
+  const staffId = staff.id;
   try {
     const { data } = await supabaseAdmin
       .from('requests')
@@ -112,7 +116,17 @@ export async function deliverVerifiedExchangeDoc(
     if ((count ?? 0) > 0) return null;
 
     // 1. สร้างเอกสารฉบับสมบูรณ์ (verified — ขีดคร่อมรายการ is_compliant=false, ยอดหัก reject)
-    await buildAndStoreReturnPdf(req, { kind: 'final', storageDir: finalDir(req) });
+    //    + กล่องกำกับ "ผ่านการตรวจสอบแล้ว" + ลายเซ็น CSR + วันที่ตรวจสอบ (มุมขวาล่าง)
+    await buildAndStoreReturnPdf(req, {
+      kind: 'final',
+      storageDir: finalDir(req),
+      stamp: {
+        kind: 'verified',
+        byName: staff.full_name || 'เจ้าหน้าที่ CSR',
+        at: new Date().toISOString(),
+        signaturePng: await resolveStaffSignaturePng(staff.signature_url),
+      },
+    });
 
     // 2. ผู้รับ: ลูกค้า + sale ที่ดูแลหน่วยงาน
     const recipients = new Set<string>();

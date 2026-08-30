@@ -1,8 +1,8 @@
 import 'server-only';
 import * as Sentry from '@sentry/nextjs';
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
-import { buildReturnFormPdf } from '@/app/services/pdf-service';
-import { resolveSignaturePng } from '@/lib/resolve-signature';
+import { buildReturnFormPdf, type BuildStamp } from '@/app/services/pdf-service';
+import { resolveSignaturePng, resolveStaffSignaturePng } from '@/lib/resolve-signature';
 import type { RequestRow } from '@/lib/types';
 
 export type DocKind = 'draft' | 'final';
@@ -15,10 +15,10 @@ export type DocKind = 'draft' | 'final';
 // upsert ด้วย conflict target (request_id, kind) → เรียกซ้ำได้ ไฟล์ล่าสุดทับของเดิม
 export async function buildAndStoreReturnPdf(
   request: RequestRow,
-  opts: { kind: DocKind; storageDir: string },
+  opts: { kind: DocKind; storageDir: string; stamp?: BuildStamp | null },
 ): Promise<{ filePath: string }> {
   const signaturePng = await resolveSignaturePng(request.signature_url);
-  const pdfBytes = await buildReturnFormPdf(request, { signaturePng });
+  const pdfBytes = await buildReturnFormPdf(request, { signaturePng, stamp: opts.stamp ?? null });
 
   const filePath = `${opts.storageDir.replace(/\/$/, '')}/${request.ref_id}.pdf`;
 
@@ -41,6 +41,30 @@ export async function buildAndStoreReturnPdf(
 // storageDir มาตรฐานตามช่องทาง
 export function draftDir(b2bCustomerId: number | null): string {
   return `drafts/${b2bCustomerId ?? 'staff'}`;
+}
+
+// สร้าง verified stamp จาก status_logs — หาเจ้าหน้าที่ที่ตรวจ (log ล่าสุดที่มี staff_id ในขั้นตรวจสอบ)
+// ใช้ตอนต้อง rebuild final PDF ของใบแลกเปลี่ยน on-demand (generate-pdf-action / staff) ที่ไม่มี
+// context ของ CSR โดยตรง — deliverVerifiedExchangeDoc ส่ง stamp เองอยู่แล้ว ไม่ต้องพึ่งฟังก์ชันนี้
+export async function resolveVerifiedStamp(requestId: number): Promise<BuildStamp | null> {
+  const { data: log } = await supabaseAdmin
+    .from('status_logs')
+    .select('staff_id, log_date, staff_users(full_name, signature_url)')
+    .eq('request_id', requestId)
+    .in('status_name', ['document_sent', 'approved', 'rejected', 'compliance_checked'])
+    .not('staff_id', 'is', null)
+    .order('log_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!log?.staff_id) return null;
+  const su = Array.isArray(log.staff_users) ? log.staff_users[0] : log.staff_users;
+  return {
+    kind: 'verified',
+    byName: su?.full_name ?? 'เจ้าหน้าที่ตรวจสอบ',
+    at: log.log_date ?? new Date().toISOString(),
+    signaturePng: await resolveStaffSignaturePng(su?.signature_url),
+  };
 }
 export function finalDir(request: Pick<RequestRow, 'b2b_customer_id' | 'submission_channel'>): string {
   return request.submission_channel === 'csr_manual' || request.b2b_customer_id == null

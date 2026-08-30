@@ -4,7 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { buildAndStoreReturnPdf, draftDir, finalDir, type DocKind } from '@/lib/return-form-pdf';
+import { buildAndStoreReturnPdf, draftDir, finalDir, resolveVerifiedStamp, type DocKind } from '@/lib/return-form-pdf';
 import { bucketForOrgType } from '@/lib/sale-coverage';
 import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
@@ -280,8 +280,14 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
 
   if (!filePath) {
     const storageDir = wantKind === 'draft' ? draftDir(request.b2b_customer_id ?? null) : finalDir(request);
+    const stamp =
+      wantKind === 'draft'
+        ? ({ kind: 'draft' } as const)
+        : request.request_type === 'รับคืนแลกเปลี่ยน'
+          ? await resolveVerifiedStamp(requestId)
+          : null;
     try {
-      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir });
+      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir, stamp });
       filePath = res.filePath;
     } catch (buildErr) {
       console.error('buildAndStoreReturnPdf failed (staff):', buildErr);

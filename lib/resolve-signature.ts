@@ -24,3 +24,16 @@ export async function resolveSignaturePng(signatureUrl: string | null | undefine
     return null;
   }
 }
+
+// ลายเซ็นพนักงาน (staff_users.signature_url) — เก็บใน bucket 'signatures' (ดู csr-actions.ts
+// ที่ resolve แบบเดียวกันตอนออกเอกสารยืนยันการลงทะเบียน) คนละ bucket กับลายเซ็นลูกค้า
+export async function resolveStaffSignaturePng(signatureUrl: string | null | undefined): Promise<Uint8Array | null> {
+  if (!signatureUrl) return null;
+  try {
+    const { data, error } = await supabaseAdmin.storage.from('signatures').download(signatureUrl);
+    if (error || !data) return null;
+    return new Uint8Array(await data.arrayBuffer());
+  } catch {
+    return null;
+  }
+}

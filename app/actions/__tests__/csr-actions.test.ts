@@ -143,7 +143,7 @@ describe('exchange verification — csr-actions wires the side-effects at the ri
     const res: any = await approveRequest(1);
 
     expect(res.success).toBe(true);
-    expect(mockDeliver).toHaveBeenCalledWith(1, 'csr-1');
+    expect(mockDeliver).toHaveBeenCalledWith(1, expect.objectContaining({ id: 'csr-1' }));
     expect(res.emailedTo).toEqual(['cust@x.com', 'sale@x.com']);
   });
 
@@ -154,7 +154,7 @@ describe('exchange verification — csr-actions wires the side-effects at the ri
     const res: any = await rejectRequest(1, 'damaged', 'ชำรุด');
 
     expect(res.success).toBe(true);
-    expect(mockDeliver).toHaveBeenCalledWith(1, 'csr-1');
+    expect(mockDeliver).toHaveBeenCalledWith(1, expect.objectContaining({ id: 'csr-1' }));
     expect(res.emailedTo).toEqual(['cust@x.com']);
   });
 

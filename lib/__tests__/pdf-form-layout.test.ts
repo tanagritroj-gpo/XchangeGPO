@@ -9,6 +9,7 @@ import {
   thaiDateFull,
   drawField,
   drawCheck,
+  drawWatermark,
 } from '../pdf-form-layout';
 
 // ── การแปลงวันที่เป็นไทย (พ.ศ. + ชื่อเดือน) ───────────────────────────────────
@@ -173,5 +174,24 @@ describe('drawCheck', () => {
     expect(calls[0].text).toBe('X');
     expect(calls[0].x).toBe(135);
     expect(calls[0].y).toBeCloseTo(PAGE_H - 248, 5);
+  });
+});
+
+describe('drawWatermark', () => {
+  it('draws the text rotated, semi-transparent, roughly centred on the page', () => {
+    const calls: any[] = [];
+    const page = { drawText: (t: string, o: any) => calls.push({ t, ...o }), drawRectangle: () => {}, drawImage: () => {}, drawLine: () => {} } as any;
+    // ต้องมี glyph จริงเพื่อคำนวณความกว้าง — ใช้ fakeFont ที่มี widthOfTextAtSize
+    // (จาก drawField block ด้านล่างในไฟล์นี้)
+    const font = { widthOfTextAtSize: (s: string, size: number) => s.length * size * 0.5 } as any;
+    (drawWatermark as any)(page, font, 'ยังไม่ตรวจสอบ');
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((c) => c.opacity != null && c.opacity < 0.5)).toBe(true);
+    expect(calls.every((c) => c.rotate != null)).toBe(true); // ทุกตัวอักษรหมุน
+    const xs = calls.map((c) => c.x);
+    const ys = calls.map((c) => c.y);
+    // เดินขึ้น-ขวา (x เพิ่ม, y เพิ่ม) → ทแยงจากซ้ายล่างไปขวาบน
+    expect(xs[xs.length - 1]).toBeGreaterThan(xs[0]);
+    expect(ys[ys.length - 1]).toBeGreaterThan(ys[0]);
   });
 });

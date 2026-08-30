@@ -266,7 +266,7 @@ export async function createReturnRequest(formData: ReturnFormData) {
         .single();
       if (fullReq) {
         const req = fullReq as RequestRow;
-        await buildAndStoreReturnPdf(req, { kind: 'draft', storageDir: draftDir(session.id) });
+        await buildAndStoreReturnPdf(req, { kind: 'draft', storageDir: draftDir(session.id), stamp: { kind: 'draft' } });
         const { error: ackErr } = await sendReturnFormEmail({ request: req, to: session.email, mode: 'ack' });
         if (ackErr) throw ackErr;
         await supabaseAdmin.from('status_logs').insert({

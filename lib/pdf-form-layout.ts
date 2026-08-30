@@ -15,7 +15,8 @@
 //  — คอมเมนต์กำกับทุกจุดว่า "วัดเอง"
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import type { Color, PDFFont, PDFPage } from 'pdf-lib';
+import { rgb } from 'pdf-lib';
+import type { Color, PDFFont, PDFImage, PDFPage } from 'pdf-lib';
 import { drawThaiText, thaiTextWidth } from './pdf-thai-text';
 
 export const PAGE_W = 595.44;
@@ -281,4 +282,74 @@ function drawOneLine(
 // เครื่องหมายในช่อง [ ] — ใช้ "X" (Sarabun ไม่มี glyph ✓; X เรนเดอร์ได้เสมอและอ่านชัดในช่องเล็ก)
 export function drawCheck(page: PDFPage, font: PDFFont, color: Color, mark: CheckMark, size = 12): void {
   page.drawText('X', { x: mark.x, y: PAGE_H - mark.yFromTop, size, font, color });
+}
+
+// ลายน้ำทแยงมุม (ซ้ายล่าง → ขวาบน) — ใช้กับ draft PDF ("ยังไม่ตรวจสอบ")
+export function drawWatermark(page: PDFPage, font: PDFFont, text: string): void {
+  const size = 62;
+  const angle = 38; // องศา ทวนเข็ม → ทแยงจากซ้ายล่างไปขวาบน
+  const rad = (angle * Math.PI) / 180;
+  const w = thaiTextWidth(font, text, size);
+  drawThaiText(page, text, {
+    x: PAGE_W / 2 - (w / 2) * Math.cos(rad),
+    y: PAGE_H / 2 - (w / 2) * Math.sin(rad) - size * 0.34,
+    size,
+    font,
+    color: rgb(0.5, 0.5, 0.56),
+    rotate: angle,
+    opacity: 0.15,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  กล่องกำกับสถานะเอกสาร — มุมขวาล่าง (ใต้บล็อกลงชื่อ ในระยะขอบล่างของหน้า)
+//  draft    : "ใช้เป็นเอกสารชั่วคราว ..." (ส้ม)
+//  verified : "เอกสารผ่านการตรวจสอบ ..." + ลายเซ็น CSR + วันที่ตรวจสอบ (เขียว)
+// ─────────────────────────────────────────────────────────────────────────────
+const STAMP = { x: 300, right: 588, topFromTop: 793 }; // กล่องอยู่ x 300–588, ขอบบน y=793 จากขอบบนหน้า (ในระยะขอบล่างของหน้า)
+
+type DocStampArg =
+  | { kind: 'draft' }
+  | { kind: 'verified'; byName: string; atText: string; signature?: PDFImage | null };
+
+export function drawDocStamp(page: PDFPage, font: PDFFont, stamp: DocStampArg): void {
+  const w = STAMP.right - STAMP.x;
+  const color = stamp.kind === 'draft' ? rgb(0.82, 0.42, 0.06) : rgb(0.06, 0.42, 0.2);
+  const top = STAMP.topFromTop;
+  const h = stamp.kind === 'draft' ? 25 : 43;
+
+  page.drawRectangle({ x: STAMP.x, y: PAGE_H - top - h, width: w, height: h, borderColor: color, borderWidth: 0.9 });
+
+  const padX = STAMP.x + 8;
+  const line = (text: string, fromTop: number, size: number) =>
+    drawThaiText(page, text, { x: padX, y: PAGE_H - fromTop, size, font, color });
+
+  if (stamp.kind === 'draft') {
+    line('ใช้เป็นเอกสารชั่วคราว', top + 10, 8);
+    line('ยังไม่ผ่านการตรวจสอบรายการสินค้ารับคืน/แลกเปลี่ยน', top + 20, 7.5);
+    return;
+  }
+
+  line('เอกสารผ่านการตรวจสอบรายการสินค้ารับคืน/แลกเปลี่ยนแล้ว', top + 10, 7.5);
+
+  // แถว "ตรวจสอบโดย [เส้นประให้เซ็น] (ชื่อ)"
+  const byY = PAGE_H - (top + 24);
+  const dotsX = padX + thaiTextWidth(font, 'ตรวจสอบโดย ', 7);
+  const dots = '.'.repeat(22);
+  const dotsW = thaiTextWidth(font, dots, 7);
+  drawThaiText(page, 'ตรวจสอบโดย', { x: padX, y: byY, size: 7, font, color });
+  drawThaiText(page, dots, { x: dotsX, y: byY, size: 7, font, color });
+  drawThaiText(page, `(${stamp.byName})`, { x: dotsX + dotsW + 5, y: byY, size: 7, font, color });
+
+  drawThaiText(page, `วันที่ตรวจสอบ ${stamp.atText}`, { x: padX, y: PAGE_H - (top + 36), size: 7, font, color });
+
+  if (stamp.signature) {
+    const maxW = dotsW - 4;
+    const maxH = 12;
+    const scale = Math.min(maxW / stamp.signature.width, maxH / stamp.signature.height, 1);
+    const sw = stamp.signature.width * scale;
+    const sh = stamp.signature.height * scale;
+    // เซ็นคร่อมเส้นประ — ต่ำกว่า baseline เล็กน้อยให้ปลายหางแตะเส้น
+    page.drawImage(stamp.signature, { x: dotsX + (dotsW - sw) / 2, y: byY - sh * 0.35, width: sw, height: sh });
+  }
 }

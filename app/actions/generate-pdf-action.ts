@@ -2,7 +2,7 @@
 
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
-import { buildAndStoreReturnPdf, draftDir, finalDir, type DocKind } from '@/lib/return-form-pdf';
+import { buildAndStoreReturnPdf, draftDir, finalDir, resolveVerifiedStamp, type DocKind } from '@/lib/return-form-pdf';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
@@ -67,8 +67,15 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
     //   - non-exchange 'final' ครั้งแรก (flow เดิม — ReviewSuccessCard เรียกมา)
     //   - หรือ draft ที่ best-effort block ใน createReturnRequest พลาด (fallback)
     const storageDir = wantKind === 'draft' ? draftDir(session.id) : finalDir(request);
+    // stamp กำกับสถานะ: draft → "ชั่วคราว"; final ของใบแลกเปลี่ยนที่ตรวจแล้ว → "ผ่านการตรวจสอบ" + ลายเซ็น CSR
+    const stamp =
+      wantKind === 'draft'
+        ? ({ kind: 'draft' } as const)
+        : isExchange
+          ? await resolveVerifiedStamp(requestId)
+          : null;
     try {
-      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir });
+      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir, stamp });
       filePath = res.filePath;
     } catch (buildErr) {
       console.error('buildAndStoreReturnPdf failed:', buildErr);
