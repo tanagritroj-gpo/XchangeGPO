@@ -58,6 +58,8 @@ export interface RequestRow {
   department: string | null;
   created_by_staff_id: string | null;
   submission_channel: 'customer_portal' | 'csr_manual';
+  // ผู้รับอีเมลที่ CSR เลือกตอนส่ง "แจ้งรับเรื่อง" (csr_manual แลกเปลี่ยน) — email #2 ใช้ชุดเดิม
+  notify_emails: string[] | null;
   drug_items?: DrugItemRow[];
   // path ภายใน bucket return-documents ของรูปถ่ายใบส่งของที่ลูกค้าแนบมา (nullable/array —
   // ไม่บังคับแนบ, ระดับคำร้องไม่ใช่ระดับรายการยา เพราะใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง

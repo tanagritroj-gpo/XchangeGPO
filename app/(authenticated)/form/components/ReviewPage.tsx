@@ -133,9 +133,10 @@ if (status === 'success') {
         generatePdfActionFn={generatePdfActionFn}
         sendEmailActionFn={sendEmailActionFn}
         getEmailRecipientsFn={getEmailRecipientsFn}
-        // แลกเปลี่ยน + ลูกค้ายื่นเอง: เอกสารต้องผ่าน CSR ตรวจ compliance ก่อน — ระบบส่งอีเมล
-        // แจ้งรับเรื่องไปแล้วฝั่ง server (createReturnRequest) หน้านี้แค่โชว์สถานะ + ให้โหลด "ฉบับที่ท่านกรอก"
-        pendingVerification={sender?.request_type === 'รับคืนแลกเปลี่ยน' && showTrackingLink}
+        // แลกเปลี่ยน: เอกสารต้องผ่าน CSR ตรวจ compliance ก่อน — ฉบับที่โหลด/ส่งตอนนี้เป็น "ฉบับที่กรอก"
+        // (draft) เอกสารฉบับสมบูรณ์ส่งอีกครั้งหลังตรวจ. ลูกค้ายื่นเอง = server ส่งอีเมลแจ้งรับเรื่องแล้ว;
+        // CSR กรอกแทน = CSR เลือกผู้รับด้านล่างแล้วกดส่งเอง (ระบบส่ง ack ให้)
+        pendingVerification={sender?.request_type === 'รับคืนแลกเปลี่ยน'}
       />
     );
   }

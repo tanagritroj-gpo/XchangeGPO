@@ -105,7 +105,7 @@ export async function deliverVerifiedExchangeDoc(
     const bc = Array.isArray(data.b2b_customers) ? data.b2b_customers[0] : data.b2b_customers;
     const req = data as RequestRow;
 
-    if (req.request_type !== 'รับคืนแลกเปลี่ยน' || req.submission_channel !== 'customer_portal') return null;
+    if (req.request_type !== 'รับคืนแลกเปลี่ยน') return null;
 
     // กันส่งซ้ำ (retry / action ถูกเรียกซ้ำ)
     const { count } = await supabaseAdmin
@@ -128,16 +128,29 @@ export async function deliverVerifiedExchangeDoc(
       },
     });
 
-    // 2. ผู้รับ: ลูกค้า + sale ที่ดูแลหน่วยงาน
+    // 2. ผู้รับ:
+    //    - customer_portal → ลูกค้า (customer_email) + sale ที่ดูแลหน่วยงาน (อัตโนมัติเสมอ)
+    //    - csr_manual      → ชุดอีเมลที่ CSR เลือกไว้ตอนส่ง "แจ้งรับเรื่อง" (requests.notify_emails)
     const recipients = new Set<string>();
-    const customerEmail = req.customer_email || (bc as { email?: string | null } | null)?.email || null;
-    if (customerEmail) recipients.add(customerEmail);
-    for (const e of await saleEmailsForCustomerCode(req.customer_code)) recipients.add(e);
+    if (req.submission_channel === 'csr_manual') {
+      for (const e of req.notify_emails ?? []) if (e) recipients.add(e);
+    } else {
+      const customerEmail = req.customer_email || (bc as { email?: string | null } | null)?.email || null;
+      if (customerEmail) recipients.add(customerEmail);
+      for (const e of await saleEmailsForCustomerCode(req.customer_code)) recipients.add(e);
+    }
+
+    // ไม่มีผู้รับ (csr_manual ที่ CSR ยังไม่ได้ส่งแจ้งรับเรื่อง/ไม่ได้เลือกใคร) — สร้างเอกสารไว้แล้ว
+    // แต่ไม่ส่งอีเมลและไม่ log document_sent เพื่อให้ CSR ส่งเองภายหลังได้ (ปุ่ม "ส่งเอกสารให้ลูกค้า" หน้า dashboard)
+    if (recipients.size === 0) return { emailedTo: [] };
 
     const mode = resolveEmailMode(req);
+    // csr_manual: เอกสารจัดทำโดยเจ้าหน้าที่ CSR — สะท้อนในเนื้อความอีเมล (กรณี mode='standard'
+    // ที่ทุกรายการผ่านเกณฑ์; mode='verified' ใช้เนื้อความ "ตรวจสอบแล้ว" อยู่แล้วไม่ขึ้นกับ flag นี้)
+    const preparedByStaff = req.submission_channel === 'csr_manual';
     const emailedTo: string[] = [];
     for (const to of recipients) {
-      const { error } = await sendReturnFormEmail({ request: req, to, mode });
+      const { error } = await sendReturnFormEmail({ request: req, to, mode, preparedByStaff });
       if (error) {
         console.error(`deliverVerifiedExchangeDoc: email to ${to} failed`, error);
         Sentry.captureException(error, { level: 'warning', tags: { area: 'exchange-verified-email' } });
@@ -146,6 +159,10 @@ export async function deliverVerifiedExchangeDoc(
       }
     }
 
+    // ทุกผู้รับส่งไม่สำเร็จ — ไม่ลง document_sent (invariant: มี log นี้ = เอกสารถึงลูกค้าอย่างน้อย 1 คน
+    // ให้ปุ่ม "ส่งเอกสารให้ลูกค้า" หน้า dashboard เห็นว่ายังค้างและส่งซ้ำได้)
+    if (emailedTo.length === 0) return { emailedTo: [] };
+
     // 3. audit
     await supabaseAdmin.from('status_logs').insert({
       request_id: requestId,
@@ -153,7 +170,7 @@ export async function deliverVerifiedExchangeDoc(
       department: 'csr',
       status_name: 'document_sent',
       actor_type: 'staff',
-      staff_remark: `ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าทางอีเมล (${emailedTo.join(', ') || 'ไม่มีผู้รับ'})`,
+      staff_remark: `ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าทางอีเมล (${emailedTo.join(', ')})`,
     });
     await supabaseAdmin.from('access_logs').insert({
       actor_type: 'staff',

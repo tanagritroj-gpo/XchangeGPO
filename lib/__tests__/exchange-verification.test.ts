@@ -85,15 +85,38 @@ describe('deliverVerifiedExchangeDoc', () => {
     expect(fakeAdmin.rows('status_logs')).toMatchObject([{ status_name: 'document_sent', actor_type: 'staff' }]);
   });
 
-  it('skips csr_manual exchanges', async () => {
-    seedExchange({ submission_channel: 'csr_manual' });
-    expect(await deliverVerifiedExchangeDoc(1, STAFF)).toBeNull();
-    expect(mockBuild).not.toHaveBeenCalled();
+  it('csr_manual: emails exactly the CSR-picked notify_emails (not customer/sale)', async () => {
+    seedExchange({ submission_channel: 'csr_manual', notify_emails: ['picked-a@x.com', 'picked-b@x.com'] });
+    const res = await deliverVerifiedExchangeDoc(1, STAFF);
+    expect(mockBuild).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1 }),
+      expect.objectContaining({ kind: 'final', stamp: expect.objectContaining({ kind: 'verified' }) }),
+    );
+    expect(res?.emailedTo.sort()).toEqual(['picked-a@x.com', 'picked-b@x.com']);
+    expect(mockEmail).toHaveBeenCalledTimes(2);
+    expect(fakeAdmin.rows('status_logs')).toMatchObject([{ status_name: 'document_sent' }]);
+  });
+
+  it('csr_manual with no notify_emails: builds the doc but sends nothing and logs no document_sent', async () => {
+    seedExchange({ submission_channel: 'csr_manual', notify_emails: null });
+    const res = await deliverVerifiedExchangeDoc(1, STAFF);
+    expect(mockBuild).toHaveBeenCalled();
+    expect(res).toEqual({ emailedTo: [] });
+    expect(mockEmail).not.toHaveBeenCalled();
+    expect(fakeAdmin.rows('status_logs').some((l) => l.status_name === 'document_sent')).toBe(false);
   });
 
   it('skips non-exchange requests', async () => {
     seedExchange({ request_type: 'รับคืนลดหนี้' });
     expect(await deliverVerifiedExchangeDoc(1, STAFF)).toBeNull();
+  });
+
+  it('all recipients fail to send → no document_sent log (so dashboard shows it as still pending)', async () => {
+    seedExchange({ submission_channel: 'csr_manual', notify_emails: ['a@x.com'] });
+    mockEmail.mockResolvedValueOnce({ error: new Error('smtp down') });
+    const res = await deliverVerifiedExchangeDoc(1, STAFF);
+    expect(res).toEqual({ emailedTo: [] });
+    expect(fakeAdmin.rows('status_logs').some((l) => l.status_name === 'document_sent')).toBe(false);
   });
 
   it('does not send twice (guards on an existing document_sent log)', async () => {

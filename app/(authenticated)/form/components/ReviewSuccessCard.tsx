@@ -284,7 +284,7 @@ export function ReviewSuccessCard({
           {pdfState === 'ready' && (
             <div className="grid grid-cols-1 gap-3 w-full">
               {/* ── แลกเปลี่ยน: แจ้งว่าอยู่ระหว่างตรวจสอบ เอกสารฉบับสมบูรณ์จะส่งทางอีเมลอีกครั้ง ── */}
-              {pendingVerification && (
+              {pendingVerification && showTrackingLink && (
                 <div className="w-full text-left bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-sm text-amber-900 leading-relaxed">
                   <p className="font-black mb-1">⏳ อยู่ระหว่างตรวจสอบรายการสินค้า</p>
                   <p>
@@ -293,6 +293,22 @@ export function ReviewSuccessCard({
                     ระบบจะจัดส่ง <strong>เอกสารฉบับสมบูรณ์</strong> ให้ท่านทางอีเมลนี้อีกครั้ง
                   </p>
                   <p className="mt-2 text-amber-800">ปุ่มด้านล่างจะดาวน์โหลด “ฉบับที่ท่านกรอก” เพื่อเก็บไว้อ้างอิงระหว่างรอผลตรวจสอบ</p>
+                </div>
+              )}
+
+              {/* ── ฝั่ง CSR กรอกแทน (แลกเปลี่ยน): เอกสารตอนนี้เป็น "ฉบับที่กรอก" (draft/ยังไม่ตรวจ)
+                  CSR เลือกผู้รับด้านล่างแล้วกดส่ง — ระบบส่งอีเมล "แจ้งรับเรื่อง" ให้ตามที่เลือก
+                  เอกสารฉบับสมบูรณ์จะส่งไปที่ชุดอีเมลเดิมอัตโนมัติหลัง CSR ตรวจ compliance เสร็จ ── */}
+              {pendingVerification && !showTrackingLink && (
+                <div className="w-full text-left bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-sm text-amber-900 leading-relaxed">
+                  <p className="font-black mb-1">⏳ เอกสารฉบับชั่วคราว (ยังไม่ผ่านการตรวจสอบ)</p>
+                  <p>
+                    ใบงานแลกเปลี่ยน/คืนต้องผ่านการตรวจสอบรายการสินค้าและหลักเกณฑ์ก่อน เอกสารที่ดาวน์โหลด/ส่งได้ตอนนี้เป็น{' '}
+                    <strong>ฉบับที่กรอก</strong> เท่านั้น เลือกอีเมลผู้รับด้านล่างแล้วกด “ส่ง” เพื่อแจ้งรับเรื่องให้ลูกค้า
+                  </p>
+                  <p className="mt-2 text-amber-800">
+                    หลังตรวจสอบรายการในหน้าจัดการใบงานเสร็จ ระบบจะจัดส่ง <strong>เอกสารฉบับสมบูรณ์</strong> ไปที่อีเมลชุดเดียวกันนี้ให้อัตโนมัติ
+                  </p>
                 </div>
               )}
 

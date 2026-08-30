@@ -37,8 +37,12 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
     .eq('id', requestId)
     .maybeSingle();
 
+  // เจ้าของระดับหน่วยงาน: ปกติมาจาก b2b_customers ที่ผูกกับใบงาน — แต่ใบงานที่ CSR กรอกแทน
+  // ลูกค้า (csr_manual) มี b2b_customer_id = NULL จึงไม่มี join นี้ ให้ fallback ไปดู
+  // requests.customer_code ตรงๆ (ตั้งค่าจาก organization ตอน createStaffReturnRequest)
   const owner = Array.isArray(request?.b2b_customers) ? request.b2b_customers[0] : request?.b2b_customers;
-  const sameOrg = !!session.customer_code && !!owner?.customer_code && owner.customer_code === session.customer_code;
+  const ownerCode = owner?.customer_code ?? request?.customer_code ?? null;
+  const sameOrg = !!session.customer_code && !!ownerCode && ownerCode === session.customer_code;
 
   if (fetchErr || !request || !sameOrg) {
     // ข้อความเดียวกันทั้ง "ไม่เจอ" และ "เจอแต่ไม่ใช่ของคุณ" กัน enumeration

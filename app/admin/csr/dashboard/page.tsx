@@ -25,6 +25,9 @@ import {
   Warehouse,
   Receipt,
   LogOut,
+  MailWarning,
+  Send,
+  FileCheck2,
 } from 'lucide-react';
 import { getStatusMeta } from '@/lib/tracking-status';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
@@ -37,6 +40,7 @@ import {
   getCSRRequestDetail,
 } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
+import { getOrgContactsForRequest, generateStaffPdfAction, sendStaffPdfEmailAction } from '@/app/actions/staff-form-actions';
 import CSRDrugRow from './component/CSRDrugRow';
 import DeliveryPhotoBadge from './component/DeliveryPhotoBadge';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
@@ -591,6 +595,64 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
   );
 }
 
+type OrgContact = { id: number | string; contact_name: string | null; email: string };
+
+// ── ใบงานแลกเปลี่ยนที่ CSR กรอกแทนลูกค้า ผ่านการตรวจสอบแล้วแต่ "เอกสารฉบับตรวจสอบแล้ว"
+// ยังไม่ถึงมือลูกค้า — CSR ไม่ได้เลือกผู้รับตอนแจ้งรับเรื่อง หรือตอนนั้นระบบส่งไม่สำเร็จ
+// (ปกติ email #2 ส่งอัตโนมัติหลังกดอนุมัติ/ปฏิเสธ ถ้ามีชุดผู้รับที่ CSR เลือกไว้แล้ว) ──
+const isDocDeliveryPending = (r: RequestRow, sentIds: Set<number>) =>
+  r.submission_channel === 'csr_manual' &&
+  r.request_type === 'รับคืนแลกเปลี่ยน' &&
+  r.current_status !== 'pending_review' &&
+  !sentIds.has(r.id);
+
+function PendingDocBanner({ items, onSend }: { items: RequestRow[]; onSend: (requestId: number) => void }) {
+  const [open, setOpen] = useState(true);
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+          <MailWarning size={18} className="text-amber-600" strokeWidth={2.5} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-amber-900">
+            เอกสารฉบับตรวจสอบแล้วยังไม่ถึงลูกค้า ({items.length})
+          </p>
+          <p className="text-[11px] text-amber-700 leading-snug">
+            ใบงานแลกเปลี่ยนที่ท่านกรอกแทนลูกค้า — ผ่านการตรวจสอบแล้วแต่ยังไม่ได้เลือกผู้รับอีเมล หรือระบบส่งไม่สำเร็จ
+          </p>
+        </div>
+        <ChevronDown size={16} className={`text-amber-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} strokeWidth={2.5} />
+      </button>
+
+      {open && (
+        <div className="border-t border-amber-200 divide-y divide-amber-200/70">
+          {items.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-amber-900 font-mono">{r.ref_id}</p>
+                {r.hospital_name && (
+                  <p className="text-[11px] text-amber-700 truncate">{r.hospital_name}</p>
+                )}
+              </div>
+              <button
+                onClick={() => onSend(r.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 transition-all shrink-0"
+              >
+                <Send size={13} strokeWidth={2.5} /> เลือกผู้รับและส่ง
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CSRDashboard() {
   const router = useRouter();
   const toast = useToast();
@@ -623,10 +685,22 @@ export default function CSRDashboard() {
   const [completeReasonCode, setCompleteReasonCode] = useState('');
   const [completeDetail, setCompleteDetail] = useState('');
 
+  // ── ส่ง "เอกสารฉบับตรวจสอบแล้ว" ให้ลูกค้าย้อนหลัง (ใบงานแลกเปลี่ยนที่ CSR กรอกแทน) ──
+  // id ของใบงานที่ส่งเอกสารถึงลูกค้าแล้ว (status_logs 'document_sent') — จาก getCSRDashboardData
+  const [verifiedDocSentIds, setVerifiedDocSentIds] = useState<Set<number>>(new Set());
+  const [sendDocModal, setSendDocModal] = useState<{ requestId: number } | null>(null);
+  const [docRecipients, setDocRecipients] = useState<OrgContact[]>([]);
+  const [docRecipientsLoaded, setDocRecipientsLoaded] = useState(false);
+  const [selectedDocEmails, setSelectedDocEmails] = useState<string[]>([]);
+  const [docSending, setDocSending] = useState(false);
+
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
     const data = await getCSRDashboardData();
-    if (data.success) { setRequests(data.requests || []); }
+    if (data.success) {
+      setRequests(data.requests || []);
+      setVerifiedDocSentIds(new Set(data.verifiedDocSentIds || []));
+    }
     if (!opts?.silent) setIsLoading(false);
   };
 
@@ -721,12 +795,16 @@ export default function CSRDashboard() {
       if (res.success) {
         setConfirmModal(null);
         setRemark('');
-        // แลกเปลี่ยน+ลูกค้ายื่นเอง: ระบบสร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลให้ลูกค้าอัตโนมัติ
+        // แลกเปลี่ยน: ระบบสร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลอัตโนมัติ
+        //  - ลูกค้ายื่นเอง → ส่งให้ลูกค้า + sale ที่ดูแลหน่วยงาน
+        //  - CSR กรอกแทน  → ส่งไปที่อีเมลชุดที่ CSR เลือกไว้ตอนแจ้งรับเรื่อง (requests.notify_emails)
         const emailedTo = 'emailedTo' in res ? (res.emailedTo as string[] | undefined) : undefined;
         if (emailedTo && emailedTo.length > 0) {
-          toast.success(`ส่งเอกสาร PDF ฉบับตรวจสอบแล้วให้ลูกค้าทางอีเมล: ${emailedTo.join(', ')}`);
+          toast.success(`ส่งเอกสาร PDF ฉบับตรวจสอบแล้วทางอีเมล: ${emailedTo.join(', ')}`);
         } else if (emailedTo) {
-          toast.error('สร้างเอกสารฉบับตรวจสอบแล้ว แต่ไม่พบอีเมลผู้รับ — กรุณาตรวจสอบข้อมูลติดต่อของหน่วยงาน');
+          // csr_manual ที่ยังไม่มีชุดผู้รับ / ส่งไม่ผ่าน — เปิด modal ให้ CSR เลือกผู้รับแล้วส่งทันที
+          toast.error('สร้างเอกสารฉบับตรวจสอบแล้ว แต่ยังไม่ได้ส่ง — กรุณาเลือกผู้รับอีเมล');
+          openSendDocModal(requestId);
         }
         fetchData();
       } else {
@@ -740,6 +818,65 @@ export default function CSRDashboard() {
     }
   };
 
+  // ── เปิด modal ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าย้อนหลัง ──
+  const openSendDocModal = (requestId: number) => {
+    setDocRecipients([]);
+    setDocRecipientsLoaded(false);
+    setSelectedDocEmails([]);
+    setSendDocModal({ requestId });
+  };
+
+  // โหลดรายชื่อผู้รับของหน่วยงาน + default เลือกชุดที่ CSR เคยเลือกไว้ (notify_emails) ถ้ามี ไม่งั้นเลือกทั้งหมด
+  useEffect(() => {
+    if (!sendDocModal) return;
+    let cancelled = false;
+    (async () => {
+      const req = requests.find((r) => r.id === sendDocModal.requestId);
+      const res = await getOrgContactsForRequest(sendDocModal.requestId);
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setDocRecipients(res.data);
+        const prev = (req?.notify_emails ?? []).filter(Boolean);
+        const allowed = new Set(res.data.map((c) => c.email));
+        const preset = prev.filter((e) => allowed.has(e));
+        setSelectedDocEmails(preset.length > 0 ? preset : res.data.map((c) => c.email));
+      }
+      setDocRecipientsLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [sendDocModal, requests]);
+
+  const toggleDocEmail = (email: string) =>
+    setSelectedDocEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
+
+  const submitSendDoc = async () => {
+    if (!sendDocModal || selectedDocEmails.length === 0) return;
+    setDocSending(true);
+    try {
+      const { requestId } = sendDocModal;
+      // 1. การันตีว่ามีเอกสารฉบับตรวจสอบแล้ว (kind='final') — สร้าง on-demand ถ้ายังไม่มี
+      const gen = await generateStaffPdfAction(requestId);
+      if (!gen.success) {
+        toast.error(`สร้างเอกสารไม่สำเร็จ: ${gen.error}`);
+        return;
+      }
+      // 2. ส่งอีเมลพร้อมลิงก์เอกสารให้ผู้รับที่เลือก (allowlist ตรวจซ้ำฝั่ง server)
+      const res = await sendStaffPdfEmailAction(requestId, selectedDocEmails);
+      if (res.success) {
+        toast.success(res.message || 'ส่งเอกสารให้ลูกค้าเรียบร้อยแล้ว');
+        setSendDocModal(null);
+        fetchData({ silent: true });
+      } else {
+        toast.error(res.error || 'ส่งเอกสารไม่สำเร็จ');
+      }
+    } catch (err) {
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    } finally {
+      setDocSending(false);
+    }
+  };
+
   // แยกใบงาน active ออกจากใบงานที่จบแล้ว (completed/rejected) เพื่อไม่ให้ปนกันในรายการเดียว
   const activeRequests  = requests.filter(r => r.current_status !== 'completed' && r.current_status !== 'rejected');
   // "ประวัติใบงาน" แสดงใบงานทุกสถานะ (ไม่กรองเฉพาะ completed/rejected อีกต่อไป) — เป็น log
@@ -750,6 +887,9 @@ export default function CSRDashboard() {
   );
   const historyRequestsFiltered = !historyTypeFilter ? historyRequestsSorted
     : historyRequestsSorted.filter((r) => r.request_type === historyTypeFilter);
+
+  // ใบงานแลกเปลี่ยน (CSR กรอกแทน) ที่ผ่านการตรวจแล้วแต่เอกสารฉบับตรวจสอบยังไม่ถึงลูกค้า
+  const pendingDocRequests = requests.filter((r) => isDocDeliveryPending(r, verifiedDocSentIds));
 
   // ใบงานที่ modal "เริ่มกระบวนการ" กำลังเปิดอยู่ — ใช้ตัดสินใจว่าเป็นแลกเปลี่ยนหรือลดหนี้ (คำในปุ่ม/หัวข้อ modal ต้องตรงกัน)
   const exchangeModalRequest = exchangeModal ? requests.find(r => r.id === exchangeModal.requestId) : undefined;
@@ -852,6 +992,8 @@ export default function CSRDashboard() {
             onClick={() => setStatusFilter('rejected')}
           />
         </div>
+
+        <PendingDocBanner items={pendingDocRequests} onSend={openSendDocModal} />
 
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
@@ -1177,6 +1319,96 @@ export default function CSRDashboard() {
           </div>
         </div>
       )}
+
+      {/* ══ Modal: ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าย้อนหลัง (csr_manual แลกเปลี่ยน) ══ */}
+      {sendDocModal && (() => {
+        const req = requests.find((r) => r.id === sendDocModal.requestId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+              <div className="h-1.5 bg-amber-500" />
+              <div className="p-7">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <FileCheck2 size={22} className="text-amber-600" strokeWidth={2.5} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-foreground">ส่งเอกสารฉบับตรวจสอบแล้ว</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      Ref: {req?.ref_id}{req?.hospital_name ? ` · ${req.hospital_name}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                  ระบบจะส่งอีเมลพร้อมลิงก์ดาวน์โหลด <span className="font-semibold text-foreground">เอกสารฉบับตรวจสอบแล้ว</span> ไปยังผู้รับที่เลือก
+                  {req?.notify_emails?.length ? ' (ครั้งก่อนส่งไม่สำเร็จ ระบบจะส่งซ้ำ)' : ' — ใบงานนี้ยังไม่เคยเลือกผู้รับ'}
+                </p>
+
+                {!docRecipientsLoaded ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 size={16} className="animate-spin" /> กำลังโหลดรายชื่อผู้รับ…
+                  </div>
+                ) : docRecipients.length === 0 ? (
+                  <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 font-medium">
+                    ไม่พบผู้ติดต่อของหน่วยงานนี้ในระบบ — ไม่สามารถส่งอีเมลได้
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-border bg-secondary/50 p-3 mb-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">
+                        ผู้รับ ({selectedDocEmails.length}/{docRecipients.length})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDocEmails(docRecipients.map((r) => r.email))}
+                        className="text-xs font-black text-amber-600 hover:text-amber-700 underline underline-offset-2"
+                      >
+                        เลือกทั้งหมด
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-0.5 max-h-44 overflow-y-auto">
+                      {docRecipients.map((r) => (
+                        <label key={r.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={selectedDocEmails.includes(r.email)}
+                            onChange={() => toggleDocEmail(r.email)}
+                            className="w-4 h-4 rounded border-slate-300 accent-amber-600 shrink-0"
+                          />
+                          <span className="text-sm font-bold text-foreground truncate">{r.contact_name || 'ไม่ระบุชื่อ'}</span>
+                          <span className="text-xs text-muted-foreground truncate ml-auto">{r.email}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mt-5">
+                  <button
+                    type="button"
+                    onClick={() => setSendDocModal(null)}
+                    disabled={docSending}
+                    className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitSendDoc}
+                    disabled={docSending || selectedDocEmails.length === 0}
+                    className="py-3.5 rounded-md font-bold text-sm text-white bg-amber-600 hover:bg-amber-700 transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {docSending
+                      ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังส่ง…</>
+                      : <><Send size={15} strokeWidth={2.5} /> ส่งเอกสาร ({selectedDocEmails.length})</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

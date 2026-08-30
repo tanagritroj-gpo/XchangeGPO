@@ -71,7 +71,16 @@ export async function getCSRDashboardData() {
       throw new Error("ดึงข้อมูลพลาด: " + (clientErr?.message || reqErr?.message));
     }
 
-    return { success: true, clients, requests };
+    // ★ ใบงานที่ "เอกสารฉบับตรวจสอบแล้ว" ส่งถึงลูกค้าเรียบร้อย (มี status_logs 'document_sent') —
+    // ใช้ให้ dashboard รู้ว่าใบงานแลกเปลี่ยนที่ CSR กรอกแทน ใบไหนยัง "ค้างส่งเอกสาร"
+    // (deliverVerifiedExchangeDoc / sendStaffPdfEmailAction ลง log นี้เฉพาะเมื่อส่งถึงอย่างน้อย 1 คน)
+    const { data: sentDocLogs } = await supabaseAdmin
+      .from('status_logs')
+      .select('request_id')
+      .eq('status_name', 'document_sent');
+    const verifiedDocSentIds = [...new Set((sentDocLogs ?? []).map((l) => l.request_id as number))];
+
+    return { success: true, clients, requests, verifiedDocSentIds };
 
   } catch (e: unknown) {
     console.error("DEBUG - Catch Error:", getErrorMessage(e));
