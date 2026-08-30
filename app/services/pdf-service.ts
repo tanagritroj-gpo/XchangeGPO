@@ -9,18 +9,24 @@ import {
   TABLE_MAX_ROWS,
   drawCheck,
   drawField,
+  drawStrike,
   tableCell,
+  tableRowStrike,
   thaiDateFull,
   thaiDateParts,
 } from '@/lib/pdf-form-layout';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 const INK = rgb(0.1, 0.1, 0.12);
+const STRIKE = rgb(0.72, 0.1, 0.1); // แดงเข้ม — เส้นขีดคร่อม + หมายเหตุการตรวจสอบ
 
 type BuildOpts = {
   // PNG ลายเซ็นลูกค้า (resolve จาก storage ฝั่ง action แล้วส่งเข้ามา — โมดูลนี้ไม่แตะ Supabase)
   signaturePng?: Uint8Array | null;
 };
+
+// item ที่ CSR ตรวจแล้ว "ไม่ผ่านเกณฑ์" (is_compliant === false) — verified PDF จะขีดคร่อม
+const isRejected = (it: DrugItemRow) => it.is_compliant === false;
 
 // เขียนข้อมูลคำร้องลงบน template ฟอร์ม FM-AJJ0-008 — ทุกพิกัดอ้างอิงจาก lib/pdf-form-layout.ts
 // (แปลงมาจากสไลด์ Autocrat + จุดที่วัดเองบน template) ไม่มี magic number ในไฟล์นี้
@@ -78,28 +84,61 @@ export async function buildReturnFormPdf(request: RequestRow, opts: BuildOpts = 
 
   // ── ตารางยา ───────────────────────────────────────────────────────────────
   const items = (request.drug_items ?? []).slice(0, TABLE_MAX_ROWS);
+  // verified = มี item อย่างน้อย 1 ที่ CSR ตรวจแล้วไม่ผ่านเกณฑ์ (data-driven — ใช้ได้ทุก channel)
+  const verified = items.some(isRejected);
+
   items.forEach((item: DrugItemRow, i: number) => {
-    f(i + 1, tableCell('no', i));
+    const rejected = isRejected(item);
+    f(rejected ? `*${i + 1}` : i + 1, tableCell('no', i));
     f(item.drug_name, tableCell('name', i));
     f(formatQty(item), tableCell('qty', i));
     f(item.lot_number, tableCell('lot', i));
     f(thaiDateFull(item.exp_date), tableCell('exp', i));
     f(item.invoice_number, tableCell('ref', i));
+    if (rejected) drawStrike(page, STRIKE, tableRowStrike(i));
   });
 
-  // รวม N รายการ / คิดเป็นมูลค่ารวม ... บาท
-  if (items.length > 0) f(items.length, LAYOUT.item_count);
-  if (request.total_value != null) {
-    f(request.total_value.toLocaleString('th-TH', { minimumFractionDigits: 2 }), LAYOUT.total_value);
+  // รวม N รายการ / คิดเป็นมูลค่ารวม ... บาท — verified: นับ/รวมเฉพาะ item ที่ผ่าน
+  const countedItems = verified ? items.filter((it) => !isRejected(it)) : items;
+  if (countedItems.length > 0) f(countedItems.length, LAYOUT.item_count);
+  const totalValue = verified
+    ? countedItems.reduce((s, it) => s + (Number(it.value_amount) || 0), 0)
+    : request.total_value;
+  if (totalValue != null) {
+    f(totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 }), LAYOUT.total_value);
   }
 
   // ── เหตุผล / สินค้าแลกเปลี่ยน ─────────────────────────────────────────────
   f(request.return_reason, LAYOUT.return_reason);
   f(formatExchangeProduct(request), LAYOUT.exchange_item, {
-    wrap: 3,
+    // verified: บีบเหลือ 1 บรรทัด เพื่อสงวนบรรทัดว่างด้านล่างให้ footnote การตรวจสอบ
+    wrap: verified ? 1 : 3,
     wrapX: LAYOUT.exchange_item_wrap_x,
     wrapWidth: 505,
   });
+
+  // ── หมายเหตุการตรวจสอบ (verified) ─────────────────────────────────────────
+  if (verified) {
+    const rejects = items
+      .map((it, i) => ({ it, i }))
+      .filter(({ it }) => isRejected(it));
+    const fnBase = LAYOUT.verification_footnote;
+    const gap = LAYOUT.verification_footnote_line_gap;
+    drawField(page, font, STRIKE, 'หมายเหตุการตรวจสอบ — รายการที่มีเครื่องหมาย * ไม่ผ่านเกณฑ์การรับคืน/แลกเปลี่ยน:', fnBase, { shrink: true });
+    // มีที่ว่าง ~3 บรรทัดก่อนหัวข้อ "วิธีการส่งคืนสินค้า" — เกินนั้นย่อเป็นบรรทัดเดียว
+    const MAX_LINES = 3;
+    if (rejects.length <= MAX_LINES) {
+      rejects.forEach(({ it, i }, k) => {
+        const reason = (it.compliance_remark ?? '').trim() || 'ไม่ระบุเหตุผล';
+        drawField(page, font, STRIKE, `*${i + 1} ${it.drug_name} — ${reason}`, { ...fnBase, y: fnBase.y - (k + 1) * gap }, { shrink: true });
+      });
+    } else {
+      const summary = rejects
+        .map(({ it, i }) => `*${i + 1} ${it.drug_name} (${(it.compliance_remark ?? '').trim() || 'ไม่ระบุ'})`)
+        .join('  ·  ');
+      drawField(page, font, STRIKE, summary, { ...fnBase, y: fnBase.y - gap, maxWidth: 505 }, { wrap: 2, minSize: 7 });
+    }
+  }
 
   // ── วิธีการส่งคืนสินค้า (checkbox + รายละเอียด) ───────────────────────────
   const deliveryType = (request.delivery_type ?? '').trim();

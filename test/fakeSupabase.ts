@@ -25,6 +25,7 @@ class FakeQueryBuilder {
   private mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
   private updateValues?: Row;
   private insertValues?: Row | Row[];
+  private upsertConflict?: string[];
   private wantsSingle = false;
   private wantsMaybeSingle = false;
   private wantsCount = false;
@@ -60,6 +61,15 @@ class FakeQueryBuilder {
   insert(values: Row | Row[]) {
     this.mode = 'insert';
     this.insertValues = values;
+    return this;
+  }
+
+  // upsert: หา row เดิมที่ค่าคอลัมน์ conflict ตรงกันทั้งหมด → update; ไม่เจอ → insert
+  // (รองรับเฉพาะ onConflict แบบ 'col1,col2' ที่โค้ดในโปรเจกต์ใช้)
+  upsert(values: Row | Row[], opts?: { onConflict?: string }) {
+    this.mode = 'insert';
+    this.insertValues = values;
+    this.upsertConflict = opts?.onConflict?.split(',').map((c) => c.trim());
     return this;
   }
 
@@ -255,6 +265,31 @@ class FakeQueryBuilder {
         data = this.wantsSingle ? rows[0] : rows;
       } else if (this.mode === 'insert') {
         const arr = Array.isArray(this.insertValues) ? this.insertValues : [this.insertValues!];
+
+        // upsert: อัปเดต row ที่ conflict cols ตรงกัน แทน insert ใหม่
+        if (this.upsertConflict) {
+          const conflictCols = this.upsertConflict;
+          const out: Row[] = [];
+          for (const v of arr) {
+            const existing = this.table().find((r) => conflictCols.every((c) => r[c] === v[c]));
+            if (existing) {
+              Object.assign(existing, v);
+              out.push(existing);
+            } else {
+              const row: Row = { id: this.nextId(this.tableName), ...v };
+              this.table().push(row);
+              out.push(row);
+            }
+          }
+          data = this.wantsSingle ? out[0] : out;
+          if (this.projectColumns) {
+            const project = (row: Row) => Object.fromEntries(this.projectColumns!.map((c) => [c, row[c]]));
+            data = Array.isArray(data) ? data.map(project) : project(data);
+          }
+          resolve({ data, error: null });
+          return;
+        }
+
         const uniqueCols = UNIQUE_COLUMNS[this.tableName] ?? [];
         for (const v of arr) {
           for (const col of uniqueCols) {

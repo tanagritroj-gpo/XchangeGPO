@@ -4,6 +4,7 @@ import {
   LAYOUT,
   TABLE_MAX_ROWS,
   tableCell,
+  tableRowStrike,
   thaiDateParts,
   thaiDateFull,
   drawField,
@@ -58,6 +59,21 @@ describe('tableCell', () => {
   it('centers numeric columns, left-aligns name', () => {
     expect(tableCell('qty', 0).align).toBe('center');
     expect(tableCell('name', 0).align).toBe('left');
+  });
+});
+
+describe('tableRowStrike', () => {
+  it('spans the data columns (past ลำดับ, to the table right edge) at the row text level', () => {
+    const s = tableRowStrike(0);
+    expect(s.x1).toBeGreaterThan(80);   // ไม่คร่อมเลขลำดับ (คอลัมน์ ลำดับ จบที่ ~91)
+    expect(s.x1).toBeLessThan(95);
+    expect(s.x2).toBeGreaterThan(555);  // ถึงขอบขวาคอลัมน์เลขที่ใบส่งของ (~560)
+    // เส้นอยู่ระดับ x-height ของ baseline แถวนั้น
+    expect(s.y).toBeCloseTo(tableCell('name', 0).y + 3.5, 5);
+  });
+
+  it('advances with the row', () => {
+    expect(tableRowStrike(0).y - tableRowStrike(1).y).toBeCloseTo(36.7, 1);
   });
 });
 

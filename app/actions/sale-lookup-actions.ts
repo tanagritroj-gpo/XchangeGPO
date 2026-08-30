@@ -3,42 +3,16 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getCustomerSession } from './auth-actions';
 import { getStaffSession } from './auth-staff';
-import { bucketForOrgType } from '@/lib/sale-coverage';
+import { findSaleRepsCovering } from '@/lib/sale-reps';
+import type { SaleRepInfo } from '@/lib/sale-reps';
 
-export interface SaleRepInfo {
-  id: string;
-  full_name: string;
-  email: string;
-}
-
+// ★ ไฟล์นี้เป็น 'use server' — export ได้เฉพาะ async function เท่านั้น ห้าม re-export type
+//   (export type { SaleRepInfo } ทำให้ SWC pass ของ Server Actions emit เป็น value re-export
+//    ของ binding ที่ถูก erase ไปแล้ว → ReferenceError ตอน runtime) ผู้ใช้ที่ต้องการ SaleRepInfo
+//   ให้ import ตรงจาก '@/lib/sale-reps'
 export type SaleRepLookupResult =
   | { success: true; reps: SaleRepInfo[] }
   | { success: false; error: string };
-
-// จับคู่ sale ที่ดูแลหน่วยงานนี้ — logic เดียวกับที่ fetchOrgContactsForRequest() ใน
-// staff-form-actions.ts ใช้ตอนหา sale เพื่อเป็นผู้รับอีเมล (many-to-many ผ่าน
-// org_type/province เทียบกับ sale_customer_types/sale_provinces ของแต่ละคน ไม่ใช่
-// assign ตรง 1 หน่วยงานต่อ 1 sale — อาจได้ 0/1/หลายคนก็ได้) ★ ต้องมี email เท่านั้นถึงจะนับ
-// (ไม่มี email ส่งอีเมลหาไม่ได้อยู่แล้ว)
-async function findSaleRepsCovering(orgType: string | null | undefined, province: string | null | undefined): Promise<SaleRepInfo[]> {
-  const bucket = bucketForOrgType(orgType);
-  if (!bucket || !province) return [];
-
-  const { data: saleReps } = await supabaseAdmin
-    .from('staff_users')
-    .select('id, full_name, email, sale_customer_types, sale_provinces')
-    .eq('department', 'sale')
-    .eq('is_approved', true)
-    .not('email', 'is', null);
-
-  return (saleReps ?? [])
-    .filter((s) => {
-      const types = (s.sale_customer_types as string[] | null) ?? [];
-      const provinces = (s.sale_provinces as string[] | null) ?? [];
-      return !!s.email && types.includes(bucket) && provinces.includes(province);
-    })
-    .map((s) => ({ id: String(s.id), full_name: s.full_name ?? 'ไม่ระบุชื่อ', email: s.email as string }));
-}
 
 // ฝั่งลูกค้า — ใช้ตอนกรอกแบบฟอร์มเอง เลือก "จัดส่งผ่านผู้แทน" แล้วอยากรู้ว่า sale
 // คนไหนดูแลหน่วยงานตัวเอง ★ ดึง customer_code จาก session ที่ verify แล้วเท่านั้น

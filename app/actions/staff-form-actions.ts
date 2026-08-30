@@ -4,8 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { buildReturnFormPdf } from '../services/pdf-service';
-import { resolveSignaturePng } from '@/lib/resolve-signature';
+import { buildAndStoreReturnPdf, draftDir, finalDir, type DocKind } from '@/lib/return-form-pdf';
 import { bucketForOrgType } from '@/lib/sale-coverage';
 import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
@@ -265,42 +264,36 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
     return { success: false, error: 'ไม่พบคำร้องนี้' };
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from('document_attachments')
-    .select('file_path')
-    .eq('request_id', requestId)
-    .maybeSingle();
+  // แลกเปลี่ยนที่ยังไม่ผ่านการตรวจ → ฉบับ draft; นอกนั้น → final
+  const wantKind: DocKind =
+    request.request_type === 'รับคืนแลกเปลี่ยน' && request.current_status === 'pending_review' ? 'draft' : 'final';
 
-  let filePath = existing?.file_path;
+  const pickDoc = async (kind: DocKind) =>
+    (await supabaseAdmin
+      .from('document_attachments')
+      .select('file_path')
+      .eq('request_id', requestId)
+      .eq('kind', kind)
+      .maybeSingle()).data?.file_path as string | undefined;
+
+  let filePath = (await pickDoc(wantKind)) ?? (await pickDoc(wantKind === 'draft' ? 'final' : 'draft'));
 
   if (!filePath) {
-    // path แยก namespace ด้วย 'staff' แทน customer id เพราะไม่ผูกกับ session ฝั่งลูกค้า
-    filePath = `returns/staff/${request.ref_id}.pdf`;
-
-    const signaturePng = await resolveSignaturePng(request.signature_url);
-    const pdfBytes = await buildReturnFormPdf(request, { signaturePng });
-
-    const { error: uploadErr } = await supabaseAdmin.storage
-      .from('return-documents')
-      .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-
-    if (uploadErr) {
-      console.error('Storage upload failed (staff):', uploadErr);
-      Sentry.captureException(uploadErr, { tags: { area: 'pdf-upload' } });
+    const storageDir = wantKind === 'draft' ? draftDir(request.b2b_customer_id ?? null) : finalDir(request);
+    try {
+      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir });
+      filePath = res.filePath;
+    } catch (buildErr) {
+      console.error('buildAndStoreReturnPdf failed (staff):', buildErr);
+      Sentry.captureException(buildErr, { tags: { area: 'pdf-upload' } });
       return { success: false, error: 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่' };
     }
-
-    await supabaseAdmin.from('document_attachments').insert({
-      request_id: requestId,
-      ref_id: request.ref_id,
-      file_path: filePath,
-    });
 
     await supabaseAdmin.from('status_logs').insert({
       request_id: requestId,
       department: 'system',
       status_name: 'document_generated',
-      staff_remark: 'สร้างเอกสารอัตโนมัติ (CSR flow)',
+      staff_remark: `สร้างเอกสารอัตโนมัติ (CSR flow, ${wantKind})`,
       actor_type: 'system',
     });
   }
@@ -452,6 +445,7 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       .from('document_attachments')
       .select('file_path')
       .eq('request_id', requestId)
+      .eq('kind', 'final')
       .maybeSingle();
 
     if (docErr || !docData?.file_path) {

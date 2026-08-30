@@ -90,7 +90,7 @@ describe('generatePdfAction — first generation vs. reuse of an existing PDF', 
 
   it('reuses the existing file_path and does not rebuild the PDF or duplicate the document_attachments/status_logs rows on a second call', async () => {
     seedOwnedRequest();
-    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, file_path: 'returns/1/REF-1.pdf' });
+    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/1/REF-1.pdf' });
     // must actually exist in the fake storage bucket for createSignedUrl to succeed
     await fakeAdmin.client.storage.from('return-documents').upload('returns/1/REF-1.pdf', new Uint8Array([9]));
 
@@ -103,7 +103,7 @@ describe('generatePdfAction — first generation vs. reuse of an existing PDF', 
 
   it('still writes a fresh access_logs (PDPA) entry every time, even when reusing an existing file', async () => {
     seedOwnedRequest();
-    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, file_path: 'returns/1/REF-1.pdf' });
+    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/1/REF-1.pdf' });
     await fakeAdmin.client.storage.from('return-documents').upload('returns/1/REF-1.pdf', new Uint8Array([9]));
 
     await generatePdfAction(1);

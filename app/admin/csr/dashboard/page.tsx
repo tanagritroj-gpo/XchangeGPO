@@ -721,6 +721,13 @@ export default function CSRDashboard() {
       if (res.success) {
         setConfirmModal(null);
         setRemark('');
+        // แลกเปลี่ยน+ลูกค้ายื่นเอง: ระบบสร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลให้ลูกค้าอัตโนมัติ
+        const emailedTo = 'emailedTo' in res ? (res.emailedTo as string[] | undefined) : undefined;
+        if (emailedTo && emailedTo.length > 0) {
+          toast.success(`ส่งเอกสาร PDF ฉบับตรวจสอบแล้วให้ลูกค้าทางอีเมล: ${emailedTo.join(', ')}`);
+        } else if (emailedTo) {
+          toast.error('สร้างเอกสารฉบับตรวจสอบแล้ว แต่ไม่พบอีเมลผู้รับ — กรุณาตรวจสอบข้อมูลติดต่อของหน่วยงาน');
+        }
         fetchData();
       } else {
         toast.error(`${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);

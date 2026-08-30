@@ -10,6 +10,16 @@ vi.mock('../auth-actions', () => ({ getCustomerSession: vi.fn() }));
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 99 }),
 }));
+// แลกเปลี่ยน: createReturnRequest มี best-effort block สร้าง draft PDF + ส่งอีเมลแจ้งรับเรื่อง
+// — mock ไว้ ไม่ให้ test นี้ไปแตะการเรนเดอร์ PDF จริง / ยิง SMTP จริง
+vi.mock('@/lib/return-form-pdf', () => ({
+  buildAndStoreReturnPdf: vi.fn().mockResolvedValue({ filePath: 'drafts/42/REF-X.pdf' }),
+  draftDir: (id: number | null) => `drafts/${id ?? 'staff'}`,
+}));
+vi.mock('@/lib/send-return-form-email', () => ({
+  sendReturnFormEmail: vi.fn().mockResolvedValue({ error: null }),
+  resolveEmailMode: () => 'standard',
+}));
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -20,6 +30,11 @@ const mockGetCustomerSession = vi.mocked(getCustomerSession);
 
 const { checkRateLimit } = await import('@/lib/rate-limit');
 const mockCheckRateLimit = vi.mocked(checkRateLimit);
+
+const { buildAndStoreReturnPdf } = await import('@/lib/return-form-pdf');
+const { sendReturnFormEmail } = await import('@/lib/send-return-form-email');
+const mockBuildPdf = vi.mocked(buildAndStoreReturnPdf);
+const mockAckEmail = vi.mocked(sendReturnFormEmail);
 
 const { createReturnRequest, getNextDocNumber } = await import('../form-actions');
 
@@ -94,7 +109,35 @@ beforeEach(() => {
   mockGetCustomerSession.mockResolvedValue(CUSTOMER_SESSION as any);
   mockCheckRateLimit.mockReset();
   mockCheckRateLimit.mockResolvedValue({ allowed: true, remaining: 99 });
+  mockBuildPdf.mockReset();
+  mockBuildPdf.mockResolvedValue({ filePath: 'drafts/42/REF-X.pdf' });
+  mockAckEmail.mockReset();
+  mockAckEmail.mockResolvedValue({ error: null });
   registerCreateExchangeRequestRpc();
+});
+
+describe('createReturnRequest — exchange: server-side draft PDF + acknowledgment email', () => {
+  it('builds the draft (kind="draft") and sends the ack email (mode="ack") for an exchange request', async () => {
+    await createReturnRequest(baseFormData({ sender: { request_type: 'รับคืนแลกเปลี่ยน', hospital_name: 'รพ.ทดสอบ' } }));
+
+    expect(mockBuildPdf).toHaveBeenCalledWith(expect.objectContaining({ ref_id: expect.any(String) }), expect.objectContaining({ kind: 'draft' }));
+    expect(mockAckEmail).toHaveBeenCalledWith(expect.objectContaining({ to: CUSTOMER_SESSION.email, mode: 'ack' }));
+    const log = fakeAdmin.rows('status_logs').find((l: any) => l.status_name === 'ack_email_sent');
+    expect(log).toBeTruthy();
+  });
+
+  it('does NOT run the draft/ack flow for a non-exchange request', async () => {
+    await createReturnRequest(baseFormData({ sender: { request_type: 'รับคืนลดหนี้', hospital_name: 'รพ.ทดสอบ' } }));
+    expect(mockBuildPdf).not.toHaveBeenCalled();
+    expect(mockAckEmail).not.toHaveBeenCalled();
+  });
+
+  it('still creates the request even if the draft/ack side-effect throws (best-effort)', async () => {
+    mockBuildPdf.mockRejectedValueOnce(new Error('storage down'));
+    const res = await createReturnRequest(baseFormData({ sender: { request_type: 'รับคืนแลกเปลี่ยน', hospital_name: 'รพ.ทดสอบ' } }));
+    expect(res.id).toBeDefined();
+    expect(fakeAdmin.rows('requests')).toHaveLength(1);
+  });
 });
 
 describe('createReturnRequest — auth and rate limiting', () => {

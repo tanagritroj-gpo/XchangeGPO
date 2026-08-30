@@ -13,6 +13,13 @@ vi.mock('resend', () => ({
     emails = { send: vi.fn().mockResolvedValue({ data: { id: 'test' }, error: null }) };
   },
 }));
+// exchange verification side-effects (verified PDF + email #2 + audit logs) มีเทสต์ตรง ๆ
+// ที่ lib/__tests__/exchange-verification.test.ts — ที่นี่แค่ยืนยันว่า csr-actions "เรียก" ถูกจุด
+vi.mock('@/lib/exchange-verification', () => ({
+  deliverVerifiedExchangeDoc: vi.fn().mockResolvedValue(null),
+  logComplianceCorrection: vi.fn().mockResolvedValue(undefined),
+  logComplianceOverride: vi.fn().mockResolvedValue(undefined),
+}));
 
 const adminModule: any = await import('@/lib/supabase/admin');
 const fakeAdmin: ReturnType<typeof createFakeAdmin> = adminModule.__fake;
@@ -28,7 +35,14 @@ const {
   completeRequest,
   reviewClient,
   getRegistrationDocumentUrl,
+  updateDrugCompliance,
+  approveDrugItem,
 } = await import('../csr-actions');
+
+const { deliverVerifiedExchangeDoc, logComplianceCorrection, logComplianceOverride } = await import('@/lib/exchange-verification');
+const mockDeliver = vi.mocked(deliverVerifiedExchangeDoc);
+const mockLogCorrection = vi.mocked(logComplianceCorrection);
+const mockLogOverride = vi.mocked(logComplianceOverride);
 
 const CSR_STAFF = { id: 'csr-1', username: 'csr-1', full_name: 'Test Staff', department: 'csr', role: 'staff', sale_customer_types: null, sale_provinces: null, email: null, signature_url: null, mfa_enabled: false, mfa_grace_until: null };
 
@@ -50,6 +64,12 @@ function seedRequest(
 beforeEach(() => {
   mockGetStaffSession.mockReset();
   mockGetStaffSession.mockResolvedValue(CSR_STAFF);
+  mockDeliver.mockReset();
+  mockDeliver.mockResolvedValue(null);
+  mockLogCorrection.mockReset();
+  mockLogCorrection.mockResolvedValue(undefined);
+  mockLogOverride.mockReset();
+  mockLogOverride.mockResolvedValue(undefined);
 });
 
 describe('authorization guard uses department, not role — unlike wh/logistics', () => {
@@ -112,6 +132,77 @@ describe('approveRequest — blocked while any item is still unreviewed', () => 
 
     expect(res.success).toBe(true);
     expect(fakeAdmin.rows('requests')[0].current_status).toBe('rejected');
+  });
+});
+
+describe('exchange verification — csr-actions wires the side-effects at the right points', () => {
+  it('approveRequest delivers the verified doc and passes emailedTo through to the caller', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'approved' }], 'pending_review', 'รับคืนแลกเปลี่ยน');
+    mockDeliver.mockResolvedValueOnce({ emailedTo: ['cust@x.com', 'sale@x.com'] });
+
+    const res: any = await approveRequest(1);
+
+    expect(res.success).toBe(true);
+    expect(mockDeliver).toHaveBeenCalledWith(1, 'csr-1');
+    expect(res.emailedTo).toEqual(['cust@x.com', 'sale@x.com']);
+  });
+
+  it('rejectRequest also delivers the verified doc (all items struck through)', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'approved' }], 'pending_review', 'รับคืนแลกเปลี่ยน');
+    mockDeliver.mockResolvedValueOnce({ emailedTo: ['cust@x.com'] });
+
+    const res: any = await rejectRequest(1, 'damaged', 'ชำรุด');
+
+    expect(res.success).toBe(true);
+    expect(mockDeliver).toHaveBeenCalledWith(1, 'csr-1');
+    expect(res.emailedTo).toEqual(['cust@x.com']);
+  });
+
+  it('non-exchange approveRequest returns no emailedTo (deliver is a no-op)', async () => {
+    seedRequest(1, [{ id: 1, current_status: 'approved' }], 'pending_review', 'รับคืนลดหนี้');
+    const res: any = await approveRequest(1);
+    expect(res.success).toBe(true);
+    expect(res).not.toHaveProperty('emailedTo'); // deliverVerifiedExchangeDoc returned null
+  });
+
+  it('updateDrugCompliance persists the verdict and logs the compliance correction', async () => {
+    seedRequest(1, [{ id: 5, current_status: 'pending_review' }], 'pending_review', 'รับคืนแลกเปลี่ยน');
+
+    const res = await updateDrugCompliance(5, 'OTHER', { pass: false, msg: 'อายุคงเหลือไม่ถึง 7 เดือน' });
+
+    expect(res).toEqual({ success: true });
+    const item = fakeAdmin.rows('drug_items').find((i) => i.id === 5);
+    expect(item).toMatchObject({ product_type: 'OTHER', is_compliant: false, compliance_remark: 'อายุคงเหลือไม่ถึง 7 เดือน' });
+    expect(mockLogCorrection).toHaveBeenCalledWith(expect.objectContaining({
+      requestId: 1, drugItemId: 5, staffId: 'csr-1',
+      after: { product_type: 'OTHER', is_compliant: false, compliance_remark: 'อายุคงเหลือไม่ถึง 7 เดือน' },
+    }));
+  });
+
+  it('approveDrugItem records an override + logs it when the item failed the criteria check', async () => {
+    fakeAdmin.seed({
+      requests: [{ id: 1, current_status: 'pending_review', request_type: 'รับคืนแลกเปลี่ยน' }],
+      drug_items: [{ id: 9, request_id: 1, current_status: 'pending_review', product_type: 'OTHER', is_compliant: false, compliance_remark: 'อายุคงเหลือไม่ถึง 7 เดือน' }],
+      status_logs: [], clients: [], b2b_customers: [],
+    });
+
+    const res = await approveDrugItem(9, 1, 'อนุมัติพิเศษ');
+
+    expect(res).toEqual({ success: true });
+    const log = fakeAdmin.rows('status_logs').find((l) => l.status_name === 'approved' && l.drug_item_id === 9);
+    expect(log?.staff_remark).toContain('อนุมัตินอกเกณฑ์');
+    expect(mockLogOverride).toHaveBeenCalledWith(expect.objectContaining({ requestId: 1, drugItemId: 9, staffId: 'csr-1' }));
+  });
+
+  it('approveDrugItem does NOT log an override for a compliant item', async () => {
+    fakeAdmin.seed({
+      requests: [{ id: 1, current_status: 'pending_review', request_type: 'รับคืนแลกเปลี่ยน' }],
+      drug_items: [{ id: 9, request_id: 1, current_status: 'pending_review', product_type: 'GPO', is_compliant: true, compliance_remark: 'ผ่านเกณฑ์' }],
+      status_logs: [], clients: [], b2b_customers: [],
+    });
+
+    await approveDrugItem(9, 1);
+    expect(mockLogOverride).not.toHaveBeenCalled();
   });
 });
 

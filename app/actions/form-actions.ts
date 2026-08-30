@@ -6,7 +6,10 @@ import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
+import type { RequestRow } from '@/lib/types';
 import { MAX_DELIVERY_PHOTOS, MAX_DELIVERY_PHOTO_BYTES } from '@/lib/delivery-photo-limits';
+import { buildAndStoreReturnPdf, draftDir } from '@/lib/return-form-pdf';
+import { sendReturnFormEmail } from '@/lib/send-return-form-email';
 
 const sanitizeDate = (dateStr: string) => {
   if (!dateStr) return null;
@@ -248,6 +251,36 @@ export async function createReturnRequest(formData: ReturnFormData) {
     // level: warning เพราะ non-blocking (คำร้องหลักสร้างสำเร็จแล้ว) แต่ยังอยากรู้ถ้าเกิดถี่
     // เพราะแปลว่า CSR/Manager/Sale ไม่เห็นแจ้งเตือนคำร้องใหม่เข้าระบบเงียบๆ
     Sentry.captureException(notifyErr, { level: 'warning', tags: { area: 'notification-log' } });
+  }
+
+  // ── แลกเปลี่ยน: สร้าง PDF ฉบับ draft + ส่งอีเมลแจ้งรับเรื่อง (email #1) ฝั่ง server ──
+  // ยังไม่ส่งลิงก์ PDF — ระบบจะส่งเอกสารฉบับสมบูรณ์อีกครั้งหลัง CSR ตรวจ compliance เสร็จ
+  // (approveRequest/rejectRequest) best-effort: ถ้าพลาด ReviewSuccessCard มี generatePdfAction
+  // เป็น fallback สร้าง draft on-demand และลูกค้ายังติดตามสถานะได้จาก QR/ลิงก์ในอีเมลนี้
+  if (requestData.request_type === 'รับคืนแลกเปลี่ยน') {
+    try {
+      const { data: fullReq } = await supabaseAdmin
+        .from('requests')
+        .select('*, drug_items(*)')
+        .eq('id', data[0].request_id)
+        .single();
+      if (fullReq) {
+        const req = fullReq as RequestRow;
+        await buildAndStoreReturnPdf(req, { kind: 'draft', storageDir: draftDir(session.id) });
+        const { error: ackErr } = await sendReturnFormEmail({ request: req, to: session.email, mode: 'ack' });
+        if (ackErr) throw ackErr;
+        await supabaseAdmin.from('status_logs').insert({
+          request_id: data[0].request_id,
+          department: 'system',
+          status_name: 'ack_email_sent',
+          actor_type: 'system',
+          staff_remark: `แจ้งรับเรื่องทางอีเมล ${session.email} — รอเจ้าหน้าที่ตรวจสอบรายการสินค้า`,
+        });
+      }
+    } catch (exchangeAckErr) {
+      console.error('createReturnRequest: exchange draft/ack email failed', exchangeAckErr);
+      Sentry.captureException(exchangeAckErr, { level: 'warning', tags: { area: 'exchange-ack' } });
+    }
   }
 
   return { id: data[0].request_id, refId: data[0].ref_id };

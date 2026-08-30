@@ -107,6 +107,18 @@ export function tableCell(col: keyof typeof TABLE_COLS, rowIndex: number): Field
   };
 }
 
+// เส้นขีดคร่อมทั้งแถว (verified PDF — รายการที่ไม่ผ่านเกณฑ์) พาดจากขอบซ้ายคอลัมน์ชื่อยา
+// ถึงขอบขวาคอลัมน์เลขที่ใบส่งของ ที่ระดับ x-height ของข้อความในแถว
+export function tableRowStrike(rowIndex: number): { x1: number; x2: number; y: number } {
+  const baselineFromTop = TABLE_ROW_TOP + rowIndex * TABLE_ROW_H + TABLE_TEXT_DROP;
+  return { x1: 89, x2: 562, y: PAGE_H - (baselineFromTop - 3.5) };
+}
+
+// วาดเส้นขีดคร่อม
+export function drawStrike(page: PDFPage, color: Color, s: { x1: number; x2: number; y: number }): void {
+  page.drawLine({ start: { x: s.x1, y: s.y }, end: { x: s.x2, y: s.y }, thickness: 1, color });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  ตาราง layout ของทุกฟิลด์
 // ─────────────────────────────────────────────────────────────────────────────
@@ -153,6 +165,11 @@ export const LAYOUT = {
   signature_img: { centerX: 148, yFromTop: 720, maxW: 115, maxH: 24 },
   signer_name: atPdf(138, 756, { size: 11, align: 'center', maxWidth: 124 }), // ชื่อในวงเล็บที่พิมพ์ไว้บนฟอร์ม
   date_bottom: atPdf(100, 773, { size: 11, maxWidth: 105 }),                  // "วันที่ ..."
+
+  // ── verified PDF: หมายเหตุการตรวจสอบ (footnote) — วางในบรรทัดว่างหลัง "และยินยอม..."
+  //    ก่อนหัวข้อ "วิธีการส่งคืนสินค้า" (~y620) — เมื่อ verified จะบังคับ exchange_item เหลือ 1 บรรทัด
+  verification_footnote: atPdf(58, 584, { size: 8, maxWidth: 508 }),
+  verification_footnote_line_gap: 9.5,
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

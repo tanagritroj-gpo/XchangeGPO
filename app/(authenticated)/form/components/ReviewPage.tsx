@@ -125,7 +125,7 @@ if (status === 'success') {
     return (
       <ReviewSuccessCard
         requestId={currentRequestId}
-        refId={refId} 
+        refId={refId}
         customerEmail={formData.sender?.email}
         allowEmail={allowEmail}
         showTrackingLink={showTrackingLink}
@@ -133,6 +133,9 @@ if (status === 'success') {
         generatePdfActionFn={generatePdfActionFn}
         sendEmailActionFn={sendEmailActionFn}
         getEmailRecipientsFn={getEmailRecipientsFn}
+        // แลกเปลี่ยน + ลูกค้ายื่นเอง: เอกสารต้องผ่าน CSR ตรวจ compliance ก่อน — ระบบส่งอีเมล
+        // แจ้งรับเรื่องไปแล้วฝั่ง server (createReturnRequest) หน้านี้แค่โชว์สถานะ + ให้โหลด "ฉบับที่ท่านกรอก"
+        pendingVerification={sender?.request_type === 'รับคืนแลกเปลี่ยน' && showTrackingLink}
       />
     );
   }

@@ -74,6 +74,16 @@ describe('buildReturnFormPdf', () => {
     await expectValidPdf(await buildReturnFormPdf(makeReq({ drug_items: many as RequestRow['drug_items'] })));
   });
 
+  it('renders the verified variant (strikethrough + recomputed totals) when items fail compliance', async () => {
+    const bytes = await buildReturnFormPdf(makeReq({
+      drug_items: [
+        { id: 1, request_id: 1, drug_name: 'ผ่าน', qty: 10, unit: 'เม็ด', lot_number: 'L1', exp_date: '2027-01-01', unit_price: 5, value_amount: 50, invoice_number: 'I1', product_type: 'GPO', current_status: 'approved', is_compliant: true, compliance_remark: 'ผ่านเกณฑ์' },
+        { id: 2, request_id: 1, drug_name: 'ไม่ผ่าน', qty: 3, unit: 'ขวด', lot_number: 'L2', exp_date: '2026-09-01', unit_price: 20, value_amount: 60, invoice_number: 'I2', product_type: 'OTHER', current_status: 'rejected', is_compliant: false, compliance_remark: 'อายุคงเหลือไม่ถึง 7 เดือน' },
+      ] as RequestRow['drug_items'],
+    }));
+    await expectValidPdf(bytes);
+  });
+
   it('embeds a signature PNG when provided', async () => {
     const pngDoc = await PDFDocument.create();
     const png = await pngDoc.embedPng(TINY_PNG);

@@ -35,6 +35,7 @@ export function ReviewSuccessCard({
   generatePdfActionFn = generatePdfAction,
   sendEmailActionFn = sendPdfEmailAction,
   getEmailRecipientsFn,
+  pendingVerification = false,
 }: {
   requestId: number;
   refId: string;
@@ -42,6 +43,9 @@ export function ReviewSuccessCard({
   customerEmail?: string;
   allowEmail?: boolean;       // false ฝั่ง staff เดิม — ตอนนี้เปิดใช้ทั้ง 2 ฝั่งแล้ว (CSR ก็ส่งอีเมลให้ลูกค้าได้)
   showTrackingLink?: boolean; // ควบคุมแยกจาก allowEmail แล้ว — ฝั่ง staff ยังไม่โชว์ลิงก์นี้ตามที่ตกลงไว้
+  // แลกเปลี่ยน + ลูกค้ายื่นเอง: เอกสารต้องผ่าน CSR ตรวจ compliance ก่อน — ไม่ auto-email จากหน้านี้
+  // (server ส่งอีเมลแจ้งรับเรื่องไปแล้ว) เอกสารที่โหลดได้คือ "ฉบับที่ท่านกรอก" (draft)
+  pendingVerification?: boolean;
   homeHref?: string;    // ปุ่ม "กลับหน้าหลัก" ชี้ไปคนละที่ระหว่างลูกค้า/staff
   // ★ จุดสำคัญ: default เป็นตัว customer-only เดิม แต่ฝั่ง staff ต้อง override เป็น
   //   generateStaffPdfAction / sendStaffPdfEmailAction เพราะตัว default เรียก getCustomerSession()
@@ -198,6 +202,8 @@ export function ReviewSuccessCard({
   // JSX ด้านล่าง) ฝั่ง CSR/staff (showTrackingLink=false) ยังกดปุ่มเองเหมือนเดิมทุกประการ
   // ไม่แตะพฤติกรรมนั้นเลยตามที่ตกลงกันไว้
   useEffect(() => {
+    // แลกเปลี่ยน: server ส่งอีเมลแจ้งรับเรื่องไปแล้ว — ไม่ auto-email ลิงก์ PDF จากหน้านี้
+    if (pendingVerification) return;
     if (!showTrackingLink || pdfState !== 'ready' || autoEmailSentRef.current) return;
     autoEmailSentRef.current = true;
     handleEmailCopy(true);
@@ -277,6 +283,19 @@ export function ReviewSuccessCard({
 
           {pdfState === 'ready' && (
             <div className="grid grid-cols-1 gap-3 w-full">
+              {/* ── แลกเปลี่ยน: แจ้งว่าอยู่ระหว่างตรวจสอบ เอกสารฉบับสมบูรณ์จะส่งทางอีเมลอีกครั้ง ── */}
+              {pendingVerification && (
+                <div className="w-full text-left bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-sm text-amber-900 leading-relaxed">
+                  <p className="font-black mb-1">⏳ อยู่ระหว่างตรวจสอบรายการสินค้า</p>
+                  <p>
+                    องค์การเภสัชกรรม สาขาภาคใต้ ได้รับคำร้องของท่านแล้ว และส่งอีเมลแจ้งรับเรื่องไปที่{' '}
+                    <strong>{customerEmail}</strong> เมื่อเจ้าหน้าที่ตรวจสอบรายการสินค้าและหลักเกณฑ์การแลกเปลี่ยน/คืนเรียบร้อยแล้ว
+                    ระบบจะจัดส่ง <strong>เอกสารฉบับสมบูรณ์</strong> ให้ท่านทางอีเมลนี้อีกครั้ง
+                  </p>
+                  <p className="mt-2 text-amber-800">ปุ่มด้านล่างจะดาวน์โหลด “ฉบับที่ท่านกรอก” เพื่อเก็บไว้อ้างอิงระหว่างรอผลตรวจสอบ</p>
+                </div>
+              )}
+
               {/* ── ปุ่มส่งอีเมลเดิม: ฝั่งลูกค้า (showTrackingLink=true) เอาออกแล้ว เพราะระบบ
                   ส่งอัตโนมัติให้เองทันทีที่เอกสารพร้อม (ดู effect 5b ด้านบน) ไม่ต้องกดเอง —
                   ฝั่ง CSR/staff ยังกดเองเหมือนเดิมทุกประการ ไม่แตะพฤติกรรมนั้นเลย ── */}
@@ -286,7 +305,8 @@ export function ReviewSuccessCard({
                   disabled={downloading}
                   className="py-4 rounded-2xl font-black text-base text-teal-700 bg-teal-100 border-2 border-teal-200 hover:bg-teal-200 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:pointer-events-none"
                 >
-                  {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} ดาวน์โหลด PDF
+                  {downloading ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />}
+                  {pendingVerification ? 'ดาวน์โหลดฉบับที่ท่านกรอก' : 'ดาวน์โหลด PDF'}
                 </button>
                 {allowEmail && !showTrackingLink && (
                   <button
@@ -304,7 +324,7 @@ export function ReviewSuccessCard({
 
               {/* ── สถานะการส่งอีเมลอัตโนมัติ — เฉพาะฝั่งลูกค้า แทนที่ปุ่มที่เอาออกไป ให้ลูกค้า
                   รู้ว่าระบบส่งให้แล้วโดยไม่ต้องทำอะไร ── */}
-              {showTrackingLink && emailState !== 'idle' && (
+              {showTrackingLink && !pendingVerification && emailState !== 'idle' && (
                 <p className="text-sm font-bold flex items-center justify-center gap-1.5">
                   {emailState === 'sending' && (
                     <span className="text-muted-foreground inline-flex items-center gap-1.5">

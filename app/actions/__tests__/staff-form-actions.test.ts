@@ -262,7 +262,7 @@ describe('getOrgContactsForRequest / sendStaffPdfEmailAction — recipient allow
       staff_users: [
         { id: 'sale-1', full_name: 'ฝ่ายขายใต้', email: 'sale@example.com', department: 'sale', is_approved: true, sale_customer_types: ['government'], sale_provinces: ['สงขลา'] },
       ],
-      document_attachments: [{ id: 'doc-1', request_id: 1, file_path: 'returns/staff/REF-AAAA1111.pdf' }],
+      document_attachments: [{ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/staff/REF-AAAA1111.pdf' }],
       status_logs: [], notification_log: [],
     });
   });
