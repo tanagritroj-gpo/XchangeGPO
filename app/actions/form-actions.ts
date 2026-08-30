@@ -4,7 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
+import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 import { MAX_DELIVERY_PHOTOS, MAX_DELIVERY_PHOTO_BYTES } from '@/lib/delivery-photo-limits';
 
@@ -201,6 +201,7 @@ export async function createReturnRequest(formData: ReturnFormData) {
     addr_province: sanitizeFreeText(formData.addr_province),
     agent_info: sanitizeFreeText(formData.agent_info),
     agent_appointment_note: sanitizeFreeText(formData.agent_appointment_note),
+    agent_appointment_date: sanitizeDateOrNull(formData.agent_appointment_date),
     exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
     exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
     exchange_product_other: sanitizeFreeText(formData.exchange_product_other),

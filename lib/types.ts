@@ -26,17 +26,16 @@ export interface RequestRow {
   ref_id: string;
   request_date: string | null;
   request_type: string | null;
-  transaction_date: string | null;
   hospital_name: string | null;
   province: string | null;
   customer_code: string | null;
   phone: string | null;
   contact_name: string | null;
   return_reason: string | null;
-  exchange_product: string | null;
   delivery_type: string | null;
   agent_info: string | null;
   agent_appointment_note: string | null;
+  agent_appointment_date: string | null;
   addr_street: string | null;
   addr_district: string | null;
   signature_url: string | null;

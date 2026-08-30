@@ -5,8 +5,9 @@ import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { buildReturnFormPdf } from '../services/pdf-service';
+import { resolveSignaturePng } from '@/lib/resolve-signature';
 import { bucketForOrgType } from '@/lib/sale-coverage';
-import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
+import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
 import type { DrugItemRow } from '@/lib/types';
 import { formatThaiDate } from '@/lib/format-thai-date';
@@ -183,6 +184,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     addr_province: sanitizeFreeText(formData.addr_province),
     agent_info: sanitizeFreeText(formData.agent_info),
     agent_appointment_note: sanitizeFreeText(formData.agent_appointment_note),
+    agent_appointment_date: sanitizeDateOrNull(formData.agent_appointment_date),
     exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
     exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
     exchange_product_other: sanitizeFreeText(formData.exchange_product_other),
@@ -275,7 +277,8 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
     // path แยก namespace ด้วย 'staff' แทน customer id เพราะไม่ผูกกับ session ฝั่งลูกค้า
     filePath = `returns/staff/${request.ref_id}.pdf`;
 
-    const pdfBytes = await buildReturnFormPdf(request);
+    const signaturePng = await resolveSignaturePng(request.signature_url);
+    const pdfBytes = await buildReturnFormPdf(request, { signaturePng });
 
     const { error: uploadErr } = await supabaseAdmin.storage
       .from('return-documents')

@@ -45,6 +45,7 @@ export interface ReturnFormData {
   addr_province?: string;
   agent_info?: string;
   agent_appointment_note?: string;
+  agent_appointment_date?: string;
   exchange_product_type?: string;
   exchange_product_list?: string;
   exchange_product_other?: string;

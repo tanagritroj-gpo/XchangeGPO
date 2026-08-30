@@ -3,6 +3,7 @@
 import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { buildReturnFormPdf } from '../services/pdf-service';
+import { resolveSignaturePng } from '@/lib/resolve-signature';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { z } from 'zod';
@@ -58,7 +59,8 @@ export async function generatePdfAction(requestId: number): Promise<ActionResult
     // path แยกตาม customer_id เผื่อทำ storage policy เพิ่มในอนาคต
     filePath = `returns/${session.id}/${request.ref_id}.pdf`;
 
-    const pdfBytes = await buildReturnFormPdf(request);
+    const signaturePng = await resolveSignaturePng(request.signature_url);
+    const pdfBytes = await buildReturnFormPdf(request, { signaturePng });
 
     const { error: uploadErr } = await supabaseAdmin.storage
       .from('return-documents')

@@ -7,6 +7,7 @@ import { getStatusLabel } from '@/lib/tracking-status';
 import { getRejectionReasonLabel } from '@/lib/rejection-reasons';
 import { getErrorMessage } from '@/lib/error-message';
 import { STAGE_ORDER, STAGE_LABEL } from '@/lib/manager-stats';
+import { formatExchangeProduct } from '@/lib/exchange-product';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
 
 // Download Center ของ Manager Portal — export "audit trail" (status_logs) จริง
@@ -253,8 +254,9 @@ async function buildSingleRequestWorkbook(requestIdRaw: string | null) {
     ['ผู้ติดต่อ', req.contact_name ?? '-'],
     ['เบอร์โทร', req.phone ?? '-'],
     ['เหตุผลการคืน', req.return_reason ?? '-'],
-    ['สินค้าที่ต้องการแลกเปลี่ยน', req.exchange_product ?? '-'],
+    ['สินค้าที่ต้องการแลกเปลี่ยน', formatExchangeProduct(req) || '-'],
     ['วิธีคืนสินค้า', req.delivery_type ?? '-'],
+    ['วันนัดรับสินค้า', req.agent_appointment_date ? new Date(req.agent_appointment_date).toLocaleDateString('th-TH') : '-'],
     ['สถานะปัจจุบัน', getStatusLabel(req.current_status)],
     ['มูลค่ารวม (บาท)', Number(req.total_value) || 0],
     ['ช่องทางที่ยื่นคำร้อง', req.submission_channel === 'csr_manual' ? 'CSR กรอกแทน' : 'ลูกค้ายื่นเอง'],
