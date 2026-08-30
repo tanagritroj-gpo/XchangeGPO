@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -48,6 +48,7 @@ import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { StatCard } from '@/components/StatCard';
 import { RequestDetailPanel } from '@/components/history/RequestHistoryList';
+import { ExchangeHistoryView } from '@/components/history/ExchangeHistoryView';
 import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
@@ -197,10 +198,6 @@ const isAllItemsRejected = (req: RequestRow) =>
   (req.drug_items?.length ?? 0) > 0 &&
   (req.drug_items ?? []).every((item) => item.current_status === 'rejected');
 
-// วันที่เริ่มสร้างใบงาน — ใช้ในคอลัมน์ "วันที่" ของ "ประวัติใบงาน" เท่านั้น
-const formatRequestDate = (createdAt: string | null) =>
-  new Date(createdAt || 0).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
-
 // สถานะที่ CSR เป็นคนกดอัปเดตเอง (มีปุ่ม action ให้กดใน RequestListSection)
 // สถานะอื่นนอกจากนี้ (approved, in_transit, at_warehouse, checked_in, out_for_delivery) เป็นของฝ่าย log/wh — CSR แค่มอนิเตอร์
 const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'credit_note'];
@@ -211,7 +208,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'c
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, openCompleteModal, fetchData,
-  emptyIcon: EmptyIcon, emptyText, pageSize, readOnly, headerExtra,
+  emptyIcon: EmptyIcon, emptyText, pageSize, headerExtra,
 }: {
   title: string; icon: LucideIcon; iconBg: string; iconColor: string; subtitle: string; items: RequestRow[];
   expandedReq: number | null; setExpandedReq: (id: number | null) => void;
@@ -219,7 +216,7 @@ function RequestListSection({
   openExchangeModal: (requestId: number) => void;
   openCompleteModal: (requestId: number) => void;
   fetchData: (opts?: { silent?: boolean }) => void;
-  emptyIcon: LucideIcon; emptyText: string; pageSize?: number; readOnly?: boolean;
+  emptyIcon: LucideIcon; emptyText: string; pageSize?: number;
   headerExtra?: React.ReactNode;
 }) {
   const [page, setPage] = useState(1);
@@ -251,7 +248,7 @@ function RequestListSection({
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
-            <div className="col-span-2 text-right">{readOnly ? 'วันที่' : 'การดำเนินการ'}</div>
+            <div className="col-span-2 text-right">การดำเนินการ</div>
           </div>
         )}
 
@@ -298,7 +295,7 @@ function RequestListSection({
                       <DeliveryPhotoBadge req={req} />
                     </div>
                     <div className="col-span-2 flex flex-col items-end gap-2">
-                      {!readOnly && req.current_status === 'pending_review' && (
+                      {req.current_status === 'pending_review' && (
                         isAllItemsReviewed(req) ? (
                           isAllItemsRejected(req) ? (
                             <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
@@ -315,18 +312,15 @@ function RequestListSection({
                           </p>
                         )
                       )}
-                      {!readOnly && req.current_status === 'receiving' && (
+                      {req.current_status === 'receiving' && (
                         req.request_type === 'รับคืนแลกเปลี่ยน' ? (
                           <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         ) : (
                           <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         )
                       )}
-                      {!readOnly && (req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
+                      {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
-                      )}
-                      {readOnly && (
-                        <p className="text-xs font-semibold text-muted-foreground">{formatRequestDate(req.created_at)}</p>
                       )}
                     </div>
                   </div>
@@ -337,7 +331,6 @@ function RequestListSection({
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
                         {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
-                        {readOnly && <p className="text-[11px] text-muted-foreground mt-0.5">{formatRequestDate(req.created_at)}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
@@ -353,8 +346,7 @@ function RequestListSection({
 
                     <DeliveryPhotoBadge req={req} />
 
-                    {!readOnly && (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2 empty:hidden">
                         {req.current_status === 'pending_review' && (
                           isAllItemsReviewed(req) ? (
                             isAllItemsRejected(req) ? (
@@ -382,17 +374,12 @@ function RequestListSection({
                         {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
                           <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
                         )}
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Drug items expanded — readOnly (ประวัติใบงาน) ใช้ RequestDetailPanel แบบเดียวกับ
-                      sale/history (stepper + รายละเอียด + timeline) ส่วนแท็บที่ยังต้องดำเนินการ
-                      (ปุ่มอนุมัติ/ปฏิเสธรายชิ้น) ยังคงใช้ CSRDrugRow แบบเดิม */}
-                  {isExpanded && (
-                    readOnly ? (
-                      <RequestDetailPanel requestId={req.id} fetchDetail={getCSRRequestDetail} size="default" />
-                    ) : drugCount > 0 && (
+                  {/* รายการยาแบบมีปุ่มอนุมัติ/ปฏิเสธรายชิ้น (CSRDrugRow) — ใช้ในทุกแท็บที่ยังต้อง
+                      ดำเนินการ; แท็บ "ประวัติใบงาน" + quick-filter เสร็จสิ้น/ถูกปฏิเสธ ใช้ ExchangeHistoryView แยกต่างหาก */}
+                  {isExpanded && drugCount > 0 && (
                       <div className="px-4 md:px-6 pb-4">
                         <div className="hidden md:grid grid-cols-12 gap-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wide px-3 mb-1.5">
                           <div className="col-span-3">ชื่อยา</div>
@@ -409,7 +396,6 @@ function RequestListSection({
                               key={item.id}
                               item={{ ...item, request_type: req.request_type ?? undefined }}
                               onUpdate={() => fetchData({ silent: true })}
-                              readOnly={readOnly}
                             />
                           ))}
                         </div>
@@ -425,7 +411,6 @@ function RequestListSection({
                           </div>
                         )}
                       </div>
-                    )
                   )}
                 </div>
               );
@@ -490,9 +475,15 @@ const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: LucideIcon; colo
 
 // การ์ดใบงาน 1 ใบในกระดาน — read-only ไม่มีปุ่ม action เพราะสถานะกลุ่มนี้ log/wh
 // เป็นคนอัปเดต ไม่ใช่ CSR (ต่างจาก CSRDrugRow ที่มีปุ่มอนุมัติ/ปฏิเสธสำหรับ workflow ของ CSR เอง)
+// item ที่ถูกปฏิเสธในขั้นตอนใดก็ตาม (ตรวจ compliance ของ CSR หรือคลังปฏิเสธตอนตรวจรับ)
+const isItemRejected = (i: { current_status?: string | null }) => i.current_status === 'rejected';
+
 function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isExpanded: boolean; onToggle: () => void }) {
-  const drugCount = req.drug_items?.length ?? 0;
-  const totalValue = req.drug_items?.reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0) ?? 0;
+  const items = req.drug_items ?? [];
+  const drugCount = items.length;
+  const rejectedCount = items.filter(isItemRejected).length;
+  // มูลค่าที่แสดง = หักรายการที่ถูกปฏิเสธออกแล้ว
+  const netValue = items.filter((i) => !isItemRejected(i)).reduce((s, i) => s + (Number(i.value_amount) || 0), 0);
   const role = MONITOR_STAGE_ROLE[req.current_status];
   const RoleIcon = role?.icon;
   return (
@@ -514,22 +505,34 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
       >
         <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent text-accent-foreground font-bold text-[11px] leading-none">{drugCount}</span>
         รายการสินค้า
+        {rejectedCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-red-600 font-bold">
+            <X size={11} strokeWidth={3} />{rejectedCount}
+          </span>
+        )}
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
         <div className="mt-2 space-y-1.5 border-t border-border pt-2">
-          {(req.drug_items ?? []).map((item: DrugItemRow) => (
-            <div key={item.id} className="text-[11px] bg-secondary/60 rounded-lg px-2 py-1.5">
-              <p className="font-bold text-foreground truncate">{item.drug_name}</p>
-              <p className="text-muted-foreground mt-0.5">
-                {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
-              </p>
-            </div>
-          ))}
-          {totalValue > 0 && (
+          {items.map((item: DrugItemRow) => {
+            const rejected = isItemRejected(item);
+            return (
+              <div key={item.id} className={`text-[11px] rounded-lg px-2 py-1.5 ${rejected ? 'bg-red-50' : 'bg-secondary/60'}`}>
+                <p className={`font-bold truncate ${rejected ? 'text-red-600' : 'text-foreground'}`}>
+                  {item.drug_name}
+                  {rejected && <span className="ml-1 font-black">✗</span>}
+                </p>
+                <p className={`mt-0.5 ${rejected ? 'text-red-400 line-through' : 'text-muted-foreground'}`}>
+                  {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
+                </p>
+              </div>
+            );
+          })}
+          {netValue > 0 && (
             <p className="text-right text-[11px] font-bold text-primary pt-0.5">
-              {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+              {rejectedCount > 0 && <span className="text-muted-foreground font-normal">มูลค่าสุทธิ </span>}
+              {netValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
         </div>
@@ -541,9 +544,17 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
 // ── กระดานภาพรวม "Active Workflow" — จัดกลุ่มใบงานตามสถานะจริงเป็นบล็อกเรียงแนวตั้ง
 // ทีละสถานะ (บนลงล่าง) ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังโดยไม่ต้องเลื่อนแนวนอน
 // การ์ดภายในแต่ละบล็อกจัดเป็น grid responsive ใช้พื้นที่แนวนอนที่ว่างจากการเลิกเป็นคอลัมน์แคบๆ ──
-function MonitorBoard({ items, expandedReq, setExpandedReq }: {
-  items: RequestRow[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
-}) {
+function MonitorBoard({ items }: { items: RequestRow[] }) {
+  // ★ state ของตัวเอง (Set) — แต่ละการ์ดกด กาง/พับ อิสระ เปิดพร้อมกันได้หลายใบ
+  // ไม่ผูกกับ expandedReq ตัวเดียวที่ RequestListSection ใช้ (กดใบนึงแล้วพับใบอื่นทิ้ง)
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const toggle = (id: number) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   return (
     <section>
       <div className="flex items-center gap-2.5 mb-3 px-1">
@@ -576,13 +587,13 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
               {colItems.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-start">
                   {colItems.map((req) => (
                     <MonitorBoardCard
                       key={req.id}
                       req={req}
-                      isExpanded={expandedReq === req.id}
-                      onToggle={() => setExpandedReq(expandedReq === req.id ? null : req.id)}
+                      isExpanded={expandedIds.has(req.id)}
+                      onToggle={() => toggle(req.id)}
                     />
                   ))}
                 </div>
@@ -596,6 +607,41 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
 }
 
 type OrgContact = { id: number | string; contact_name: string | null; email: string };
+
+// ── การ์ด "ประวัติใบงาน" ของ CSR — reuse ExchangeHistoryView (layout เดียวกับหน้าลูกค้า)
+// แบบ bare: ตัด header/StatCards/แท็บสถานะออก (dashboard มี stat/filter ของตัวเอง) แต่พอกาง
+// การ์ดจะแสดง RequestDetailPanel เต็มของ CSR (stepper + รายละเอียด + timeline + หมายเหตุเจ้าหน้าที่)
+type HistoryCardRow = RequestRow & { submitted_by?: string };
+
+const withSubmittedBy = (list: RequestRow[]): HistoryCardRow[] =>
+  list.map((r) => ({
+    ...r,
+    submitted_by:
+      r.submission_channel === 'csr_manual'
+        ? `${r.contact_name ?? 'เจ้าหน้าที่ CSR'} (เจ้าหน้าที่ CSR)`
+        : r.contact_name ?? undefined,
+  }));
+
+function CsrHistoryCards({ items }: { items: HistoryCardRow[] }) {
+  const fetcher = useCallback(async () => items, [items]);
+  return (
+    <ExchangeHistoryView
+      chrome="bare"
+      fetcher={fetcher}
+      title=""
+      subtitle=""
+      showSubmitter
+      showPdf
+      pdfActionFn={generateStaffPdfAction}
+      trackingHref={() => null}
+      renderExpandedDetail={(r) => (
+        <RequestDetailPanel requestId={r.id} fetchDetail={getCSRRequestDetail} size="default" />
+      )}
+      emptyText="ไม่มีใบงานในกลุ่มนี้"
+      emptySubtext="ใบงานทุกสถานะจะแสดงที่นี่"
+    />
+  );
+}
 
 // ── ใบงานแลกเปลี่ยนที่ CSR กรอกแทนลูกค้า ผ่านการตรวจสอบแล้วแต่ "เอกสารฉบับตรวจสอบแล้ว"
 // ยังไม่ถึงมือลูกค้า — CSR ไม่ได้เลือกผู้รับตอนแจ้งรับเรื่อง หรือตอนนั้นระบบส่งไม่สำเร็จ
@@ -879,14 +925,19 @@ export default function CSRDashboard() {
 
   // แยกใบงาน active ออกจากใบงานที่จบแล้ว (completed/rejected) เพื่อไม่ให้ปนกันในรายการเดียว
   const activeRequests  = requests.filter(r => r.current_status !== 'completed' && r.current_status !== 'rejected');
-  // "ประวัติใบงาน" แสดงใบงานทุกสถานะ (ไม่กรองเฉพาะ completed/rejected อีกต่อไป) — เป็น log
-  // รวมทุกใบงานที่เคยเข้าระบบ แยกจาก "จัดการใบงาน" ที่โฟกัสเฉพาะรายการที่ต้องดำเนินการ
-  // เรียงตามวันที่สร้างใหม่สุดก่อนเสมอ (ไม่พึ่งพา order จาก query อย่างเดียว กันกรณีลำดับเปลี่ยนในอนาคต)
-  const historyRequestsSorted = [...requests].sort(
-    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  // ── ข้อมูลสำหรับการ์ด "ประวัติใบงาน" + quick-filter เสร็จสิ้น/ถูกปฏิเสธ (CsrHistoryCards) ──
+  // memo แยกชั้น: จัดเรียงครั้งเดียว แล้ว filter/map ต่อ — array ต้องนิ่งไม่งั้น fetcher ของ
+  // ExchangeHistoryView จะ re-run ทุก render (รีเซ็ต pagination/expand)
+  const sortedByNewest = useMemo(
+    () => [...requests].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
+    [requests],
   );
-  const historyRequestsFiltered = !historyTypeFilter ? historyRequestsSorted
-    : historyRequestsSorted.filter((r) => r.request_type === historyTypeFilter);
+  const historyForView = useMemo(
+    () => withSubmittedBy(historyTypeFilter ? sortedByNewest.filter((r) => r.request_type === historyTypeFilter) : sortedByNewest),
+    [sortedByNewest, historyTypeFilter],
+  );
+  const completedForView = useMemo(() => withSubmittedBy(sortedByNewest.filter((r) => r.current_status === 'completed')), [sortedByNewest]);
+  const rejectedForView = useMemo(() => withSubmittedBy(sortedByNewest.filter((r) => r.current_status === 'rejected')), [sortedByNewest]);
 
   // ใบงานแลกเปลี่ยน (CSR กรอกแทน) ที่ผ่านการตรวจแล้วแต่เอกสารฉบับตรวจสอบยังไม่ถึงลูกค้า
   const pendingDocRequests = requests.filter((r) => isDocDeliveryPending(r, verifiedDocSentIds));
@@ -1017,6 +1068,22 @@ export default function CSRDashboard() {
           <div className="flex-1 min-w-0">
 
             {statusFilter ? (
+              // เสร็จสิ้น/ถูกปฏิเสธ = ประวัติล้วน ๆ → การ์ดแบบเดียวกับแท็บ "ประวัติใบงาน"
+              // รอตรวจสอบ/กำลังดำเนินการ = คิวงาน → list ที่มีปุ่ม action ตามสถานะ
+              statusFilter === 'completed' || statusFilter === 'rejected' ? (
+                <section>
+                  <div className="flex items-center gap-2.5 mb-3 px-1">
+                    <div className={`w-8 h-8 rounded-lg ${statFilterMeta[statusFilter].iconBg} flex items-center justify-center shrink-0`}>
+                      {(() => { const I = statFilterMeta[statusFilter].icon; return <I size={16} className={statFilterMeta[statusFilter].iconColor} strokeWidth={2.5} />; })()}
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">{statFilterMeta[statusFilter].title}</h2>
+                      <p className="text-[11px] text-muted-foreground">{statFilterMeta[statusFilter].subtitle}</p>
+                    </div>
+                  </div>
+                  <CsrHistoryCards items={statusFilter === 'completed' ? completedForView : rejectedForView} />
+                </section>
+              ) : (
               <RequestListSection
                 title={statFilterMeta[statusFilter].title}
                 icon={statFilterMeta[statusFilter].icon}
@@ -1033,6 +1100,7 @@ export default function CSRDashboard() {
                 emptyIcon={Inbox}
                 emptyText="ไม่มีใบงานในกลุ่มนี้"
               />
+              )
             ) : (
             <>
             {activeTab === 'active' && (
@@ -1071,58 +1139,49 @@ export default function CSRDashboard() {
               )}
 
               {workflowSubTab === 'monitor' && (
-                <MonitorBoard
-                  items={monitorWorkflowRequests}
-                  expandedReq={expandedReq}
-                  setExpandedReq={setExpandedReq}
-                />
+                <MonitorBoard items={monitorWorkflowRequests} />
               )}
             </div>
             )}
 
             {activeTab === 'history' && (
-            <RequestListSection
-              title="ประวัติใบงาน"
-              icon={History}
-              iconBg="bg-accent"
-              iconColor="text-accent-foreground"
-              subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
-              items={historyRequestsFiltered}
-              pageSize={10}
-              readOnly
-              expandedReq={expandedReq}
-              setExpandedReq={setExpandedReq}
-              openConfirmModal={openConfirmModal}
-              openExchangeModal={openExchangeModal}
-              openCompleteModal={openCompleteModal}
-              fetchData={fetchData}
-              emptyIcon={Inbox}
-              emptyText="ยังไม่มีใบงานในระบบ"
-              headerExtra={
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                      historyTypeFilter === 'รับคืนลดหนี้'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                    }`}
-                  >
-                    รับคืนลดหนี้
-                  </button>
-                  <button
-                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                      historyTypeFilter === 'รับคืนแลกเปลี่ยน'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                    }`}
-                  >
-                    รับคืนแลกเปลี่ยน
-                  </button>
+              <section>
+                <div className="flex items-center gap-2.5 mb-3 px-1">
+                  <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shrink-0">
+                    <History size={16} className="text-accent-foreground" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">ประวัติใบงาน</h2>
+                      <p className="text-[11px] text-muted-foreground">{historyForView.length} ใบงาน (ทุกสถานะ)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          historyTypeFilter === 'รับคืนลดหนี้'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนลดหนี้
+                      </button>
+                      <button
+                        onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          historyTypeFilter === 'รับคืนแลกเปลี่ยน'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนแลกเปลี่ยน
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              }
-            />
+
+                <CsrHistoryCards items={historyForView} />
+              </section>
             )}
             </>
             )}

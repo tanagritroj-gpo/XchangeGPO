@@ -35,7 +35,14 @@ import type { RequestRow, DrugItemRow as DrugItemRowType } from '@/lib/types';
 
 // history RPC (get_customer_history / get_org_history) แนบ submitted_by เพิ่มมา
 // เหนือคอลัมน์ปกติของ requests — ไม่มีในตารางจริง เป็นผลจาก RPC เท่านั้น
-type HistoryRequestRow = RequestRow & { submitted_by?: string };
+// export ให้ผู้เรียก (Sale history ที่ RPC คืนคอลัมน์ไม่ครบทุกฟิลด์ของ RequestRow) cast ได้
+export type HistoryRequestRow = RequestRow & { submitted_by?: string };
+
+// รูปผลลัพธ์ร่วมของ generatePdfAction (ลูกค้า) / generateStaffPdfAction (CSR) — structurally
+// เหมือนกัน ให้ RequestPdfButton รับ action ไหนก็ได้ผ่าน prop
+type PdfActionResult =
+  | { success: true; url: string; expiresIn: number; refId: string; docNumber: string | null }
+  | { success: false; error: string };
 
 /** badge/ขอบสีของการ์ด — อิงจาก "สถานะจริงของทั้งใบงาน" (request.current_status)
  *  เท่านั้น ไม่ผูกกับสถานะของรายการย่อยข้างในอีกต่อไป — ถ้าใบงานยังไม่ถูก
@@ -142,7 +149,15 @@ function DrugItemRow({ item }: { item: DrugItemRowType }) {
  *  อายุ 5 นาที ไม่ cache) แล้วเปิดใน PdfViewerModal ตัวเดียวกับหน้าติดตามสถานะของลูกค้า
  *  (generatePdfAction เช็ค customer session + org ownership ภายใน จึงปลอดภัยทั้งหน้า
  *  ประวัติของตัวเองและประวัติรวมทั้งหน่วยงาน) */
-function RequestPdfButton({ requestId, onOpen }: { requestId: number; onOpen: (url: string) => void }) {
+function RequestPdfButton({
+  requestId,
+  onOpen,
+  actionFn = generatePdfAction,
+}: {
+  requestId: number;
+  onOpen: (url: string) => void;
+  actionFn?: (requestId: number) => Promise<PdfActionResult>;
+}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,7 +165,7 @@ function RequestPdfButton({ requestId, onOpen }: { requestId: number; onOpen: (u
     setLoading(true);
     setError(null);
     try {
-      const result = await generatePdfAction(requestId);
+      const result = await actionFn(requestId);
       if (!result.success) {
         setError(result.error);
         return;
@@ -181,13 +196,25 @@ function RequestPdfButton({ requestId, onOpen }: { requestId: number; onOpen: (u
 function RequestCard({
   request,
   showSubmitter,
+  showOrg,
   showPdf,
   onOpenPdf,
+  pdfActionFn,
+  trackingHref = (r) => `/customer/tracking?ref=${r.ref_id}`,
+  renderExpandedDetail,
 }: {
   request: HistoryRequestRow;
   showSubmitter?: boolean;
+  /** แสดงชื่อหน่วยงาน · จังหวัด บนหัวการ์ด — ใช้กับ Sale ที่ดูแลหลายหน่วยงานพร้อมกัน */
+  showOrg?: boolean;
   showPdf?: boolean;
   onOpenPdf: (url: string) => void;
+  pdfActionFn?: (requestId: number) => Promise<PdfActionResult>;
+  /** ลิงก์ปุ่ม "ติดตามสถานะคำร้อง" — คืน null เพื่อซ่อนปุ่ม (เช่นฝั่ง CSR ที่อยู่ใน dashboard อยู่แล้ว) */
+  trackingHref?: (r: HistoryRequestRow) => string | null;
+  /** เนื้อหาตอนกางการ์ด — ถ้าไม่ส่งมา ใช้รายการยาแบบย่อในตัว (ฝั่งลูกค้า);
+   *  ฝั่ง CSR/Sale ส่ง RequestDetailPanel เต็ม (stepper + timeline + หมายเหตุเจ้าหน้าที่) */
+  renderExpandedDetail?: (r: HistoryRequestRow) => React.ReactNode;
 }) {
   const tone = getCardTone(request);
   const [expanded, setExpanded] = useState(false);
@@ -197,6 +224,7 @@ function RequestCard({
     (sum, item) => (item.current_status === REJECTED_STATUS ? sum : sum + Number(item.value_amount || 0)),
     0,
   );
+  const trackHref = trackingHref(request);
 
   return (
     <article
@@ -216,6 +244,11 @@ function RequestCard({
           <p className="mt-0.5 text-xs text-muted-foreground">
             ยื่นเมื่อ {new Date(request.created_at || 0).toLocaleDateString('th-TH', { dateStyle: 'long' })}
           </p>
+          {showOrg && request.hospital_name && (
+            <p className="mt-1 truncate text-xs font-bold text-primary">
+              {request.hospital_name}{request.province ? ` · ${request.province}` : ''}
+            </p>
+          )}
           {showSubmitter && request.submitted_by && (
             <p className="mt-1 flex items-center gap-1 text-xs font-bold text-slate-500">
               <UserRound className="h-3 w-3 shrink-0" strokeWidth={2.5} aria-hidden="true" />
@@ -245,8 +278,8 @@ function RequestCard({
         </div>
       </div>
 
-      {/* รายการยา — ยุบไว้ก่อนเพื่อให้การ์ดกระชับใน grid กางดูได้ทีละใบ */}
-      {items.length > 0 && (
+      {/* กางดูรายละเอียด — ฝั่งลูกค้า = รายการยาย่อ; ฝั่ง CSR = RequestDetailPanel เต็ม */}
+      {(renderExpandedDetail || items.length > 0) && (
         <>
           <button
             onClick={() => setExpanded((v) => !v)}
@@ -255,7 +288,9 @@ function RequestCard({
           >
             <span className="flex items-center gap-1.5">
               <Pill className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-              {expanded ? 'ซ่อนรายการยา' : `ดูรายการยา ${items.length} รายการ`}
+              {renderExpandedDetail
+                ? expanded ? 'ซ่อนรายละเอียด' : 'ดูรายละเอียดใบงาน'
+                : expanded ? 'ซ่อนรายการยา' : `ดูรายการยา ${items.length} รายการ`}
             </span>
             <ChevronDown
               className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -264,25 +299,25 @@ function RequestCard({
             />
           </button>
           {expanded && (
-            <div className="mt-2 space-y-2">
-              {items.map((item) => (
-                <DrugItemRow key={item.id} item={item} />
-              ))}
-            </div>
+            renderExpandedDetail
+              ? <div className="mt-3 -mx-4 border-y border-border">{renderExpandedDetail(request)}</div>
+              : <div className="mt-2 space-y-2">{items.map((item) => <DrugItemRow key={item.id} item={item} />)}</div>
           )}
         </>
       )}
 
       {/* ปุ่มการทำงาน — PDF ใบรับคืน/แลกเปลี่ยน อยู่คู่กับปุ่มติดตามสถานะ */}
       <div className="mt-auto flex flex-col gap-2 pt-3">
-        {showPdf && request.id && <RequestPdfButton requestId={request.id} onOpen={onOpenPdf} />}
-        <a
-          href={`/customer/tracking?ref=${request.ref_id}`}
-          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary py-2.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          ติดตามสถานะคำร้อง
-          <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
-        </a>
+        {showPdf && request.id && <RequestPdfButton requestId={request.id} onOpen={onOpenPdf} actionFn={pdfActionFn} />}
+        {trackHref && (
+          <a
+            href={trackHref}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary py-2.5 text-xs font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            ติดตามสถานะคำร้อง
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} aria-hidden="true" />
+          </a>
+        )}
       </div>
     </article>
   );
@@ -320,16 +355,23 @@ export function ExchangeHistoryView({
   subtitle,
   icon: HeaderIcon = History,
   showSubmitter = false,
+  showOrg = false,
   showPdf = true,
   emptyText = 'ยังไม่มีคำร้องคืนสินค้า',
   emptySubtext = 'คำร้องที่คุณยื่นจะแสดงที่นี่',
   headerExtra,
+  chrome = 'full',
+  pdfActionFn,
+  trackingHref,
+  renderExpandedDetail,
 }: {
   fetcher: () => Promise<HistoryRequestRow[]>;
   title: string;
   subtitle: string;
   icon?: LucideIcon;
   showSubmitter?: boolean;
+  /** แสดงชื่อหน่วยงาน · จังหวัด บนหัวการ์ด (Sale ดูแลหลายหน่วยงาน) */
+  showOrg?: boolean;
   /** แสดงปุ่ม "ตรวจสอบ PDF ใบรับคืน/แลกเปลี่ยน" ในแต่ละการ์ด — generatePdfAction เช็ค
    *  customer session + org ownership ภายใน จึงปลอดภัยทั้งหน้าประวัติตัวเองและประวัติรวมหน่วยงาน */
   showPdf?: boolean;
@@ -337,7 +379,15 @@ export function ExchangeHistoryView({
   emptySubtext?: string;
   /** เนื้อหาเสริมใต้หัวข้อ/คำอธิบาย (เช่น tab กรองประเภทงาน) — วางไว้ก่อนแถบสถิติ */
   headerExtra?: React.ReactNode;
+  /** 'full' = หัวข้อ + StatCards + แท็บสถานะ (หน้าลูกค้า); 'bare' = การ์ด grid + pagination
+   *  ล้วน ๆ (ฝัง CSR dashboard ที่มี stat/filter ของตัวเองอยู่แล้ว) */
+  chrome?: 'full' | 'bare';
+  /** action สร้าง PDF ต่อการ์ด — default generatePdfAction (ลูกค้า); CSR ส่ง generateStaffPdfAction */
+  pdfActionFn?: (requestId: number) => Promise<PdfActionResult>;
+  trackingHref?: (r: HistoryRequestRow) => string | null;
+  renderExpandedDetail?: (r: HistoryRequestRow) => React.ReactNode;
 }) {
+  const bare = chrome === 'bare';
   const [history, setHistory] = useState<HistoryRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeKey, setActiveKey] = useState<string>(GROUP_ORDER[0].key);
@@ -404,19 +454,21 @@ export function ExchangeHistoryView({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3.5">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <HeaderIcon className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+      {!bare && (
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <HeaderIcon className="h-6 w-6" strokeWidth={2} aria-hidden="true" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+            <p className="text-xs font-medium text-muted-foreground sm:text-sm">{subtitle}</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
-          <p className="text-xs font-medium text-muted-foreground sm:text-sm">{subtitle}</p>
-        </div>
-      </div>
+      )}
 
       {headerExtra}
 
-      {!loading && history.length > 0 && (
+      {!bare && !loading && history.length > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
           <StatCard
             icon={ClipboardList}
@@ -463,39 +515,41 @@ export function ExchangeHistoryView({
         </div>
       ) : (
         <>
-          <div
-            role="tablist"
-            aria-label="กรองประวัติตามสถานะ"
-            className="flex gap-2 overflow-x-auto pb-1"
-          >
-            {tabs.map((tab) => {
-              const TabIcon = tab.icon;
-              const active = tab.key === activeTab?.key;
-              return (
-                <button
-                  key={tab.key}
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setActiveKey(tab.key)}
-                  className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors ${
-                    active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-border bg-card text-slate-600 hover:border-primary/50'
-                  }`}
-                >
-                  <TabIcon className={`h-3.5 w-3.5 ${active ? 'text-primary-foreground' : tab.iconTone}`} strokeWidth={2.5} aria-hidden="true" />
-                  {tab.label}
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[11px] ${
-                      active ? 'bg-white/20 text-primary-foreground' : 'bg-secondary text-muted-foreground'
+          {!bare && (
+            <div
+              role="tablist"
+              aria-label="กรองประวัติตามสถานะ"
+              className="flex gap-2 overflow-x-auto pb-1"
+            >
+              {tabs.map((tab) => {
+                const TabIcon = tab.icon;
+                const active = tab.key === activeTab?.key;
+                return (
+                  <button
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveKey(tab.key)}
+                    className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-bold transition-colors ${
+                      active
+                        ? 'bg-primary text-primary-foreground'
+                        : 'border border-border bg-card text-slate-600 hover:border-primary/50'
                     }`}
                   >
-                    {tab.items.length}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+                    <TabIcon className={`h-3.5 w-3.5 ${active ? 'text-primary-foreground' : tab.iconTone}`} strokeWidth={2.5} aria-hidden="true" />
+                    {tab.label}
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                        active ? 'bg-white/20 text-primary-foreground' : 'bg-secondary text-muted-foreground'
+                      }`}
+                    >
+                      {tab.items.length}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {activeTab && activeTab.items.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border bg-card/60 py-16 text-center">
@@ -514,8 +568,12 @@ export function ExchangeHistoryView({
                     key={request.id}
                     request={request}
                     showSubmitter={showSubmitter}
+                    showOrg={showOrg}
                     showPdf={showPdf}
                     onOpenPdf={setPdfModalUrl}
+                    pdfActionFn={pdfActionFn}
+                    trackingHref={trackingHref}
+                    renderExpandedDetail={renderExpandedDetail}
                   />
                 ))}
               </div>

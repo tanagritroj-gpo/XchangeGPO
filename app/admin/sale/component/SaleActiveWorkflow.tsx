@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Eye, ChevronDown, Truck, Warehouse, Users, RefreshCw } from 'lucide-react';
+import { Eye, ChevronDown, Truck, Warehouse, Users, RefreshCw, X } from 'lucide-react';
 import { getSaleCustomerHistory } from '@/app/actions/sale-actions';
 import { STATUS_OWNER_DEPARTMENT } from '@/lib/status-department';
 import { STATUS_LABELS, getStatusMeta } from '@/lib/tracking-status';
@@ -84,7 +84,7 @@ const DEPARTMENT_TAG: Record<'csr' | 'logistics' | 'warehouse', { label: string;
 // รูปย่อของ requests ที่ get_sale_customer_history() RPC (เรียกผ่าน getSaleCustomerHistory())
 // คืนมาจริง — เฉพาะฟิลด์ที่บอร์ดนี้ใช้แสดงผล ไม่ใช้ RequestRow/HistorySummaryRow ตรงๆ เพราะ
 // drug_items ที่ RPC ฝังมาเป็นแค่ subset ของคอลัมน์จริงใน DrugItemRow เท่านั้น
-type SaleWorkflowDrugItem = Pick<DrugItemRow, 'id' | 'drug_name' | 'qty' | 'unit' | 'lot_number' | 'value_amount'>;
+type SaleWorkflowDrugItem = Pick<DrugItemRow, 'id' | 'drug_name' | 'qty' | 'unit' | 'lot_number' | 'value_amount' | 'current_status'>;
 type SaleWorkflowRequest = {
   id: number;
   ref_id: string;
@@ -93,11 +93,16 @@ type SaleWorkflowRequest = {
   drug_items: SaleWorkflowDrugItem[] | null;
 };
 
+// item ที่ถูกปฏิเสธในขั้นตอนใดก็ตาม (CSR ตรวจ compliance ไม่ผ่าน / คลังปฏิเสธตอนตรวจรับ)
+const isSaleItemRejected = (i: SaleWorkflowDrugItem) => i.current_status === 'rejected';
+
 // การ์ดใบงาน 1 ใบในกระดาน — read-only ล้วนๆ (sale ไม่มีปุ่ม action ใดๆ แค่มอนิเตอร์)
 function WorkflowCard({ req, isExpanded, onToggle }: { req: SaleWorkflowRequest; isExpanded: boolean; onToggle: () => void }) {
   const drugItems = req.drug_items ?? [];
   const drugCount = drugItems.length;
-  const totalValue = drugItems.reduce((s, i) => s + (Number(i.value_amount) || 0), 0);
+  const rejectedCount = drugItems.filter(isSaleItemRejected).length;
+  // มูลค่าที่แสดง = หักรายการที่ถูกปฏิเสธออกแล้ว
+  const netValue = drugItems.filter((i) => !isSaleItemRejected(i)).reduce((s, i) => s + (Number(i.value_amount) || 0), 0);
   const dept = STATUS_OWNER_DEPARTMENT[req.current_status];
   const tag = dept ? DEPARTMENT_TAG[dept] : null;
   const TagIcon = tag?.icon;
@@ -121,22 +126,34 @@ function WorkflowCard({ req, isExpanded, onToggle }: { req: SaleWorkflowRequest;
       >
         <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent text-accent-foreground font-bold text-[11px] leading-none">{drugCount}</span>
         รายการสินค้า
+        {rejectedCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-red-600 font-bold">
+            <X size={11} strokeWidth={3} />{rejectedCount}
+          </span>
+        )}
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
         <div className="mt-2 space-y-1.5 border-t border-border pt-2">
-          {drugItems.map((item) => (
-            <div key={item.id} className="text-[11px] bg-secondary/60 rounded-md px-2 py-1.5">
-              <p className="font-bold text-foreground truncate">{item.drug_name}</p>
-              <p className="text-muted-foreground mt-0.5">
-                {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
-              </p>
-            </div>
-          ))}
-          {totalValue > 0 && (
+          {drugItems.map((item) => {
+            const rejected = isSaleItemRejected(item);
+            return (
+              <div key={item.id} className={`text-[11px] rounded-md px-2 py-1.5 ${rejected ? 'bg-red-50' : 'bg-secondary/60'}`}>
+                <p className={`font-bold truncate ${rejected ? 'text-red-600' : 'text-foreground'}`}>
+                  {item.drug_name}
+                  {rejected && <span className="ml-1 font-black">✗</span>}
+                </p>
+                <p className={`mt-0.5 ${rejected ? 'text-red-400 line-through' : 'text-muted-foreground'}`}>
+                  {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
+                </p>
+              </div>
+            );
+          })}
+          {netValue > 0 && (
             <p className="text-right text-[11px] font-bold text-primary pt-0.5">
-              {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+              {rejectedCount > 0 && <span className="text-muted-foreground font-normal">มูลค่าสุทธิ </span>}
+              {netValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
         </div>
@@ -157,8 +174,17 @@ const PAGE_SIZE = 9;
 export default function SaleActiveWorkflow() {
   const [requests, setRequests] = useState<SaleWorkflowRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedReq, setExpandedReq] = useState<number | null>(null);
+  // ★ Set — แต่ละการ์ดกาง/พับอิสระ เปิดพร้อมกันได้หลายใบ (ไม่ใช่ accordion ตัวเดียว)
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({});
+
+  const toggleExpanded = (id: number) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const showMore = (key: string) => {
     setVisibleCounts((prev) => ({ ...prev, [key]: (prev[key] ?? PAGE_SIZE) + PAGE_SIZE }));
@@ -216,13 +242,13 @@ export default function SaleActiveWorkflow() {
                   <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-start">
                       {visibleItems.map((req) => (
                         <WorkflowCard
                           key={req.id}
                           req={req}
-                          isExpanded={expandedReq === req.id}
-                          onToggle={() => setExpandedReq(expandedReq === req.id ? null : req.id)}
+                          isExpanded={expandedIds.has(req.id)}
+                          onToggle={() => toggleExpanded(req.id)}
                         />
                       ))}
                     </div>
