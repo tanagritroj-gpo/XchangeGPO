@@ -123,7 +123,14 @@ export async function sendAccountLockedEmail(params: {
 }
 
 // ── 7. ส่งลิงก์ PDF ใบรับคืน/แลกเปลี่ยนสินค้า — ใช้ร่วมกันทั้งฝั่งลูกค้า (ผู้รับเดียว) และ
-// ฝั่ง CSR (เรียกวนทีละคนจาก caller เอง ให้แต่ละคนได้อีเมลแยกฉบับ ไม่เห็นกันเอง) ──
+// ฝั่ง CSR (เรียกวนทีละคนจาก caller เอง ให้แต่ละคนได้อีเมลแยกฉบับ ไม่เห็นกันเอง)
+//
+// mode:
+//   undefined/'standard'  = non-exchange หรือ csr_manual — ออกเอกสาร + ลิงก์ทันที (เดิม)
+//   'ack'                 = แลกเปลี่ยน email #1 — แจ้งรับเรื่อง ไม่มีลิงก์ (ระบบกำลังตรวจสอบ)
+//   'verified'            = แลกเปลี่ยน email #2 — เอกสารผ่านการตรวจสอบแล้ว + ลิงก์ + ขีดคร่อมรายการไม่ผ่าน
+type PdfEmailMode = 'standard' | 'ack' | 'verified';
+
 export async function sendPdfDocumentEmail(params: {
   to: string;
   refId: string;
@@ -135,9 +142,12 @@ export async function sendPdfDocumentEmail(params: {
   deliveryType: string | null;
   totalValueText: string;
   items: PdfDocumentEmailDrugItem[];
-  downloadUrl: string;
+  downloadUrl?: string | null;
   preparedByStaff?: boolean;
+  mode?: PdfEmailMode;
 }): Promise<SendResult> {
+  const mode: PdfEmailMode = params.mode ?? 'standard';
+
   // ลิงก์หน้าติดตามสถานะแบบ public (ไม่ต้อง login) พร้อม ref กรอกไว้ให้แล้ว — ค่าเดียวกับ QR
   // code ใน ReviewSuccessCard.tsx ตอนกดดูหลังส่งฟอร์ม (level M, ไม่มี logo กลาง) แค่ต้อง
   // generate ฝั่ง server แทนด้วย package `qrcode` (ตัว react ใช้ browser canvas ไม่มีให้ใช้
@@ -157,18 +167,26 @@ export async function sendPdfDocumentEmail(params: {
       deliveryType: params.deliveryType,
       totalValueText: params.totalValueText,
       items: params.items,
-      downloadUrl: params.downloadUrl,
+      downloadUrl: mode === 'ack' ? null : params.downloadUrl,
       trackingUrl,
       trackingQrCid,
       preparedByStaff: params.preparedByStaff,
+      pendingVerification: mode === 'ack',
+      verified: mode === 'verified',
     })
   );
+
+  const subject =
+    mode === 'ack'
+      ? `[GPO สาขาภาคใต้] รับเรื่องคำร้องขอแลกเปลี่ยน/คืนสินค้า${params.docNumber ? ` เลขที่ ${params.docNumber}` : ''} — อยู่ระหว่างตรวจสอบ`
+      : mode === 'verified'
+        ? `[GPO สาขาภาคใต้] เอกสารแบบขอคืน/แลกเปลี่ยน${params.docNumber ? ` เลขที่ ${params.docNumber}` : ''} — ผ่านการตรวจสอบแล้ว`
+        : `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${params.refId})`;
+
   return sendGmailMail({
     to: params.to,
-    subject: `เอกสารแบบฟอร์มรับคืน/แลกเปลี่ยนสินค้า (Ref: ${params.refId})`,
+    subject,
     html,
-    attachments: [
-      { filename: 'tracking-qr.png', content: qrPngBuffer, cid: trackingQrCid },
-    ],
+    attachments: [{ filename: 'tracking-qr.png', content: qrPngBuffer, cid: trackingQrCid }],
   });
 }

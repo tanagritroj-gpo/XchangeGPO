@@ -76,6 +76,19 @@ describe('generatePdfAction — guards', () => {
     expect(notFound).toEqual({ success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' });
     expect(wrongOrg).toEqual({ success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' });
   });
+
+  it('grants a same-org customer access to a csr_manual request (no b2b_customers link, matched via requests.customer_code)', async () => {
+    // CSR-กรอกแทน: b2b_customer_id = NULL → ไม่มี join b2b_customers — สิทธิ์มาจาก requests.customer_code
+    seedOwnedRequest({ b2b_customer_id: null, b2b_customers: null, customer_code: 'C-0007', submission_channel: 'csr_manual' });
+    const res = await generatePdfAction(1);
+    expect(res.success).toBe(true);
+  });
+
+  it('denies a csr_manual request whose customer_code is a different organization', async () => {
+    seedOwnedRequest({ b2b_customer_id: null, b2b_customers: null, customer_code: 'OTHER-ORG', submission_channel: 'csr_manual' });
+    const res = await generatePdfAction(1);
+    expect(res).toEqual({ success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' });
+  });
 });
 
 describe('generatePdfAction — first generation vs. reuse of an existing PDF', () => {
@@ -90,7 +103,7 @@ describe('generatePdfAction — first generation vs. reuse of an existing PDF', 
 
   it('reuses the existing file_path and does not rebuild the PDF or duplicate the document_attachments/status_logs rows on a second call', async () => {
     seedOwnedRequest();
-    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, file_path: 'returns/1/REF-1.pdf' });
+    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/1/REF-1.pdf' });
     // must actually exist in the fake storage bucket for createSignedUrl to succeed
     await fakeAdmin.client.storage.from('return-documents').upload('returns/1/REF-1.pdf', new Uint8Array([9]));
 
@@ -103,7 +116,7 @@ describe('generatePdfAction — first generation vs. reuse of an existing PDF', 
 
   it('still writes a fresh access_logs (PDPA) entry every time, even when reusing an existing file', async () => {
     seedOwnedRequest();
-    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, file_path: 'returns/1/REF-1.pdf' });
+    fakeAdmin.rows('document_attachments').push({ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/1/REF-1.pdf' });
     await fakeAdmin.client.storage.from('return-documents').upload('returns/1/REF-1.pdf', new Uint8Array([9]));
 
     await generatePdfAction(1);

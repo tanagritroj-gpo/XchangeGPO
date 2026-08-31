@@ -44,3 +44,13 @@ const FreeTextSchema = z.any().transform((v) => (v == null ? undefined : String(
 export function sanitizeFreeText(value: unknown): string | undefined {
   return FreeTextSchema.parse(value);
 }
+
+// วันที่จาก <input type="date"> (รูปแบบ 'YYYY-MM-DD') — คืน string เดิมถ้า parse เป็นวันที่จริงได้
+// ไม่งั้นคืน null (ไม่ throw ตามแนวทางเดียวกับ sanitize อื่นในไฟล์นี้) ใช้กับ
+// requests.agent_appointment_date ที่ RPC cast เป็น ::date อีกชั้น
+export function sanitizeDateOrNull(value: unknown): string | null {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+}

@@ -89,6 +89,9 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
   const [saleRepsLoading, setSaleRepsLoading] = useState(false);
   const [saleRepsFetched, setSaleRepsFetched] = useState(false);
   const [manualAgentInfo, setManualAgentInfo] = useState(formData?.agent_info || '');
+  // วันนัดรับสินค้า — เก็บเป็น date จริง (agent_appointment_date, ลง PDF ช่อง "วันที่ส่งมอบ")
+  // แยกจาก note ที่เป็นข้อความอิสระ (ช่วงเวลา/รายละเอียดเพิ่มเติม)
+  const [appointmentDate, setAppointmentDate] = useState(formData?.agent_appointment_date || '');
   const [appointmentNote, setAppointmentNote] = useState(formData?.agent_appointment_note || '');
   useEffect(() => {
     if (deliveryType !== 'ผู้แทน' || saleRepsFetched) return;
@@ -130,6 +133,7 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
     // ใช้ข้อความที่กรอกเองแทน (ช่องว่างให้กรอกเอง ตามที่ตกลงไว้) — โน้ตนัดหมายเก็บแยกคอลัมน์
     // ของตัวเอง (agent_appointment_note) ไม่ยัดรวมเป็น string เดียวกับ agent_info อีกต่อไป
     const agentInfo = saleReps.length > 0 ? saleReps.map(r => r.full_name).join(', ') : manualAgentInfo;
+    const isAgent = deliveryType === 'ผู้แทน';
     updateData((prev) => ({
       ...prev,
       return_reason:            reason === 'อื่นๆ' ? `อื่นๆ: ${reasonOther}` : reason,
@@ -142,7 +146,8 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
       addr_district:            addrDistrict,
       addr_province:            addrProvince,
       agent_info:               agentInfo,
-      agent_appointment_note:   saleReps.length > 0 ? appointmentNote.trim() || undefined : undefined,
+      agent_appointment_date:   isAgent ? appointmentDate || undefined : undefined,
+      agent_appointment_note:   isAgent ? appointmentNote.trim() || undefined : undefined,
     }));
     next();
   };
@@ -310,22 +315,35 @@ export default function Step3Reason({ next, back, updateData, formData, getSaleR
                   <input
                     value={manualAgentInfo}
                     onChange={e => setManualAgentInfo(e.target.value)}
-                    placeholder="ชื่อผู้แทน และวันนัดหมายรับสินค้า"
+                    placeholder="ชื่อผู้แทน"
                     className={inputCls}
                   />
                 )}
               </div>
 
-              {/* โน้ตนัดหมาย — โชว์เฉพาะตอนมี sale ให้แล้ว (ไม่งั้นผู้ใช้กรอกรวมในช่องเดียวด้านบนได้เลย) */}
-              {!saleRepsLoading && saleRepsFetched && saleReps.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <FieldLabel>วันนัดหมายรับสินค้า (ถ้ามี)</FieldLabel>
-                  <input
-                    value={appointmentNote}
-                    onChange={e => setAppointmentNote(e.target.value)}
-                    placeholder="เช่น นัดรับวันที่ 20 ส.ค. ช่วงบ่าย"
-                    className={inputCls}
-                  />
+              {/* วันนัดรับสินค้า + หมายเหตุ — โชว์หลังค้นหาผู้แทนเสร็จ (มีหรือไม่มี sale ก็กรอกได้)
+                  วันที่ลง PDF ช่อง "วันที่ส่งมอบ" (agent_appointment_date), หมายเหตุเก็บช่วงเวลา/
+                  รายละเอียดเพิ่มเติมแยก (agent_appointment_note) ไม่ลง PDF */}
+              {!saleRepsLoading && saleRepsFetched && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel>วันนัดรับสินค้า (ถ้ามี)</FieldLabel>
+                    <input
+                      type="date"
+                      value={appointmentDate}
+                      onChange={e => setAppointmentDate(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <FieldLabel>หมายเหตุนัดรับ / ช่วงเวลา (ถ้ามี)</FieldLabel>
+                    <input
+                      value={appointmentNote}
+                      onChange={e => setAppointmentNote(e.target.value)}
+                      placeholder="เช่น ช่วงบ่าย, โทรก่อนเข้ารับ"
+                      className={inputCls}
+                    />
+                  </div>
                 </div>
               )}
             </div>

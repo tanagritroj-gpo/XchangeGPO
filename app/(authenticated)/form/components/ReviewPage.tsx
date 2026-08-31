@@ -5,6 +5,7 @@ import { ClipboardList, Pill, Package, Tag, Calendar, PenLine, ArrowLeft, Loader
 import { ReviewSuccessCard, type PdfActionResult, type EmailActionResult, type OrgContactsResult } from './ReviewSuccessCard';
 import type { ReturnFormData } from '../form-types';
 import { getErrorMessage } from '@/lib/error-message';
+import { formatThaiDate } from '@/lib/format-thai-date';
 import { useToast } from '@/components/ui/toast';
 
 interface SubmitResult {
@@ -85,7 +86,7 @@ export default function ReviewPage({
 
   const {
     sender, items, totalValue, return_reason, delivery_type,
-    addr_street, addr_sub, addr_district, addr_province, agent_info, agent_appointment_note,
+    addr_street, addr_sub, addr_district, addr_province, agent_info, agent_appointment_note, agent_appointment_date,
     signature_url, signer_name, signer_position, exchange_product_type, exchange_product_list, exchange_product_other,
     deliveryNotePhotoUrls,
   } = formData;
@@ -124,7 +125,7 @@ if (status === 'success') {
     return (
       <ReviewSuccessCard
         requestId={currentRequestId}
-        refId={refId} 
+        refId={refId}
         customerEmail={formData.sender?.email}
         allowEmail={allowEmail}
         showTrackingLink={showTrackingLink}
@@ -132,6 +133,10 @@ if (status === 'success') {
         generatePdfActionFn={generatePdfActionFn}
         sendEmailActionFn={sendEmailActionFn}
         getEmailRecipientsFn={getEmailRecipientsFn}
+        // แลกเปลี่ยน: เอกสารต้องผ่าน CSR ตรวจ compliance ก่อน — ฉบับที่โหลด/ส่งตอนนี้เป็น "ฉบับที่กรอก"
+        // (draft) เอกสารฉบับสมบูรณ์ส่งอีกครั้งหลังตรวจ. ลูกค้ายื่นเอง = server ส่งอีเมลแจ้งรับเรื่องแล้ว;
+        // CSR กรอกแทน = CSR เลือกผู้รับด้านล่างแล้วกดส่งเอง (ระบบส่ง ack ให้)
+        pendingVerification={sender?.request_type === 'รับคืนแลกเปลี่ยน'}
       />
     );
   }
@@ -225,7 +230,8 @@ if (status === 'success') {
   
         <ReviewRow label="วิธีส่งคืน" value={delivery_type} />
         <ReviewRow label="รายละเอียด" value={deliveryDetail} />
-        <ReviewRow label="วันนัดหมายรับสินค้า" value={agent_appointment_note} />
+        <ReviewRow label="วันนัดรับสินค้า" value={formatThaiDate(agent_appointment_date) ?? undefined} />
+        <ReviewRow label="หมายเหตุนัดรับ" value={agent_appointment_note} />
       </ReviewCard>
 
       {/* ══ ลายมือชื่อ — โชว์เฉพาะตอนมีค่า (ฝั่ง staff ไม่มี step เซ็น การ์ดนี้จะหายไปเองอัตโนมัติ) ══ */}

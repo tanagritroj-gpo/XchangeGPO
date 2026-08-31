@@ -262,7 +262,7 @@ describe('getOrgContactsForRequest / sendStaffPdfEmailAction — recipient allow
       staff_users: [
         { id: 'sale-1', full_name: 'ฝ่ายขายใต้', email: 'sale@example.com', department: 'sale', is_approved: true, sale_customer_types: ['government'], sale_provinces: ['สงขลา'] },
       ],
-      document_attachments: [{ id: 'doc-1', request_id: 1, file_path: 'returns/staff/REF-AAAA1111.pdf' }],
+      document_attachments: [{ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/staff/REF-AAAA1111.pdf' }],
       status_logs: [], notification_log: [],
     });
   });
@@ -316,5 +316,75 @@ describe('getOrgContactsForRequest / sendStaffPdfEmailAction — recipient allow
     });
     const res = await sendStaffPdfEmailAction(1);
     expect(res).toEqual({ success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' });
+  });
+});
+
+// ── Phase 4: ใบงานแลกเปลี่ยนที่ CSR กรอกแทน = ส่งอีเมล 2 ครั้ง ──
+// ครั้งที่ 1 (ยัง pending_review) = "แจ้งรับเรื่อง" (ack, ไม่มีลิงก์ PDF, ไม่ต้องมีเอกสารฉบับ final)
+// + จำ recipients ที่ CSR เลือกลง requests.notify_emails ให้ email #2 (verified) ใช้ชุดเดียวกัน
+describe('sendStaffPdfEmailAction — csr_manual exchange 2-phase (ack)', () => {
+  beforeEach(() => {
+    mockGetStaffSession.mockResolvedValue(CSR_STAFF as any);
+    fakeAdmin.seed({
+      requests: [{
+        id: 1, ref_id: 'REF-EX01', customer_code: 'C-0007', hospital_name: 'รพ.ทดสอบ',
+        request_type: 'รับคืนแลกเปลี่ยน', submission_channel: 'csr_manual', current_status: 'pending_review',
+        return_reason: 'x', delivery_type: 'ขนส่ง', total_value: 100, doc_number: 'S001/2026',
+        request_date: new Date().toISOString(), created_at: new Date().toISOString(),
+      }],
+      drug_items: [{ id: 1, request_id: 1, drug_name: 'A', qty: 1, unit: 'กล่อง', lot_number: 'L', exp_date: null }],
+      organizations: [{ id: 7, hospital_name: 'รพ.ทดสอบ', province: 'สงขลา', customer_code: 'C-0007', org_type: 'gov_hospital' }],
+      b2b_customers: [{ id: 1, contact_name: 'ผู้ติดต่อจริง', email: 'real-contact@example.com', customer_code: 'C-0007' }],
+      staff_users: [], document_attachments: [], status_logs: [], notification_log: [],
+    });
+  });
+
+  it('sends the ack email (no final PDF needed) and persists the picked recipients to notify_emails', async () => {
+    const res = await sendStaffPdfEmailAction(1, ['real-contact@example.com']);
+    expect(res.success).toBe(true);
+    expect(mockSendPdfDocumentEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'real-contact@example.com', mode: 'ack', downloadUrl: null }),
+    );
+    expect(fakeAdmin.rows('requests')[0].notify_emails).toEqual(['real-contact@example.com']);
+    expect(fakeAdmin.rows('status_logs')).toMatchObject([{ status_name: 'ack_email_sent' }]);
+  });
+
+  it('still enforces the org allowlist on the ack send', async () => {
+    const res = await sendStaffPdfEmailAction(1, ['attacker@evil.example']);
+    expect(res).toEqual({ success: false, error: 'ไม่มีอีเมลผู้รับ กรุณาเลือกผู้รับก่อนส่ง' });
+    expect(mockSendPdfDocumentEmail).not.toHaveBeenCalled();
+    expect(fakeAdmin.rows('requests')[0].notify_emails ?? null).toBeNull();
+  });
+
+  it('once verified (status past pending_review) it sends the real doc, not another ack', async () => {
+    fakeAdmin.rows('requests')[0].current_status = 'approved';
+    fakeAdmin.seed({
+      requests: fakeAdmin.rows('requests'), drug_items: fakeAdmin.rows('drug_items'),
+      organizations: fakeAdmin.rows('organizations'), b2b_customers: fakeAdmin.rows('b2b_customers'),
+      staff_users: [], notification_log: [], status_logs: [],
+      document_attachments: [{ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/staff/REF-EX01.pdf' }],
+    });
+    await fakeAdmin.client.storage.from('return-documents').upload('returns/staff/REF-EX01.pdf', new Uint8Array([1]));
+    const res = await sendStaffPdfEmailAction(1, ['real-contact@example.com']);
+    expect(res.success).toBe(true);
+    expect(mockSendPdfDocumentEmail).toHaveBeenCalledWith(expect.objectContaining({ mode: 'standard' }));
+    // exchange non-ack → 'document_sent' (same invariant as deliverVerifiedExchangeDoc: log = delivered)
+    expect(fakeAdmin.rows('status_logs')).toMatchObject([{ status_name: 'document_sent' }]);
+    // ใบงานนี้ไม่เคยมี notify_emails → บันทึกผู้รับที่ใช้ส่งไว้ (เคลียร์ banner "เอกสารรอส่ง")
+    expect(fakeAdmin.rows('requests')[0].notify_emails).toEqual(['real-contact@example.com']);
+  });
+
+  it('does NOT overwrite an existing notify_emails set on a later resend', async () => {
+    fakeAdmin.rows('requests')[0].current_status = 'approved';
+    fakeAdmin.rows('requests')[0].notify_emails = ['picked-earlier@example.com'];
+    fakeAdmin.seed({
+      requests: fakeAdmin.rows('requests'), drug_items: fakeAdmin.rows('drug_items'),
+      organizations: fakeAdmin.rows('organizations'), b2b_customers: fakeAdmin.rows('b2b_customers'),
+      staff_users: [], notification_log: [], status_logs: [],
+      document_attachments: [{ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/staff/REF-EX01.pdf' }],
+    });
+    await fakeAdmin.client.storage.from('return-documents').upload('returns/staff/REF-EX01.pdf', new Uint8Array([1]));
+    await sendStaffPdfEmailAction(1, ['real-contact@example.com']);
+    expect(fakeAdmin.rows('requests')[0].notify_emails).toEqual(['picked-earlier@example.com']);
   });
 });

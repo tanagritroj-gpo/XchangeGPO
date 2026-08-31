@@ -26,17 +26,16 @@ export interface RequestRow {
   ref_id: string;
   request_date: string | null;
   request_type: string | null;
-  transaction_date: string | null;
   hospital_name: string | null;
   province: string | null;
   customer_code: string | null;
   phone: string | null;
   contact_name: string | null;
   return_reason: string | null;
-  exchange_product: string | null;
   delivery_type: string | null;
   agent_info: string | null;
   agent_appointment_note: string | null;
+  agent_appointment_date: string | null;
   addr_street: string | null;
   addr_district: string | null;
   signature_url: string | null;
@@ -59,6 +58,8 @@ export interface RequestRow {
   department: string | null;
   created_by_staff_id: string | null;
   submission_channel: 'customer_portal' | 'csr_manual';
+  // ผู้รับอีเมลที่ CSR เลือกตอนส่ง "แจ้งรับเรื่อง" (csr_manual แลกเปลี่ยน) — email #2 ใช้ชุดเดิม
+  notify_emails: string[] | null;
   drug_items?: DrugItemRow[];
   // path ภายใน bucket return-documents ของรูปถ่ายใบส่งของที่ลูกค้าแนบมา (nullable/array —
   // ไม่บังคับแนบ, ระดับคำร้องไม่ใช่ระดับรายการยา เพราะใบส่งของคือเอกสาร 1 ใบต่อการจัดส่ง
@@ -193,7 +194,7 @@ export interface StatusLogRow {
   rejection_reason_code: string | null;
 }
 
-// กฎ SLA ต่อ status_name — แก้ไขได้เองผ่านหน้า manager (/admin/manager/sla)
+// กฎ SLA ต่อ status_name — แก้ไขได้เองผ่านหน้า manager (/admin/manager/audit-trail)
 export interface SlaRuleRow {
   status_name: string;
   sla_days: number;

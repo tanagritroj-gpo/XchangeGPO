@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -25,6 +25,9 @@ import {
   Warehouse,
   Receipt,
   LogOut,
+  MailWarning,
+  Send,
+  FileCheck2,
 } from 'lucide-react';
 import { getStatusMeta } from '@/lib/tracking-status';
 import { StaffDashboardSkeleton } from '@/components/skeletons/DashboardSkeleton';
@@ -37,6 +40,7 @@ import {
   getCSRRequestDetail,
 } from '@/app/actions/csr-actions';
 import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
+import { getOrgContactsForRequest, generateStaffPdfAction, sendStaffPdfEmailAction } from '@/app/actions/staff-form-actions';
 import CSRDrugRow from './component/CSRDrugRow';
 import DeliveryPhotoBadge from './component/DeliveryPhotoBadge';
 import ReasonSelectFields from '@/components/ReasonSelectFields';
@@ -44,6 +48,7 @@ import { REJECTION_REASONS } from '@/lib/rejection-reasons';
 import { resolveQuickNote } from '@/lib/quick-note';
 import { StatCard } from '@/components/StatCard';
 import { RequestDetailPanel } from '@/components/history/RequestHistoryList';
+import { ExchangeHistoryView } from '@/components/history/ExchangeHistoryView';
 import { useToast } from '@/components/ui/toast';
 import type { LucideIcon } from 'lucide-react';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
@@ -193,10 +198,6 @@ const isAllItemsRejected = (req: RequestRow) =>
   (req.drug_items?.length ?? 0) > 0 &&
   (req.drug_items ?? []).every((item) => item.current_status === 'rejected');
 
-// วันที่เริ่มสร้างใบงาน — ใช้ในคอลัมน์ "วันที่" ของ "ประวัติใบงาน" เท่านั้น
-const formatRequestDate = (createdAt: string | null) =>
-  new Date(createdAt || 0).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
-
 // สถานะที่ CSR เป็นคนกดอัปเดตเอง (มีปุ่ม action ให้กดใน RequestListSection)
 // สถานะอื่นนอกจากนี้ (approved, in_transit, at_warehouse, checked_in, out_for_delivery) เป็นของฝ่าย log/wh — CSR แค่มอนิเตอร์
 const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'credit_note'];
@@ -207,7 +208,7 @@ const CSR_ACTIONABLE_STATUSES = ['pending_review', 'receiving', 'exchanging', 'c
 function RequestListSection({
   title, icon: Icon, iconBg, iconColor, subtitle, items,
   expandedReq, setExpandedReq, openConfirmModal, openExchangeModal, openCompleteModal, fetchData,
-  emptyIcon: EmptyIcon, emptyText, pageSize, readOnly, headerExtra,
+  emptyIcon: EmptyIcon, emptyText, pageSize, headerExtra,
 }: {
   title: string; icon: LucideIcon; iconBg: string; iconColor: string; subtitle: string; items: RequestRow[];
   expandedReq: number | null; setExpandedReq: (id: number | null) => void;
@@ -215,7 +216,7 @@ function RequestListSection({
   openExchangeModal: (requestId: number) => void;
   openCompleteModal: (requestId: number) => void;
   fetchData: (opts?: { silent?: boolean }) => void;
-  emptyIcon: LucideIcon; emptyText: string; pageSize?: number; readOnly?: boolean;
+  emptyIcon: LucideIcon; emptyText: string; pageSize?: number;
   headerExtra?: React.ReactNode;
 }) {
   const [page, setPage] = useState(1);
@@ -247,7 +248,7 @@ function RequestListSection({
             <div className="col-span-3">Ref ID</div>
             <div className="col-span-2">สถานะ</div>
             <div className="col-span-5">รายการสินค้า</div>
-            <div className="col-span-2 text-right">{readOnly ? 'วันที่' : 'การดำเนินการ'}</div>
+            <div className="col-span-2 text-right">การดำเนินการ</div>
           </div>
         )}
 
@@ -294,7 +295,7 @@ function RequestListSection({
                       <DeliveryPhotoBadge req={req} />
                     </div>
                     <div className="col-span-2 flex flex-col items-end gap-2">
-                      {!readOnly && req.current_status === 'pending_review' && (
+                      {req.current_status === 'pending_review' && (
                         isAllItemsReviewed(req) ? (
                           isAllItemsRejected(req) ? (
                             <WorkflowDecisionButton icon={Check} label="อนุมัติ" tone="approve" onClick={() => openConfirmModal(req.id, 'approved')} />
@@ -311,18 +312,15 @@ function RequestListSection({
                           </p>
                         )
                       )}
-                      {!readOnly && req.current_status === 'receiving' && (
+                      {req.current_status === 'receiving' && (
                         req.request_type === 'รับคืนแลกเปลี่ยน' ? (
                           <ActionButton icon={RefreshCw} label="เริ่มแลกเปลี่ยน" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         ) : (
                           <ActionButton icon={Receipt} label="เริ่มลดหนี้" tone="blue" onClick={() => openExchangeModal(req.id)} />
                         )
                       )}
-                      {!readOnly && (req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
+                      {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
                         <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
-                      )}
-                      {readOnly && (
-                        <p className="text-xs font-semibold text-muted-foreground">{formatRequestDate(req.created_at)}</p>
                       )}
                     </div>
                   </div>
@@ -333,7 +331,6 @@ function RequestListSection({
                       <div className="min-w-0">
                         <p className="text-sm font-bold text-foreground font-mono">{req.ref_id}</p>
                         {req.hospital_name && <p className="text-xs text-muted-foreground mt-0.5 truncate">{req.hospital_name}</p>}
-                        {readOnly && <p className="text-[11px] text-muted-foreground mt-0.5">{formatRequestDate(req.created_at)}</p>}
                       </div>
                       <StatusBadge status={req.current_status} />
                     </div>
@@ -349,8 +346,7 @@ function RequestListSection({
 
                     <DeliveryPhotoBadge req={req} />
 
-                    {!readOnly && (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2 empty:hidden">
                         {req.current_status === 'pending_review' && (
                           isAllItemsReviewed(req) ? (
                             isAllItemsRejected(req) ? (
@@ -378,17 +374,12 @@ function RequestListSection({
                         {(req.current_status === 'exchanging' || req.current_status === 'credit_note') && (
                           <ActionButton icon={CheckCircle2} label="เสร็จสิ้น" tone="emerald" onClick={() => openCompleteModal(req.id)} />
                         )}
-                      </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* Drug items expanded — readOnly (ประวัติใบงาน) ใช้ RequestDetailPanel แบบเดียวกับ
-                      sale/history (stepper + รายละเอียด + timeline) ส่วนแท็บที่ยังต้องดำเนินการ
-                      (ปุ่มอนุมัติ/ปฏิเสธรายชิ้น) ยังคงใช้ CSRDrugRow แบบเดิม */}
-                  {isExpanded && (
-                    readOnly ? (
-                      <RequestDetailPanel requestId={req.id} fetchDetail={getCSRRequestDetail} size="default" />
-                    ) : drugCount > 0 && (
+                  {/* รายการยาแบบมีปุ่มอนุมัติ/ปฏิเสธรายชิ้น (CSRDrugRow) — ใช้ในทุกแท็บที่ยังต้อง
+                      ดำเนินการ; แท็บ "ประวัติใบงาน" + quick-filter เสร็จสิ้น/ถูกปฏิเสธ ใช้ ExchangeHistoryView แยกต่างหาก */}
+                  {isExpanded && drugCount > 0 && (
                       <div className="px-4 md:px-6 pb-4">
                         <div className="hidden md:grid grid-cols-12 gap-1 text-[11px] font-bold text-muted-foreground uppercase tracking-wide px-3 mb-1.5">
                           <div className="col-span-3">ชื่อยา</div>
@@ -405,7 +396,6 @@ function RequestListSection({
                               key={item.id}
                               item={{ ...item, request_type: req.request_type ?? undefined }}
                               onUpdate={() => fetchData({ silent: true })}
-                              readOnly={readOnly}
                             />
                           ))}
                         </div>
@@ -421,7 +411,6 @@ function RequestListSection({
                           </div>
                         )}
                       </div>
-                    )
                   )}
                 </div>
               );
@@ -486,9 +475,15 @@ const MONITOR_STAGE_ROLE: Record<string, { label: string; icon: LucideIcon; colo
 
 // การ์ดใบงาน 1 ใบในกระดาน — read-only ไม่มีปุ่ม action เพราะสถานะกลุ่มนี้ log/wh
 // เป็นคนอัปเดต ไม่ใช่ CSR (ต่างจาก CSRDrugRow ที่มีปุ่มอนุมัติ/ปฏิเสธสำหรับ workflow ของ CSR เอง)
+// item ที่ถูกปฏิเสธในขั้นตอนใดก็ตาม (ตรวจ compliance ของ CSR หรือคลังปฏิเสธตอนตรวจรับ)
+const isItemRejected = (i: { current_status?: string | null }) => i.current_status === 'rejected';
+
 function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isExpanded: boolean; onToggle: () => void }) {
-  const drugCount = req.drug_items?.length ?? 0;
-  const totalValue = req.drug_items?.reduce((s: number, i: DrugItemRow) => s + (Number(i.value_amount) || 0), 0) ?? 0;
+  const items = req.drug_items ?? [];
+  const drugCount = items.length;
+  const rejectedCount = items.filter(isItemRejected).length;
+  // มูลค่าที่แสดง = หักรายการที่ถูกปฏิเสธออกแล้ว
+  const netValue = items.filter((i) => !isItemRejected(i)).reduce((s, i) => s + (Number(i.value_amount) || 0), 0);
   const role = MONITOR_STAGE_ROLE[req.current_status];
   const RoleIcon = role?.icon;
   return (
@@ -510,22 +505,34 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
       >
         <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-accent text-accent-foreground font-bold text-[11px] leading-none">{drugCount}</span>
         รายการสินค้า
+        {rejectedCount > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-red-600 font-bold">
+            <X size={11} strokeWidth={3} />{rejectedCount}
+          </span>
+        )}
         <ChevronDown size={12} strokeWidth={2.5} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
       </button>
 
       {isExpanded && drugCount > 0 && (
         <div className="mt-2 space-y-1.5 border-t border-border pt-2">
-          {(req.drug_items ?? []).map((item: DrugItemRow) => (
-            <div key={item.id} className="text-[11px] bg-secondary/60 rounded-lg px-2 py-1.5">
-              <p className="font-bold text-foreground truncate">{item.drug_name}</p>
-              <p className="text-muted-foreground mt-0.5">
-                {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
-              </p>
-            </div>
-          ))}
-          {totalValue > 0 && (
+          {items.map((item: DrugItemRow) => {
+            const rejected = isItemRejected(item);
+            return (
+              <div key={item.id} className={`text-[11px] rounded-lg px-2 py-1.5 ${rejected ? 'bg-red-50' : 'bg-secondary/60'}`}>
+                <p className={`font-bold truncate ${rejected ? 'text-red-600' : 'text-foreground'}`}>
+                  {item.drug_name}
+                  {rejected && <span className="ml-1 font-black">✗</span>}
+                </p>
+                <p className={`mt-0.5 ${rejected ? 'text-red-400 line-through' : 'text-muted-foreground'}`}>
+                  {item.qty} {item.unit}{item.lot_number ? ` · Lot ${item.lot_number}` : ''}
+                </p>
+              </div>
+            );
+          })}
+          {netValue > 0 && (
             <p className="text-right text-[11px] font-bold text-primary pt-0.5">
-              {totalValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+              {rejectedCount > 0 && <span className="text-muted-foreground font-normal">มูลค่าสุทธิ </span>}
+              {netValue.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
             </p>
           )}
         </div>
@@ -537,9 +544,17 @@ function MonitorBoardCard({ req, isExpanded, onToggle }: { req: RequestRow; isEx
 // ── กระดานภาพรวม "Active Workflow" — จัดกลุ่มใบงานตามสถานะจริงเป็นบล็อกเรียงแนวตั้ง
 // ทีละสถานะ (บนลงล่าง) ให้เห็นภาพรวมทั้ง pipeline ขนส่ง/คลังโดยไม่ต้องเลื่อนแนวนอน
 // การ์ดภายในแต่ละบล็อกจัดเป็น grid responsive ใช้พื้นที่แนวนอนที่ว่างจากการเลิกเป็นคอลัมน์แคบๆ ──
-function MonitorBoard({ items, expandedReq, setExpandedReq }: {
-  items: RequestRow[]; expandedReq: number | null; setExpandedReq: (id: number | null) => void;
-}) {
+function MonitorBoard({ items }: { items: RequestRow[] }) {
+  // ★ state ของตัวเอง (Set) — แต่ละการ์ดกด กาง/พับ อิสระ เปิดพร้อมกันได้หลายใบ
+  // ไม่ผูกกับ expandedReq ตัวเดียวที่ RequestListSection ใช้ (กดใบนึงแล้วพับใบอื่นทิ้ง)
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const toggle = (id: number) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   return (
     <section>
       <div className="flex items-center gap-2.5 mb-3 px-1">
@@ -572,13 +587,13 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
               {colItems.length === 0 ? (
                 <p className="text-[11px] text-muted-foreground text-center py-6">ไม่มีใบงาน</p>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-start">
                   {colItems.map((req) => (
                     <MonitorBoardCard
                       key={req.id}
                       req={req}
-                      isExpanded={expandedReq === req.id}
-                      onToggle={() => setExpandedReq(expandedReq === req.id ? null : req.id)}
+                      isExpanded={expandedIds.has(req.id)}
+                      onToggle={() => toggle(req.id)}
                     />
                   ))}
                 </div>
@@ -588,6 +603,99 @@ function MonitorBoard({ items, expandedReq, setExpandedReq }: {
         })}
       </div>
     </section>
+  );
+}
+
+type OrgContact = { id: number | string; contact_name: string | null; email: string };
+
+// ── การ์ด "ประวัติใบงาน" ของ CSR — reuse ExchangeHistoryView (layout เดียวกับหน้าลูกค้า)
+// แบบ bare: ตัด header/StatCards/แท็บสถานะออก (dashboard มี stat/filter ของตัวเอง) แต่พอกาง
+// การ์ดจะแสดง RequestDetailPanel เต็มของ CSR (stepper + รายละเอียด + timeline + หมายเหตุเจ้าหน้าที่)
+type HistoryCardRow = RequestRow & { submitted_by?: string };
+
+const withSubmittedBy = (list: RequestRow[]): HistoryCardRow[] =>
+  list.map((r) => ({
+    ...r,
+    submitted_by:
+      r.submission_channel === 'csr_manual'
+        ? `${r.contact_name ?? 'เจ้าหน้าที่ CSR'} (เจ้าหน้าที่ CSR)`
+        : r.contact_name ?? undefined,
+  }));
+
+function CsrHistoryCards({ items }: { items: HistoryCardRow[] }) {
+  const fetcher = useCallback(async () => items, [items]);
+  return (
+    <ExchangeHistoryView
+      chrome="bare"
+      fetcher={fetcher}
+      title=""
+      subtitle=""
+      showSubmitter
+      showPdf
+      pdfActionFn={generateStaffPdfAction}
+      trackingHref={() => null}
+      renderExpandedDetail={(r) => (
+        <RequestDetailPanel requestId={r.id} fetchDetail={getCSRRequestDetail} size="default" />
+      )}
+      emptyText="ไม่มีใบงานในกลุ่มนี้"
+      emptySubtext="ใบงานทุกสถานะจะแสดงที่นี่"
+    />
+  );
+}
+
+// ── ใบงานแลกเปลี่ยนที่ CSR กรอกแทนลูกค้า ผ่านการตรวจสอบแล้วแต่ "เอกสารฉบับตรวจสอบแล้ว"
+// ยังไม่ถึงมือลูกค้า — CSR ไม่ได้เลือกผู้รับตอนแจ้งรับเรื่อง หรือตอนนั้นระบบส่งไม่สำเร็จ
+// (ปกติ email #2 ส่งอัตโนมัติหลังกดอนุมัติ/ปฏิเสธ ถ้ามีชุดผู้รับที่ CSR เลือกไว้แล้ว) ──
+const isDocDeliveryPending = (r: RequestRow, sentIds: Set<number>) =>
+  r.submission_channel === 'csr_manual' &&
+  r.request_type === 'รับคืนแลกเปลี่ยน' &&
+  r.current_status !== 'pending_review' &&
+  !sentIds.has(r.id);
+
+function PendingDocBanner({ items, onSend }: { items: RequestRow[]; onSend: (requestId: number) => void }) {
+  const [open, setOpen] = useState(true);
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-amber-300 bg-amber-50 overflow-hidden">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+          <MailWarning size={18} className="text-amber-600" strokeWidth={2.5} />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-amber-900">
+            เอกสารฉบับตรวจสอบแล้วยังไม่ถึงลูกค้า ({items.length})
+          </p>
+          <p className="text-[11px] text-amber-700 leading-snug">
+            ใบงานแลกเปลี่ยนที่ท่านกรอกแทนลูกค้า — ผ่านการตรวจสอบแล้วแต่ยังไม่ได้เลือกผู้รับอีเมล หรือระบบส่งไม่สำเร็จ
+          </p>
+        </div>
+        <ChevronDown size={16} className={`text-amber-500 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} strokeWidth={2.5} />
+      </button>
+
+      {open && (
+        <div className="border-t border-amber-200 divide-y divide-amber-200/70">
+          {items.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 px-4 py-2.5 flex-wrap">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-amber-900 font-mono">{r.ref_id}</p>
+                {r.hospital_name && (
+                  <p className="text-[11px] text-amber-700 truncate">{r.hospital_name}</p>
+                )}
+              </div>
+              <button
+                onClick={() => onSend(r.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 active:scale-95 transition-all shrink-0"
+              >
+                <Send size={13} strokeWidth={2.5} /> เลือกผู้รับและส่ง
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -623,10 +731,22 @@ export default function CSRDashboard() {
   const [completeReasonCode, setCompleteReasonCode] = useState('');
   const [completeDetail, setCompleteDetail] = useState('');
 
+  // ── ส่ง "เอกสารฉบับตรวจสอบแล้ว" ให้ลูกค้าย้อนหลัง (ใบงานแลกเปลี่ยนที่ CSR กรอกแทน) ──
+  // id ของใบงานที่ส่งเอกสารถึงลูกค้าแล้ว (status_logs 'document_sent') — จาก getCSRDashboardData
+  const [verifiedDocSentIds, setVerifiedDocSentIds] = useState<Set<number>>(new Set());
+  const [sendDocModal, setSendDocModal] = useState<{ requestId: number } | null>(null);
+  const [docRecipients, setDocRecipients] = useState<OrgContact[]>([]);
+  const [docRecipientsLoaded, setDocRecipientsLoaded] = useState(false);
+  const [selectedDocEmails, setSelectedDocEmails] = useState<string[]>([]);
+  const [docSending, setDocSending] = useState(false);
+
   const fetchData = async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setIsLoading(true);
     const data = await getCSRDashboardData();
-    if (data.success) { setRequests(data.requests || []); }
+    if (data.success) {
+      setRequests(data.requests || []);
+      setVerifiedDocSentIds(new Set(data.verifiedDocSentIds || []));
+    }
     if (!opts?.silent) setIsLoading(false);
   };
 
@@ -721,6 +841,17 @@ export default function CSRDashboard() {
       if (res.success) {
         setConfirmModal(null);
         setRemark('');
+        // แลกเปลี่ยน: ระบบสร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลอัตโนมัติ
+        //  - ลูกค้ายื่นเอง → ส่งให้ลูกค้า + sale ที่ดูแลหน่วยงาน
+        //  - CSR กรอกแทน  → ส่งไปที่อีเมลชุดที่ CSR เลือกไว้ตอนแจ้งรับเรื่อง (requests.notify_emails)
+        const emailedTo = 'emailedTo' in res ? (res.emailedTo as string[] | undefined) : undefined;
+        if (emailedTo && emailedTo.length > 0) {
+          toast.success(`ส่งเอกสาร PDF ฉบับตรวจสอบแล้วทางอีเมล: ${emailedTo.join(', ')}`);
+        } else if (emailedTo) {
+          // csr_manual ที่ยังไม่มีชุดผู้รับ / ส่งไม่ผ่าน — เปิด modal ให้ CSR เลือกผู้รับแล้วส่งทันที
+          toast.error('สร้างเอกสารฉบับตรวจสอบแล้ว แต่ยังไม่ได้ส่ง — กรุณาเลือกผู้รับอีเมล');
+          openSendDocModal(requestId);
+        }
         fetchData();
       } else {
         toast.error(`${('error' in res && res.error) || 'เกิดข้อผิดพลาดไม่ทราบสาเหตุ'}`);
@@ -733,16 +864,83 @@ export default function CSRDashboard() {
     }
   };
 
+  // ── เปิด modal ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าย้อนหลัง ──
+  const openSendDocModal = (requestId: number) => {
+    setDocRecipients([]);
+    setDocRecipientsLoaded(false);
+    setSelectedDocEmails([]);
+    setSendDocModal({ requestId });
+  };
+
+  // โหลดรายชื่อผู้รับของหน่วยงาน + default เลือกชุดที่ CSR เคยเลือกไว้ (notify_emails) ถ้ามี ไม่งั้นเลือกทั้งหมด
+  useEffect(() => {
+    if (!sendDocModal) return;
+    let cancelled = false;
+    (async () => {
+      const req = requests.find((r) => r.id === sendDocModal.requestId);
+      const res = await getOrgContactsForRequest(sendDocModal.requestId);
+      if (cancelled) return;
+      if (res.success && res.data) {
+        setDocRecipients(res.data);
+        const prev = (req?.notify_emails ?? []).filter(Boolean);
+        const allowed = new Set(res.data.map((c) => c.email));
+        const preset = prev.filter((e) => allowed.has(e));
+        setSelectedDocEmails(preset.length > 0 ? preset : res.data.map((c) => c.email));
+      }
+      setDocRecipientsLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [sendDocModal, requests]);
+
+  const toggleDocEmail = (email: string) =>
+    setSelectedDocEmails((prev) => (prev.includes(email) ? prev.filter((e) => e !== email) : [...prev, email]));
+
+  const submitSendDoc = async () => {
+    if (!sendDocModal || selectedDocEmails.length === 0) return;
+    setDocSending(true);
+    try {
+      const { requestId } = sendDocModal;
+      // 1. การันตีว่ามีเอกสารฉบับตรวจสอบแล้ว (kind='final') — สร้าง on-demand ถ้ายังไม่มี
+      const gen = await generateStaffPdfAction(requestId);
+      if (!gen.success) {
+        toast.error(`สร้างเอกสารไม่สำเร็จ: ${gen.error}`);
+        return;
+      }
+      // 2. ส่งอีเมลพร้อมลิงก์เอกสารให้ผู้รับที่เลือก (allowlist ตรวจซ้ำฝั่ง server)
+      const res = await sendStaffPdfEmailAction(requestId, selectedDocEmails);
+      if (res.success) {
+        toast.success(res.message || 'ส่งเอกสารให้ลูกค้าเรียบร้อยแล้ว');
+        setSendDocModal(null);
+        fetchData({ silent: true });
+      } else {
+        toast.error(res.error || 'ส่งเอกสารไม่สำเร็จ');
+      }
+    } catch (err) {
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+      console.error(err);
+    } finally {
+      setDocSending(false);
+    }
+  };
+
   // แยกใบงาน active ออกจากใบงานที่จบแล้ว (completed/rejected) เพื่อไม่ให้ปนกันในรายการเดียว
   const activeRequests  = requests.filter(r => r.current_status !== 'completed' && r.current_status !== 'rejected');
-  // "ประวัติใบงาน" แสดงใบงานทุกสถานะ (ไม่กรองเฉพาะ completed/rejected อีกต่อไป) — เป็น log
-  // รวมทุกใบงานที่เคยเข้าระบบ แยกจาก "จัดการใบงาน" ที่โฟกัสเฉพาะรายการที่ต้องดำเนินการ
-  // เรียงตามวันที่สร้างใหม่สุดก่อนเสมอ (ไม่พึ่งพา order จาก query อย่างเดียว กันกรณีลำดับเปลี่ยนในอนาคต)
-  const historyRequestsSorted = [...requests].sort(
-    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  // ── ข้อมูลสำหรับการ์ด "ประวัติใบงาน" + quick-filter เสร็จสิ้น/ถูกปฏิเสธ (CsrHistoryCards) ──
+  // memo แยกชั้น: จัดเรียงครั้งเดียว แล้ว filter/map ต่อ — array ต้องนิ่งไม่งั้น fetcher ของ
+  // ExchangeHistoryView จะ re-run ทุก render (รีเซ็ต pagination/expand)
+  const sortedByNewest = useMemo(
+    () => [...requests].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()),
+    [requests],
   );
-  const historyRequestsFiltered = !historyTypeFilter ? historyRequestsSorted
-    : historyRequestsSorted.filter((r) => r.request_type === historyTypeFilter);
+  const historyForView = useMemo(
+    () => withSubmittedBy(historyTypeFilter ? sortedByNewest.filter((r) => r.request_type === historyTypeFilter) : sortedByNewest),
+    [sortedByNewest, historyTypeFilter],
+  );
+  const completedForView = useMemo(() => withSubmittedBy(sortedByNewest.filter((r) => r.current_status === 'completed')), [sortedByNewest]);
+  const rejectedForView = useMemo(() => withSubmittedBy(sortedByNewest.filter((r) => r.current_status === 'rejected')), [sortedByNewest]);
+
+  // ใบงานแลกเปลี่ยน (CSR กรอกแทน) ที่ผ่านการตรวจแล้วแต่เอกสารฉบับตรวจสอบยังไม่ถึงลูกค้า
+  const pendingDocRequests = requests.filter((r) => isDocDeliveryPending(r, verifiedDocSentIds));
 
   // ใบงานที่ modal "เริ่มกระบวนการ" กำลังเปิดอยู่ — ใช้ตัดสินใจว่าเป็นแลกเปลี่ยนหรือลดหนี้ (คำในปุ่ม/หัวข้อ modal ต้องตรงกัน)
   const exchangeModalRequest = exchangeModal ? requests.find(r => r.id === exchangeModal.requestId) : undefined;
@@ -846,6 +1044,8 @@ export default function CSRDashboard() {
           />
         </div>
 
+        <PendingDocBanner items={pendingDocRequests} onSend={openSendDocModal} />
+
         <div className="flex flex-col md:flex-row gap-4 md:gap-8">
 
           {/* ══ Sidebar Tabs (แนวตั้ง — ตัด "ลูกค้าที่รออนุมัติ" ออก ย้ายไปหน้าแยกแล้ว) ══ */}
@@ -868,6 +1068,22 @@ export default function CSRDashboard() {
           <div className="flex-1 min-w-0">
 
             {statusFilter ? (
+              // เสร็จสิ้น/ถูกปฏิเสธ = ประวัติล้วน ๆ → การ์ดแบบเดียวกับแท็บ "ประวัติใบงาน"
+              // รอตรวจสอบ/กำลังดำเนินการ = คิวงาน → list ที่มีปุ่ม action ตามสถานะ
+              statusFilter === 'completed' || statusFilter === 'rejected' ? (
+                <section>
+                  <div className="flex items-center gap-2.5 mb-3 px-1">
+                    <div className={`w-8 h-8 rounded-lg ${statFilterMeta[statusFilter].iconBg} flex items-center justify-center shrink-0`}>
+                      {(() => { const I = statFilterMeta[statusFilter].icon; return <I size={16} className={statFilterMeta[statusFilter].iconColor} strokeWidth={2.5} />; })()}
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">{statFilterMeta[statusFilter].title}</h2>
+                      <p className="text-[11px] text-muted-foreground">{statFilterMeta[statusFilter].subtitle}</p>
+                    </div>
+                  </div>
+                  <CsrHistoryCards items={statusFilter === 'completed' ? completedForView : rejectedForView} />
+                </section>
+              ) : (
               <RequestListSection
                 title={statFilterMeta[statusFilter].title}
                 icon={statFilterMeta[statusFilter].icon}
@@ -884,6 +1100,7 @@ export default function CSRDashboard() {
                 emptyIcon={Inbox}
                 emptyText="ไม่มีใบงานในกลุ่มนี้"
               />
+              )
             ) : (
             <>
             {activeTab === 'active' && (
@@ -922,58 +1139,49 @@ export default function CSRDashboard() {
               )}
 
               {workflowSubTab === 'monitor' && (
-                <MonitorBoard
-                  items={monitorWorkflowRequests}
-                  expandedReq={expandedReq}
-                  setExpandedReq={setExpandedReq}
-                />
+                <MonitorBoard items={monitorWorkflowRequests} />
               )}
             </div>
             )}
 
             {activeTab === 'history' && (
-            <RequestListSection
-              title="ประวัติใบงาน"
-              icon={History}
-              iconBg="bg-accent"
-              iconColor="text-accent-foreground"
-              subtitle={`${requests.length} ใบงานทั้งหมดในระบบ (ทุกสถานะ)`}
-              items={historyRequestsFiltered}
-              pageSize={10}
-              readOnly
-              expandedReq={expandedReq}
-              setExpandedReq={setExpandedReq}
-              openConfirmModal={openConfirmModal}
-              openExchangeModal={openExchangeModal}
-              openCompleteModal={openCompleteModal}
-              fetchData={fetchData}
-              emptyIcon={Inbox}
-              emptyText="ยังไม่มีใบงานในระบบ"
-              headerExtra={
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                      historyTypeFilter === 'รับคืนลดหนี้'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                    }`}
-                  >
-                    รับคืนลดหนี้
-                  </button>
-                  <button
-                    onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
-                      historyTypeFilter === 'รับคืนแลกเปลี่ยน'
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                        : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                    }`}
-                  >
-                    รับคืนแลกเปลี่ยน
-                  </button>
+              <section>
+                <div className="flex items-center gap-2.5 mb-3 px-1">
+                  <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center shrink-0">
+                    <History size={16} className="text-accent-foreground" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0 flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <h2 className="text-sm font-bold text-foreground">ประวัติใบงาน</h2>
+                      <p className="text-[11px] text-muted-foreground">{historyForView.length} ใบงาน (ทุกสถานะ)</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนลดหนี้' ? null : 'รับคืนลดหนี้')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          historyTypeFilter === 'รับคืนลดหนี้'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนลดหนี้
+                      </button>
+                      <button
+                        onClick={() => setHistoryTypeFilter(historyTypeFilter === 'รับคืนแลกเปลี่ยน' ? null : 'รับคืนแลกเปลี่ยน')}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                          historyTypeFilter === 'รับคืนแลกเปลี่ยน'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                        }`}
+                      >
+                        รับคืนแลกเปลี่ยน
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              }
-            />
+
+                <CsrHistoryCards items={historyForView} />
+              </section>
             )}
             </>
             )}
@@ -1170,6 +1378,96 @@ export default function CSRDashboard() {
           </div>
         </div>
       )}
+
+      {/* ══ Modal: ส่งเอกสารฉบับตรวจสอบแล้วให้ลูกค้าย้อนหลัง (csr_manual แลกเปลี่ยน) ══ */}
+      {sendDocModal && (() => {
+        const req = requests.find((r) => r.id === sendDocModal.requestId);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative w-full max-w-md bg-card rounded-lg shadow-lg overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
+              <div className="h-1.5 bg-amber-500" />
+              <div className="p-7">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                    <FileCheck2 size={22} className="text-amber-600" strokeWidth={2.5} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-bold text-foreground">ส่งเอกสารฉบับตรวจสอบแล้ว</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      Ref: {req?.ref_id}{req?.hospital_name ? ` · ${req.hospital_name}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+                  ระบบจะส่งอีเมลพร้อมลิงก์ดาวน์โหลด <span className="font-semibold text-foreground">เอกสารฉบับตรวจสอบแล้ว</span> ไปยังผู้รับที่เลือก
+                  {req?.notify_emails?.length ? ' (ครั้งก่อนส่งไม่สำเร็จ ระบบจะส่งซ้ำ)' : ' — ใบงานนี้ยังไม่เคยเลือกผู้รับ'}
+                </p>
+
+                {!docRecipientsLoaded ? (
+                  <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Loader2 size={16} className="animate-spin" /> กำลังโหลดรายชื่อผู้รับ…
+                  </div>
+                ) : docRecipients.length === 0 ? (
+                  <div className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-xs text-red-700 font-medium">
+                    ไม่พบผู้ติดต่อของหน่วยงานนี้ในระบบ — ไม่สามารถส่งอีเมลได้
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-border bg-secondary/50 p-3 mb-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">
+                        ผู้รับ ({selectedDocEmails.length}/{docRecipients.length})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDocEmails(docRecipients.map((r) => r.email))}
+                        className="text-xs font-black text-amber-600 hover:text-amber-700 underline underline-offset-2"
+                      >
+                        เลือกทั้งหมด
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-0.5 max-h-44 overflow-y-auto">
+                      {docRecipients.map((r) => (
+                        <label key={r.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-card cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={selectedDocEmails.includes(r.email)}
+                            onChange={() => toggleDocEmail(r.email)}
+                            className="w-4 h-4 rounded border-slate-300 accent-amber-600 shrink-0"
+                          />
+                          <span className="text-sm font-bold text-foreground truncate">{r.contact_name || 'ไม่ระบุชื่อ'}</span>
+                          <span className="text-xs text-muted-foreground truncate ml-auto">{r.email}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3 mt-5">
+                  <button
+                    type="button"
+                    onClick={() => setSendDocModal(null)}
+                    disabled={docSending}
+                    className="py-3.5 rounded-md font-bold text-sm text-muted-foreground bg-secondary border border-border hover:bg-muted transition-colors active:scale-[0.98] disabled:opacity-50"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitSendDoc}
+                    disabled={docSending || selectedDocEmails.length === 0}
+                    className="py-3.5 rounded-md font-bold text-sm text-white bg-amber-600 hover:bg-amber-700 transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {docSending
+                      ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังส่ง…</>
+                      : <><Send size={15} strokeWidth={2.5} /> ส่งเอกสาร ({selectedDocEmails.length})</>}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

@@ -1,21 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { History, ArrowLeft, LogOut, ClipboardList, Clock, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import { logoutStaffAction } from '@/app/actions/auth-staff';
 import { getSaleCustomerHistory, getSaleRequestDetail } from '@/app/actions/sale-actions';
-import { RequestHistoryList } from '@/components/history/RequestHistoryList';
+import { ExchangeHistoryView, type HistoryRequestRow } from '@/components/history/ExchangeHistoryView';
+import { RequestDetailPanel } from '@/components/history/RequestHistoryList';
 import { StatCard } from '@/components/StatCard';
 import { SkeletonStatCards } from '@/components/skeletons/DashboardSkeleton';
-import type { HistorySummaryRow } from '@/lib/types';
 
 type StatusFilter = 'pending_review' | 'in_progress' | 'completed' | 'rejected' | null;
 
 export default function SaleHistoryPage() {
   const router = useRouter();
-  const [history, setHistory] = useState<HistorySummaryRow[]>([]);
+  // get_sale_customer_history คืนคอลัมน์ไม่ครบทุกฟิลด์ของ RequestRow (id/ref_id/created_at/
+  // updated_at/current_status/request_type/total_value/return_reason/hospital_name/province/
+  // customer_code/drug_items) — พอสำหรับ ExchangeHistoryView + RequestDetailPanel โหลด detail
+  // เต็มเองผ่าน getSaleRequestDetail อยู่แล้ว จึง cast เป็น HistoryRequestRow ตรงนี้
+  const [history, setHistory] = useState<HistoryRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
 
@@ -24,7 +28,7 @@ export default function SaleHistoryPage() {
     (async () => {
       const data = await getSaleCustomerHistory();
       if (cancelled) return;
-      setHistory(data);
+      setHistory((data ?? []) as unknown as HistoryRequestRow[]);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -36,10 +40,16 @@ export default function SaleHistoryPage() {
   const rejectedCount = history.filter((r) => r.current_status === 'rejected').length;
   const inProgressCount = history.length - pendingReviewCount - completedCount - rejectedCount;
 
-  const filteredHistory = !statusFilter ? history
-    : statusFilter === 'in_progress'
-      ? history.filter((r) => !['pending_review', 'completed', 'rejected'].includes(r.current_status))
-      : history.filter((r) => r.current_status === statusFilter);
+  const filteredHistory = useMemo(() => {
+    if (!statusFilter) return history;
+    if (statusFilter === 'in_progress') {
+      return history.filter((r) => !['pending_review', 'completed', 'rejected'].includes(r.current_status));
+    }
+    return history.filter((r) => r.current_status === statusFilter);
+  }, [history, statusFilter]);
+
+  // fetcher ต้องนิ่ง ไม่งั้น ExchangeHistoryView โหลดใหม่ทุก render (รีเซ็ต pagination/expand)
+  const fetcher = useCallback(async () => filteredHistory, [filteredHistory]);
 
   const handleLogout = async () => {
     await logoutStaffAction();
@@ -47,8 +57,6 @@ export default function SaleHistoryPage() {
   };
 
   return (
-    // ★ พื้นหลัง/การ์ด ปรับตาม design.md (Option B — Institutional Green) ให้ตรงกับ
-    // app/admin/sale/page.tsx — accent เดียว (primary/accent token), ไม่มี gradient/blur/blob
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto w-full px-4 md:px-6 pt-6">
         <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg bg-card border border-border">
@@ -107,13 +115,23 @@ export default function SaleHistoryPage() {
           </div>
         )}
 
-        <RequestHistoryList
-          history={filteredHistory}
-          loading={loading}
+        {/* การ์ด layout เดียวกับหน้าลูกค้า/CSR — bare: ไม่มี header/StatCards/แท็บสถานะของ
+            ExchangeHistoryView เอง (หน้านี้มี stat/filter ของ Sale อยู่แล้วด้านบน)
+            showOrg = โชว์ชื่อหน้วยงาน · จังหวัด บนการ์ด (Sale ดูแลหลายหน่วยงาน)
+            กางการ์ด = RequestDetailPanel size lg + getSaleRequestDetail (scope ตามพื้นที่ดูแลฝั่ง server) */}
+        <ExchangeHistoryView
+          chrome="bare"
+          fetcher={fetcher}
+          title=""
+          subtitle=""
+          showOrg
+          showPdf={false}
+          trackingHref={() => null}
+          renderExpandedDetail={(r) => (
+            <RequestDetailPanel requestId={r.id} fetchDetail={getSaleRequestDetail} size="lg" />
+          )}
           emptyText="ยังไม่มีคำร้องจากลูกค้าในพื้นที่ดูแลของคุณ"
-          fetchDetail={getSaleRequestDetail}
-          showOrgBadge
-          size="lg"
+          emptySubtext="คำร้องจากลูกค้าในเขตที่คุณดูแลจะแสดงที่นี่"
         />
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { degrees } from 'pdf-lib';
 import type { Color, PDFFont, PDFPage } from 'pdf-lib';
 
 // pdf-lib วาดตัวอักษรทีละกลุ่มโดยรวมความกว้าง (advance width) ของแต่ละ glyph
@@ -22,10 +23,24 @@ const THAI_NON_SPACING_MARKS = /[ัิ-ฺ็-๎]/;
 const THAI_ABOVE_MARKS = /[ัิ-ื็-๎]/; // ั ิ ี ึ ื และ ็ ่ ้ ๊ ๋ ์ ํ ๎ — ลอยเหนือพยัญชนะ
 const THAI_BELOW_MARKS = /[ุ-ฺ]/; // ุ ู ฺ — ลอยใต้พยัญชนะ
 
-type DrawOpts = { x: number; y: number; size: number; font: PDFFont; color: Color };
+type DrawOpts = {
+  x: number;
+  y: number;
+  size: number;
+  font: PDFFont;
+  color: Color;
+  rotate?: number;   // องศา (ทวนเข็ม) — สำหรับลายน้ำ; ไม่ใส่ = แนวนอนปกติ
+  opacity?: number;  // 0–1 — สำหรับลายน้ำ
+};
 
 export function drawThaiText(page: PDFPage, str: string, opts: DrawOpts) {
-  let cursorX = opts.x;
+  const rad = ((opts.rotate ?? 0) * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const rotateOpt = opts.rotate ? { rotate: degrees(opts.rotate) } : {};
+  const opacityOpt = opts.opacity != null ? { opacity: opts.opacity } : {};
+
+  let advance = 0; // ระยะตามแนว baseline (หมุนแล้ว) ที่เดินไปแล้ว
   let aboveStack = 0;
   let belowStack = 0;
   const stackStep = opts.size * 0.22;
@@ -44,9 +59,19 @@ export function drawThaiText(page: PDFPage, str: string, opts: DrawOpts) {
       dy = -belowStack * stackStep;
       belowStack += 1;
     }
-    page.drawText(ch, { ...opts, x: cursorX, y: opts.y + dy });
+    // จุดวาดจริง = จุดเริ่ม + เดินตามแนว baseline + ยกสระ/วรรณยุกต์ตั้งฉากกับ baseline
+    // (rotate=0 → x = opts.x + advance, y = opts.y + dy เหมือนเดิมทุกประการ)
+    page.drawText(ch, {
+      x: opts.x + advance * cos - dy * sin,
+      y: opts.y + advance * sin + dy * cos,
+      size: opts.size,
+      font: opts.font,
+      color: opts.color,
+      ...rotateOpt,
+      ...opacityOpt,
+    });
     if (!THAI_NON_SPACING_MARKS.test(ch)) {
-      cursorX += opts.font.widthOfTextAtSize(ch, opts.size);
+      advance += opts.font.widthOfTextAtSize(ch, opts.size);
     }
   }
 }

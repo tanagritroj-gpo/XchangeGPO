@@ -30,6 +30,12 @@ jobs:
 
       - run: npm ci
 
+      - name: Dependency audit (block on High/Critical)
+        run: npm audit --audit-level=high
+
+      - name: Dependency audit (report Moderate, non-blocking)
+        run: npm audit --audit-level=moderate || true
+
       - name: Type check
         run: npx tsc --noEmit
 

@@ -4,9 +4,8 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { getCustomerSession } from './auth-actions';
 import { checkRateLimit } from '@/lib/rate-limit';
-import type { DrugItemRow } from '@/lib/types';
-import { formatThaiDate } from '@/lib/format-thai-date';
-import { sendPdfDocumentEmail } from '@/lib/email-service';
+import type { RequestRow } from '@/lib/types';
+import { sendReturnFormEmail, resolveEmailMode } from '@/lib/send-return-form-email';
 import { getAssignedSaleRepsForCustomer } from './sale-lookup-actions';
 import { z } from 'zod';
 import { parseOrError, positiveIntId } from '@/lib/validate-input';
@@ -31,11 +30,7 @@ export async function sendPdfEmailAction(requestId: number) {
     // b2b_customer_id (เหตุผลเดียวกับ trackMyRequestByRefId ใน tracking-actions.ts)
     const { data: requestData, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select(`
-        ref_id, hospital_name, b2b_customer_id, b2b_customers(customer_code),
-        doc_number, request_date, created_at, request_type, return_reason, delivery_type, total_value,
-        drug_items(drug_name, qty, unit, lot_number, exp_date)
-      `)
+      .select('*, drug_items(*), b2b_customers(customer_code)')
       .eq('id', requestId)
       .maybeSingle();
 
@@ -46,61 +41,37 @@ export async function sendPdfEmailAction(requestId: number) {
       return { success: false, error: 'ไม่พบคำร้องนี้ หรือไม่มีสิทธิ์เข้าถึง' };
     }
 
-    // 4. ดึงไฟล์ PDF จากตาราง document_attachments
-    const { data: docData, error: docErr } = await supabaseAdmin
+    const request = requestData as RequestRow;
+
+    // ต้องมีเอกสารฉบับสมบูรณ์ (kind='final') ก่อน — แลกเปลี่ยนที่ยังไม่ผ่านการตรวจจาก CSR
+    // จะยังไม่มี final (มีแต่ draft) → แจ้งให้รอผลตรวจสอบ
+    const { data: finalDoc } = await supabaseAdmin
       .from('document_attachments')
       .select('file_path')
       .eq('request_id', requestId)
+      .eq('kind', 'final')
       .maybeSingle();
-
-    if (docErr || !docData?.file_path) {
+    if (!finalDoc?.file_path) {
       return { success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' };
     }
 
-    // 5. สร้าง Signed URL — ลดอายุลงมาให้เหมาะกับเอกสารอ่อนไหว (ดูหมายเหตุด้านล่าง)
-    const { data: signed, error: signErr } = await supabaseAdmin.storage
-      .from('return-documents')
-      .createSignedUrl(docData.file_path, 60 * 60 * 24); // 24 ชม.
+    // แลกเปลี่ยนที่ตรวจแล้วมี item ไม่ผ่านเกณฑ์ → ส่งฉบับ verified (ขีดคร่อม + ยอดหักรายการ reject)
+    const mode = resolveEmailMode(request);
 
-    if (signErr || !signed) {
-      return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
-    }
-
-    const pdfEmailParams = {
-      refId: requestData.ref_id,
-      hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
-      docNumber: requestData.doc_number ?? null,
-      requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
-      requestType: requestData.request_type ?? null,
-      returnReason: requestData.return_reason ?? null,
-      deliveryType: requestData.delivery_type ?? null,
-      totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
-      items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
-        drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
-      })),
-      downloadUrl: signed.signedUrl,
-    };
-
-    // ★ 6. ส่งไปที่ session.email เสมอ — ไม่พึ่งค่าที่เก็บใน requestData
-    //    (แม้ตอน insert จะมาจาก session.email อยู่แล้ว แต่ยึด session ปัจจุบันเป็น
-    //     single source of truth เพื่อความชัดเจนว่าใครคือผู้รับที่แท้จริง)
-    const { error: emailErr } = await sendPdfDocumentEmail({ ...pdfEmailParams, to: session.email });
-
+    // ★ ส่งไปที่ session.email เสมอ (ยึด session ปัจจุบันเป็น single source of truth)
+    const { error: emailErr } = await sendReturnFormEmail({ request, to: session.email, mode });
     if (emailErr) {
-      console.error('Gmail SMTP Error:', emailErr); // log เต็มไว้ฝั่ง server เท่านั้น
+      console.error('send-pdf-email error:', emailErr);
       Sentry.captureException(emailErr, { tags: { area: 'send-pdf-email' } });
-      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' }; // ไม่โชว์ detail ดิบ
+      return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
     }
 
-    // ★ 6b. ส่งสำเนาให้ sale ที่ดูแลหน่วยงานนี้ด้วย (ถ้ามี) — เฉพาะฝั่งลูกค้ากรอกฟอร์มเองเท่านั้น
-    // ตามที่ตกลงกันไว้ (ไม่แตะฝั่ง CSR) "หน่วยงานรัฐอื่นๆ" ไม่มี sale ดูแลอยู่แล้วโดยตั้งใจ จะได้
-    // reps ว่างกลับมาเอง (ดู getAssignedSaleRepsForCustomer) เป็น best-effort เงียบๆ ถ้าพลาด
-    // ไม่ให้กระทบผลลัพธ์ที่ลูกค้าเห็น (ลูกค้าได้อีเมลของตัวเองแล้วถือว่าสำเร็จ)
+    // ★ สำเนาให้ sale ที่ดูแลหน่วยงานนี้ (best-effort เงียบ ๆ ถ้าพลาด ไม่กระทบผลลัพธ์ลูกค้า)
     try {
       const saleRepsResult = await getAssignedSaleRepsForCustomer();
       if (saleRepsResult.success && saleRepsResult.reps.length > 0) {
         await Promise.all(
-          saleRepsResult.reps.map((rep) => sendPdfDocumentEmail({ ...pdfEmailParams, to: rep.email }))
+          saleRepsResult.reps.map((rep) => sendReturnFormEmail({ request, to: rep.email, mode }))
         );
       }
     } catch (saleEmailErr) {

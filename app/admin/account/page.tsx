@@ -25,9 +25,9 @@ import { MIN_PASSWORD_LENGTH, assertPasswordAllowed } from '@/lib/password-polic
 import type { StaffSessionInfo } from '@/lib/types';
 
 // หน้ากลาง "จัดการบัญชี" ใช้ร่วมกันทุกแผนก (ไม่ผูกกับ zone ไหนโดยเฉพาะ) — เข้าถึงได้จากการ์ด
-// "บัญชีผู้ใช้" ในแต่ละ hub (เริ่มที่ CSR ก่อนตามที่ขอ) — โครง topbar ตาม pattern
-// "หน้าย่อยไม่ใช่ hub" ของ Sale/Manager (bar เดียว back+logout ไม่ sticky) แต่กันความกว้าง
-// เนื้อหาแคบกว่า max-w-6xl มาตรฐาน เพราะเนื้อหาเป็นฟอร์มล้วนๆ ไม่ใช่ list/table
+// "บัญชีผู้ใช้" ในแต่ละ hub — โครง topbar ตาม pattern "หน้าย่อยไม่ใช่ hub" ของ Sale/Manager
+// (bar เดียว back+logout ไม่ sticky) · ความกว้างเนื้อหา max-w-6xl เท่ากับหน้า /admin/* อื่น ๆ
+// (topbar ก็ max-w-6xl อยู่แล้ว) — ฟอร์มสั้น ๆ วางเป็น grid 2 คอลัมน์บนจอใหญ่กันหน้าโล่ง
 const DEPT_HOME: Record<string, string> = {
   manager: '/admin/manager',
   csr: '/admin/csr',
@@ -174,7 +174,7 @@ export default function AccountSettingsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
+      <div className="max-w-6xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         <div className="flex items-center gap-3 px-1">
           <div className="w-10 h-10 rounded-md bg-accent text-accent-foreground shadow-sm shadow-accent/40 flex items-center justify-center shrink-0">
             <UserCog size={19} strokeWidth={2} />
@@ -185,6 +185,8 @@ export default function AccountSettingsPage() {
           </div>
         </div>
 
+        {/* ฟอร์มสั้น (Username/อีเมล) วางคู่กันบนจอใหญ่ · ฟอร์มรหัสผ่าน + MFA + อุปกรณ์ เต็มความกว้าง */}
+        <div className="grid gap-6 lg:grid-cols-2 items-start">
         {/* Username */}
         <form onSubmit={submitUsername} className="rounded-lg bg-card border border-border p-6 space-y-4">
           <div className="flex items-center gap-3">
@@ -198,7 +200,7 @@ export default function AccountSettingsPage() {
               </p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Username ใหม่</label>
               <input
@@ -245,7 +247,7 @@ export default function AccountSettingsPage() {
               </p>
             </div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <div className="space-y-1.5">
               <label className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">อีเมลใหม่</label>
               <input
@@ -279,7 +281,7 @@ export default function AccountSettingsPage() {
         </form>
 
         {/* รหัสผ่าน */}
-        <form onSubmit={submitPassword} className="rounded-lg bg-card border border-border p-6 space-y-4">
+        <form onSubmit={submitPassword} className="rounded-lg bg-card border border-border p-6 space-y-4 lg:col-span-2">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-md flex items-center justify-center bg-accent text-accent-foreground shrink-0">
@@ -340,15 +342,20 @@ export default function AccountSettingsPage() {
         </form>
 
         {/* MFA */}
-        <MfaAccountCard />
+        <div className="lg:col-span-2">
+          <MfaAccountCard />
+        </div>
 
         {/* อุปกรณ์และเซสชัน */}
-        <DeviceSessionCard
-          load={getMyStaffSessionsAndDevices}
-          revokeSession={revokeStaffSession}
-          revokeOthers={revokeOtherStaffSessions}
-          revokeDevice={revokeStaffTrustedDevice}
-        />
+        <div className="lg:col-span-2">
+          <DeviceSessionCard
+            load={getMyStaffSessionsAndDevices}
+            revokeSession={revokeStaffSession}
+            revokeOthers={revokeOtherStaffSessions}
+            revokeDevice={revokeStaffTrustedDevice}
+          />
+        </div>
+        </div>
       </div>
     </div>
   );

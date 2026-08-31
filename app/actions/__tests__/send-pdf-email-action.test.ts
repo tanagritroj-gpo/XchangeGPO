@@ -35,7 +35,7 @@ function seedOwnedRequest(overrides: Record<string, any> = {}) {
       b2b_customers: { customer_code: 'C-0007' },
       ...overrides,
     }],
-    document_attachments: [{ id: 'doc-1', request_id: 1, file_path: 'returns/1/REF-1.pdf' }],
+    document_attachments: [{ id: 'doc-1', request_id: 1, kind: 'final', file_path: 'returns/1/REF-1.pdf' }],
     status_logs: [], access_logs: [],
     organizations: [], staff_users: [],
   });

@@ -12,6 +12,7 @@ import { getErrorMessage } from '@/lib/error-message';
 import { updateRequestCurrentStatus } from '@/lib/sla';
 import type { StaffSessionInfo, ClientRow, DrugItemRow } from '@/lib/types';
 import { sendRegistrationApprovedEmail } from '@/lib/email-service';
+import { deliverVerifiedExchangeDoc, logComplianceCorrection, logComplianceOverride } from '@/lib/exchange-verification';
 import { z } from 'zod';
 import { parseOrError, positiveIntId, remarkText as remarkTextRequired } from '@/lib/validate-input';
 
@@ -70,7 +71,16 @@ export async function getCSRDashboardData() {
       throw new Error("ดึงข้อมูลพลาด: " + (clientErr?.message || reqErr?.message));
     }
 
-    return { success: true, clients, requests };
+    // ★ ใบงานที่ "เอกสารฉบับตรวจสอบแล้ว" ส่งถึงลูกค้าเรียบร้อย (มี status_logs 'document_sent') —
+    // ใช้ให้ dashboard รู้ว่าใบงานแลกเปลี่ยนที่ CSR กรอกแทน ใบไหนยัง "ค้างส่งเอกสาร"
+    // (deliverVerifiedExchangeDoc / sendStaffPdfEmailAction ลง log นี้เฉพาะเมื่อส่งถึงอย่างน้อย 1 คน)
+    const { data: sentDocLogs } = await supabaseAdmin
+      .from('status_logs')
+      .select('request_id')
+      .eq('status_name', 'document_sent');
+    const verifiedDocSentIds = [...new Set((sentDocLogs ?? []).map((l) => l.request_id as number))];
+
+    return { success: true, clients, requests, verifiedDocSentIds };
 
   } catch (e: unknown) {
     console.error("DEBUG - Catch Error:", getErrorMessage(e));
@@ -639,18 +649,36 @@ export async function approveDrugItem(drugItemId: number, requestId: number, rem
   return withCSRAuth(async (session) => {
     const [{ data: request }, { data: drugItem }] = await Promise.all([
       supabaseAdmin.from('requests').select('request_type').eq('id', requestId).single(),
-      supabaseAdmin.from('drug_items').select('product_type').eq('id', drugItemId).single(),
+      supabaseAdmin.from('drug_items').select('product_type, is_compliant, compliance_remark').eq('id', drugItemId).single(),
     ]);
     if (request?.request_type === 'รับคืนแลกเปลี่ยน' && !drugItem?.product_type) {
       return { success: false, error: 'กรุณาเลือกประเภทสินค้าก่อนอนุมัติ' };
     }
 
-    const { error: logError } = await supabaseAdmin.from('status_logs').insert({
+    // ★ CSR อนุมัติรายการที่ระบบตรวจแล้ว "ไม่ผ่านเกณฑ์" (ฝืนกฎ) — บันทึกกำกับให้ชัดเจน
+    const isOverride = drugItem?.is_compliant === false;
+    const baseRemark = remark || `อนุมัติรายการยา ID: ${drugItemId}`;
+
+    const { data: log, error: logError } = await supabaseAdmin.from('status_logs').insert({
       request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'approved',
-      staff_remark: remark || `อนุมัติรายการยา ID: ${drugItemId}`, drug_item_id: drugItemId
-    });
-    if (logError) throw new Error("บันทึกประวัติการทำงานไม่สำเร็จ");
+      staff_remark: isOverride ? `${baseRemark} (อนุมัตินอกเกณฑ์: ${drugItem?.compliance_remark || 'ไม่ระบุ'})` : baseRemark,
+      drug_item_id: drugItemId,
+    }).select('id').single();
+    if (logError || !log) throw new Error("บันทึกประวัติการทำงานไม่สำเร็จ");
+
     await supabaseAdmin.from('drug_items').update({ current_status: 'approved' }).eq('id', drugItemId);
+
+    if (isOverride) {
+      try {
+        await logComplianceOverride({
+          requestId, drugItemId, statusLogId: log.id, staffId: session.id,
+          complianceRemark: drugItem?.compliance_remark ?? null,
+        });
+      } catch (ovErr) {
+        console.error('logComplianceOverride failed', ovErr);
+        Sentry.captureException(ovErr, { level: 'warning', tags: { area: 'compliance-audit' } });
+      }
+    }
     revalidatePath('/admin/csr/dashboard');
     return { success: true };
   });
@@ -675,14 +703,17 @@ export async function approveRequest(requestId: number, remark?: string) {
         staff_remark: remark || 'ปิดใบงาน — รายการยาถูกปฏิเสธทั้งหมด',
       });
       await updateRequestCurrentStatus(requestId, 'rejected');
+      // แลกเปลี่ยน+customer_portal: สร้างเอกสารฉบับตรวจสอบแล้ว + ส่งอีเมลให้ลูกค้า (ครั้งเดียว)
+      const delivered = await deliverVerifiedExchangeDoc(requestId, session);
       revalidatePath('/admin/csr/dashboard');
-      return { success: true };
+      return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
     }
 
     await supabaseAdmin.from('status_logs').insert({ request_id: requestId, staff_id: session.id, department: 'csr', status_name: 'approved', staff_remark: remark || 'อนุมัติใบงาน' });
     await updateRequestCurrentStatus(requestId, 'approved');
+    const delivered = await deliverVerifiedExchangeDoc(requestId, session);
     revalidatePath('/admin/csr/dashboard');
-    return { success: true };
+    return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
   });
 }
 
@@ -719,8 +750,10 @@ export async function rejectRequest(requestId: number, reasonCode: string, detai
     if (items) await supabaseAdmin.from('status_logs').insert(items.map(i => ({ request_id: requestId, drug_item_id: i.id, staff_id: session.id, department: 'csr', status_name: 'rejected', rejection_reason_code: reasonCode, staff_remark: `ปฏิเสธใบงาน: ${remark}` })));
     await updateRequestCurrentStatus(requestId, 'rejected');
     await supabaseAdmin.from('drug_items').update({ current_status: 'rejected' }).eq('request_id', requestId);
+    // แลกเปลี่ยน+customer_portal: ส่งเอกสารฉบับตรวจสอบแล้ว (ขีดคร่อมทุกราย) + ข้อความแจ้งผลให้ลูกค้า
+    const delivered = await deliverVerifiedExchangeDoc(requestId, session);
     revalidatePath('/admin/csr/dashboard');
-    return { success: true };
+    return { success: true, ...(delivered ? { emailedTo: delivered.emailedTo } : {}) };
   });
 }
 
@@ -788,15 +821,43 @@ export async function completeRequest(requestId: number, remark?: string) {
 }
 
 export async function updateDrugCompliance(itemId: number, pType: string, compliance: { pass: boolean | null, msg: string }) {
-  return withCSRAuth(async () => {
-    await supabaseAdmin
+  return withCSRAuth(async (session) => {
+    const { data: before } = await supabaseAdmin
       .from('drug_items')
-      .update({
-        product_type: pType || null,
-        is_compliant: compliance.pass,
-        compliance_remark: compliance.msg
-      })
-      .eq('id', itemId);
+      .select('request_id, product_type, is_compliant, compliance_remark')
+      .eq('id', itemId)
+      .single();
+    if (!before) return { success: false, error: 'ไม่พบรายการยา' };
+
+    const after = {
+      product_type: pType || null,
+      is_compliant: compliance.pass,
+      compliance_remark: compliance.msg || null,
+    };
+    const { error: updErr } = await supabaseAdmin.from('drug_items').update(after).eq('id', itemId);
+    if (updErr) {
+      console.error('updateDrugCompliance failed', updErr);
+      return { success: false, error: 'บันทึกไม่สำเร็จ กรุณาลองใหม่' };
+    }
+
+    // audit — status_logs('compliance_checked') + data_correction_logs (diff ทีละ field)
+    // best-effort: ไม่ให้ audit ที่พลาดบล็อกการบันทึกผลตรวจจริง
+    try {
+      await logComplianceCorrection({
+        requestId: before.request_id,
+        drugItemId: itemId,
+        staffId: session.id,
+        before: {
+          product_type: before.product_type,
+          is_compliant: before.is_compliant,
+          compliance_remark: before.compliance_remark,
+        },
+        after,
+      });
+    } catch (logErr) {
+      console.error('logComplianceCorrection failed', logErr);
+      Sentry.captureException(logErr, { level: 'warning', tags: { area: 'compliance-audit' } });
+    }
     return { success: true };
   });
 }

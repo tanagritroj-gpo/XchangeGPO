@@ -36,6 +36,9 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
   const [remark, setRemark] = useState('');
   const [reasonCode, setReasonCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // ★ แลกเปลี่ยน: CSR ขออนุมัติรายการที่ระบบตรวจแล้ว "ไม่ผ่านเกณฑ์" (ฝืนกฎ) — ต้องติ๊กยืนยันก่อน
+  const [overrideMode, setOverrideMode] = useState(false);
+  const [overrideAck, setOverrideAck] = useState(false);
 
   useEffect(() => { setLocalStatus(item.current_status); }, [item.current_status]);
 
@@ -84,7 +87,17 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
   const openActionModal = (action: 'approve' | 'reject') => {
     setRemark('');
     setReasonCode('');
+    setOverrideMode(false);
+    setOverrideAck(false);
     setActionModal(action);
+  };
+
+  const closeActionModal = () => {
+    setActionModal(null);
+    setRemark('');
+    setReasonCode('');
+    setOverrideMode(false);
+    setOverrideAck(false);
   };
 
   // ── "รับคืนแลกเปลี่ยน" เท่านั้น: หลังเลือกประเภทแล้วผล "เกณฑ์" (status.pass) คำนวณ
@@ -92,6 +105,8 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
   // ปุ่ม "ยืนยัน" เดียวเปิด modal เดิม โดยเลือก action ให้ตรงกับผลเกณฑ์ที่คำนวณไว้แล้ว
   // (pass=true -> approve, pass=false -> reject พร้อม prefill เหตุผลจาก status.msg)
   const openConfirmModal = () => {
+    setOverrideMode(false);
+    setOverrideAck(false);
     if (status.pass === false) {
       setReasonCode('other');
       setRemark(status.msg || '');
@@ -105,16 +120,17 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
 
   const submitAction = async () => {
     if (!actionModal) return;
+    // overrideMode: อนุมัติรายการที่ไม่ผ่านเกณฑ์ (server บันทึกกำกับ "อนุมัตินอกเกณฑ์" + data_correction_logs)
+    const effectiveAction: 'approve' | 'reject' = overrideMode ? 'approve' : actionModal;
     setIsSubmitting(true);
     try {
-      const res = actionModal === 'approve'
+      const res = effectiveAction === 'approve'
         ? await approveDrugItem(item.id, item.request_id, remark)
         : await rejectDrugItem(item.id, item.request_id, reasonCode, remark);
 
       if (res.success) {
-        setLocalStatus(actionModal === 'approve' ? 'approved' : 'rejected');
-        setActionModal(null);
-        setRemark('');
+        setLocalStatus(effectiveAction === 'approve' ? 'approved' : 'rejected');
+        closeActionModal();
         onUpdate(); // ★ แจ้ง parent ให้ refetch ข้อมูล — จำเป็นสำหรับ isAllItemsReviewed ที่ระดับ card
       } else {
         toast.error(('error' in res && res.error) || 'ไม่ทราบสาเหตุ');
@@ -321,8 +337,36 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                     value={remark}
                     onChange={(e) => setRemark(e.target.value)}
                     maxLength={500}
-                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none mb-6"
+                    className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 text-sm text-foreground focus:outline-none focus:ring-4 focus:ring-teal-50 focus:border-teal-400 transition-all duration-200 resize-none mb-4"
                   />
+
+                  {/* ── ทางเลือก: อนุมัติรายการนี้นอกเหนือหลักเกณฑ์ (ฝืนกฎ) ── */}
+                  <div className={`mb-6 rounded-xl border-2 p-4 transition-colors ${overrideMode ? 'border-amber-300 bg-amber-50' : 'border-slate-100 bg-slate-50'}`}>
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={overrideMode}
+                        onChange={(e) => { setOverrideMode(e.target.checked); if (!e.target.checked) setOverrideAck(false); }}
+                        className="mt-0.5 w-4 h-4 accent-amber-600"
+                      />
+                      <span className="text-xs font-bold text-amber-900">
+                        รายการนี้ไม่ผ่านเกณฑ์ แต่ต้องการ <span className="underline">อนุมัตินอกเหนือหลักเกณฑ์</span>
+                      </span>
+                    </label>
+                    {overrideMode && (
+                      <label className="mt-3 flex items-start gap-2.5 cursor-pointer border-t border-amber-200 pt-3">
+                        <input
+                          type="checkbox"
+                          checked={overrideAck}
+                          onChange={(e) => setOverrideAck(e.target.checked)}
+                          className="mt-0.5 w-4 h-4 accent-amber-600"
+                        />
+                        <span className="text-[11px] text-amber-800 leading-relaxed">
+                          ข้าพเจ้ายืนยันอนุมัติรายการนี้นอกเหนือหลักเกณฑ์การรับคืน/แลกเปลี่ยน และรับทราบว่าระบบจะบันทึกการดำเนินการนี้ไว้เพื่อการตรวจสอบ
+                        </span>
+                      </label>
+                    )}
+                  </div>
                 </>
               ) : actionModal === 'reject' ? (
                 <ReasonSelectFields
@@ -352,7 +396,7 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => { setActionModal(null); setRemark(''); setReasonCode(''); }}
+                  onClick={closeActionModal}
                   disabled={isSubmitting}
                   className="py-3.5 rounded-2xl font-bold text-sm text-muted-foreground bg-slate-50 border-2 border-border hover:bg-slate-100 hover:border-slate-300 transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
                 >
@@ -363,19 +407,22 @@ export default function CSRDrugRow({ item, onUpdate, readOnly }: { item: CSRDrug
                   onClick={submitAction}
                   disabled={
                     isSubmitting ||
-                    (actionModal === 'reject' && (!reasonCode || (reasonCode === 'other' && !remark.trim()))) ||
+                    (overrideMode && !overrideAck) ||
+                    (!overrideMode && actionModal === 'reject' && (!reasonCode || (reasonCode === 'other' && !remark.trim()))) ||
                     (actionModal === 'approve' && missingProductType)
                   }
                   className="py-3.5 rounded-2xl font-bold text-sm text-white transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   style={{
-                    background: actionModal === 'approve'
-                      ? 'linear-gradient(135deg,#059669,#10b981)'
-                      : 'linear-gradient(135deg,#dc2626,#f87171)',
+                    background: overrideMode
+                      ? 'linear-gradient(135deg,#d97706,#f59e0b)'
+                      : actionModal === 'approve'
+                        ? 'linear-gradient(135deg,#059669,#10b981)'
+                        : 'linear-gradient(135deg,#dc2626,#f87171)',
                   }}
                 >
                   {isSubmitting
                     ? <><Loader2 size={15} className="animate-spin" strokeWidth={2.5} /> กำลังบันทึก...</>
-                    : <><Check size={15} strokeWidth={3} /> ยืนยัน</>}
+                    : <><Check size={15} strokeWidth={3} /> {overrideMode ? 'อนุมัตินอกเกณฑ์' : 'ยืนยัน'}</>}
                 </button>
               </div>
             </div>

@@ -6,7 +6,7 @@ import { getStaffSession, logoutStaffAction } from '@/app/actions/auth-staff';
 import { getManagerHubCounts } from '@/app/actions/manager-actions';
 import { getManagerSlaBadgeCount } from '@/app/actions/sla-actions';
 import Link from 'next/link';
-import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2, AlarmClock, Clock, RefreshCw, CheckCircle2, XCircle, ScrollText } from 'lucide-react';
+import { Crown, User, ShieldCheck, Users, ClipboardList, BarChart3, FileSpreadsheet, Search, ArrowRight, LogOut, Loader2, Clock, RefreshCw, CheckCircle2, XCircle } from 'lucide-react';
 import type { StaffSessionInfo } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -168,7 +168,7 @@ export default function ManagerHubPage() {
                   <p className="text-[11px] text-primary-foreground/70 uppercase tracking-wide mt-1">พนักงานรออนุมัติ</p>
                 </div>
                 <Link
-                  href="/admin/manager/staff-approvals?tab=all"
+                  href="/admin/manager/requests"
                   className="ml-auto hidden sm:flex items-center gap-1.5 text-xs font-semibold text-primary-foreground/90 hover:text-primary-foreground bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3.5 py-2 rounded-md transition-colors shrink-0"
                 >
                   ดูภาพรวม <ArrowRight className="w-3.5 h-3.5" />
@@ -217,7 +217,7 @@ export default function ManagerHubPage() {
 
           {/* Tile: จัดการสิทธิ์พนักงาน — เดิมเป็น tile เดียวที่พื้นทึบสีม่วง featured แยกจากใบอื่น
                ตอนนี้ใช้การ์ดขอบเดียวกับ tile อื่นทั้งหมด ให้ลำดับความสำคัญมาจากขนาดตัวเลขแทน */}
-          <Link href="/admin/manager/staff-approvals?tab=staff" className="group block md:col-span-2 md:row-span-1">
+          <Link href="/admin/manager/staff-approvals" className="group block md:col-span-2 md:row-span-1">
             <div className="relative h-full min-h-[112px] md:min-h-0 rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center gap-1.5">
@@ -237,7 +237,7 @@ export default function ManagerHubPage() {
           {/* Tile: ใบงานทั้งหมด — ขยาย 4×2 แถบสี border-left แทนแถบ gradient ลอยเดิม + ไอคอนพื้น
                สีเขียวแบรนด์ทึบ (เดิมไล่เฉดม่วง) MiniStat 5 ช่องยังใช้สี semantic ของแต่ละสถานะ
                (เหลือง/ฟ้า/เขียว/แดง) เหมือนเดิม เพราะสื่อความหมายจริง ไม่ใช่การตกแต่งสุ่ม */}
-          <Link href="/admin/manager/staff-approvals?tab=all" className="group block md:col-span-4 md:row-span-2">
+          <Link href="/admin/manager/requests" className="group block md:col-span-4 md:row-span-2">
             <div className="relative h-full flex flex-col bg-card rounded-lg border border-border border-l-[3px] border-l-primary hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
                 <div className="flex items-center gap-3 mb-4">
@@ -276,7 +276,7 @@ export default function ManagerHubPage() {
           </Link>
 
           {/* Tile: ภาพรวม & สถิติ — เดิมโทนทอง/มัสตาร์ด ตอนนี้ใช้ชุดเดียวกับ tile อื่น */}
-          <Link href="/admin/manager/staff-approvals?tab=insights" className="group block md:col-span-2 md:row-span-2">
+          <Link href="/admin/manager/insights" className="group block md:col-span-2 md:row-span-2">
             <div className="relative h-full flex flex-col bg-card rounded-lg border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 overflow-hidden">
               <div className="p-6 flex-1 flex flex-col">
                 <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 mb-3">
@@ -293,7 +293,7 @@ export default function ManagerHubPage() {
 
           {/* Tile: Download Center — เดิมโทนทีล ตอนนี้ใช้ชุดเดียวกับ tile อื่น — hidden md:block:
                ย้ายไปเป็น bottom nav bar บนมือถือแทน (ดูท้ายไฟล์) */}
-          <Link href="/admin/manager/staff-approvals?tab=downloads" className="hidden md:block group md:col-span-2 md:row-span-1">
+          <Link href="/admin/manager/reports" className="hidden md:block group md:col-span-2 md:row-span-1">
             <div className="relative h-full rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
               <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 shrink-0">
                 <FileSpreadsheet className="w-5 h-5" />
@@ -321,37 +321,22 @@ export default function ManagerHubPage() {
             </div>
           </Link>
 
-          {/* Tile: SLA Monitoring System — สีแดง/destructive ยังคงไว้ตามเดิม เพราะเป็นสีเชิง
-               ความหมาย (แจ้งเตือนใบงานเกิน SLA) ไม่ใช่การไล่สีตกแต่งแบบ tile อื่นที่ตัดออกแล้ว —
-               ตัวเลข badge คือจำนวนใบงานเกินกำหนดที่ manager ยังไม่เคยเห็น (ดู
-               app/actions/sla-actions.ts getManagerSlaBadgeCount) — hidden md:block: ย้ายไปเป็น
-               bottom nav bar บนมือถือแทนเช่นกัน (พร้อม badge ตัวเลขเดียวกัน) */}
-          <Link href="/admin/manager/sla" className="hidden md:block group md:col-span-2 md:row-span-1">
+          {/* Tile: SLA & การตรวจสอบระบบ — รวม SLA Monitoring System + บันทึกการตรวจสอบระบบ
+               ไว้ที่เดียว (audit trail ประเภทเดียวกัน) หน้าเดียว /admin/manager/audit-trail —
+               ไอคอนกรอบ + โทนแดง/destructive เสมอ เพราะเป็นสีเชิงความหมาย (การตรวจสอบ/แจ้งเตือน
+               SLA) ไม่ใช่การตกแต่ง — hidden md:block: ย้ายไปเป็น bottom nav bar บนมือถือแทน */}
+          <Link href="/admin/manager/audit-trail" className="hidden md:block group md:col-span-2 md:row-span-1">
             <div className="relative h-full rounded-lg bg-card border border-border hover:border-destructive/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-destructive/10 text-destructive shadow-sm shadow-destructive/20 shrink-0">
-                <AlarmClock className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0 bg-destructive/10 text-destructive border border-destructive/25 shadow-sm shadow-destructive/20">
+                <ShieldCheck className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-bold text-foreground">SLA Monitoring System</h2>
+                <h2 className="text-sm font-bold text-foreground">SLA & การตรวจสอบระบบ</h2>
                 <p className="text-xs text-muted-foreground truncate">
-                  {slaBadgeCount ? `${slaBadgeCount} ใบงานเกินกำหนด` : 'ติดตาม SLA ทุกแผนก'}
+                  {slaBadgeCount ? `${slaBadgeCount} ใบงานเกินกำหนด SLA` : 'ภาพรวม SLA · กฎ SLA · บันทึกการตรวจสอบ (Audit log)'}
                 </p>
               </div>
               <ArrowRight className="w-4 h-4 text-destructive group-hover:translate-x-1 transition-transform shrink-0" />
-            </div>
-          </Link>
-
-          {/* Tile: บันทึกการตรวจสอบระบบ (audit log — ISO 27001 A.8.16) */}
-          <Link href="/admin/manager/audit" className="hidden md:block group md:col-span-2 md:row-span-1">
-            <div className="relative h-full rounded-lg bg-card border border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 p-5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-md flex items-center justify-center bg-accent text-accent-foreground shadow-sm shadow-accent/40 shrink-0">
-                <ScrollText className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h2 className="text-sm font-bold text-foreground">บันทึกการตรวจสอบระบบ</h2>
-                <p className="text-xs text-muted-foreground truncate">Audit log — เข้าสู่ระบบ / เข้าถึงข้อมูล / จัดการระบบ</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:translate-x-1 group-hover:text-primary transition-all shrink-0" />
             </div>
           </Link>
         </div>
@@ -364,7 +349,7 @@ export default function ManagerHubPage() {
            ของ iPhone บังปุ่มล่างสุด ══ */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="grid grid-cols-3 gap-1 max-w-md mx-auto">
-          <Link href="/admin/manager/staff-approvals?tab=downloads" className="flex flex-col items-center gap-1 py-1.5 rounded-md text-primary active:bg-accent transition-colors">
+          <Link href="/admin/manager/reports" className="flex flex-col items-center gap-1 py-1.5 rounded-md text-primary active:bg-accent transition-colors">
             <FileSpreadsheet className="w-5 h-5" />
             <span className="text-[10px] font-semibold">รายงาน</span>
           </Link>
@@ -372,16 +357,16 @@ export default function ManagerHubPage() {
             <Search className="w-5 h-5" />
             <span className="text-[10px] font-semibold">ติดตาม</span>
           </Link>
-          <Link href="/admin/manager/sla" className="relative flex flex-col items-center gap-1 py-1.5 rounded-md text-destructive active:bg-destructive/10 transition-colors">
-            <span className="relative">
-              <AlarmClock className="w-5 h-5" />
+          <Link href="/admin/manager/audit-trail" className="relative flex flex-col items-center gap-1 py-1.5 rounded-md text-destructive active:bg-destructive/10 transition-colors">
+            <span className="relative flex items-center justify-center w-7 h-7 rounded-md border border-destructive/30 bg-destructive/5">
+              <ShieldCheck className="w-[18px] h-[18px]" />
               {!!slaBadgeCount && (
-                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[8px] font-bold text-destructive-foreground ring-2 ring-card">
+                <span className="absolute -top-1.5 -right-2 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[8px] font-bold text-destructive-foreground ring-2 ring-card">
                   {slaBadgeCount > 9 ? '9+' : slaBadgeCount}
                 </span>
               )}
             </span>
-            <span className="text-[10px] font-semibold">SLA</span>
+            <span className="text-[10px] font-semibold">ตรวจสอบ</span>
           </Link>
         </div>
       </nav>

@@ -4,13 +4,12 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import * as Sentry from '@sentry/nextjs';
 import { getStaffSession } from './auth-staff';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { buildReturnFormPdf } from '../services/pdf-service';
+import { buildAndStoreReturnPdf, draftDir, finalDir, resolveVerifiedStamp, type DocKind } from '@/lib/return-form-pdf';
 import { bucketForOrgType } from '@/lib/sale-coverage';
-import { DrugItemInputSchema, sanitizeFreeText } from '@/lib/return-request-schema';
+import { DrugItemInputSchema, sanitizeFreeText, sanitizeDateOrNull } from '@/lib/return-request-schema';
 import type { ReturnFormData, DrugItemEntry } from '../(authenticated)/form/form-types';
-import type { DrugItemRow } from '@/lib/types';
-import { formatThaiDate } from '@/lib/format-thai-date';
-import { sendPdfDocumentEmail } from '@/lib/email-service';
+import type { RequestRow } from '@/lib/types';
+import { sendReturnFormEmail, resolveEmailMode } from '@/lib/send-return-form-email';
 import { z } from 'zod';
 import { parseOrError, positiveIntId } from '@/lib/validate-input';
 
@@ -183,6 +182,7 @@ export async function createStaffReturnRequest(formData: ReturnFormData) {
     addr_province: sanitizeFreeText(formData.addr_province),
     agent_info: sanitizeFreeText(formData.agent_info),
     agent_appointment_note: sanitizeFreeText(formData.agent_appointment_note),
+    agent_appointment_date: sanitizeDateOrNull(formData.agent_appointment_date),
     exchange_product_type: sanitizeFreeText(formData.exchange_product_type),
     exchange_product_list: sanitizeFreeText(formData.exchange_product_list),
     exchange_product_other: sanitizeFreeText(formData.exchange_product_other),
@@ -263,41 +263,42 @@ export async function generateStaffPdfAction(requestId: number): Promise<PdfActi
     return { success: false, error: 'ไม่พบคำร้องนี้' };
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from('document_attachments')
-    .select('file_path')
-    .eq('request_id', requestId)
-    .maybeSingle();
+  // แลกเปลี่ยนที่ยังไม่ผ่านการตรวจ → ฉบับ draft; นอกนั้น → final
+  const wantKind: DocKind =
+    request.request_type === 'รับคืนแลกเปลี่ยน' && request.current_status === 'pending_review' ? 'draft' : 'final';
 
-  let filePath = existing?.file_path;
+  const pickDoc = async (kind: DocKind) =>
+    (await supabaseAdmin
+      .from('document_attachments')
+      .select('file_path')
+      .eq('request_id', requestId)
+      .eq('kind', kind)
+      .maybeSingle()).data?.file_path as string | undefined;
+
+  let filePath = (await pickDoc(wantKind)) ?? (await pickDoc(wantKind === 'draft' ? 'final' : 'draft'));
 
   if (!filePath) {
-    // path แยก namespace ด้วย 'staff' แทน customer id เพราะไม่ผูกกับ session ฝั่งลูกค้า
-    filePath = `returns/staff/${request.ref_id}.pdf`;
-
-    const pdfBytes = await buildReturnFormPdf(request);
-
-    const { error: uploadErr } = await supabaseAdmin.storage
-      .from('return-documents')
-      .upload(filePath, pdfBytes, { contentType: 'application/pdf', upsert: true });
-
-    if (uploadErr) {
-      console.error('Storage upload failed (staff):', uploadErr);
-      Sentry.captureException(uploadErr, { tags: { area: 'pdf-upload' } });
+    const storageDir = wantKind === 'draft' ? draftDir(request.b2b_customer_id ?? null) : finalDir(request);
+    const stamp =
+      wantKind === 'draft'
+        ? ({ kind: 'draft' } as const)
+        : request.request_type === 'รับคืนแลกเปลี่ยน'
+          ? await resolveVerifiedStamp(requestId)
+          : null;
+    try {
+      const res = await buildAndStoreReturnPdf(request, { kind: wantKind, storageDir, stamp });
+      filePath = res.filePath;
+    } catch (buildErr) {
+      console.error('buildAndStoreReturnPdf failed (staff):', buildErr);
+      Sentry.captureException(buildErr, { tags: { area: 'pdf-upload' } });
       return { success: false, error: 'บันทึกไฟล์ไม่สำเร็จ กรุณาลองใหม่' };
     }
-
-    await supabaseAdmin.from('document_attachments').insert({
-      request_id: requestId,
-      ref_id: request.ref_id,
-      file_path: filePath,
-    });
 
     await supabaseAdmin.from('status_logs').insert({
       request_id: requestId,
       department: 'system',
       status_name: 'document_generated',
-      staff_remark: 'สร้างเอกสารอัตโนมัติ (CSR flow)',
+      staff_remark: `สร้างเอกสารอัตโนมัติ (CSR flow, ${wantKind})`,
       actor_type: 'system',
     });
   }
@@ -414,17 +415,14 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
 
     const { data: requestData, error: reqErr } = await supabaseAdmin
       .from('requests')
-      .select(`
-        ref_id, hospital_name, customer_email,
-        doc_number, request_date, created_at, request_type, return_reason, delivery_type, total_value,
-        drug_items(drug_name, qty, unit, lot_number, exp_date)
-      `)
+      .select('*, drug_items(*)')
       .eq('id', requestId)
       .maybeSingle();
 
     if (reqErr || !requestData) {
       return { success: false, error: 'ไม่พบคำร้องนี้' };
     }
+    const request = requestData as RequestRow;
 
     // ★ recipientEmails มาจาก client — ห้ามเชื่อตรงๆ ต้องกรองผ่าน allowlist ของหน่วยงาน
     // เจ้าของคำร้องนี้ก่อนเสมอ (ผู้ติดต่อจริงใน b2b_customers + sale rep ที่ดูแลเขต — ชุด
@@ -438,51 +436,49 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       );
       recipients = recipientEmails.filter((email) => allowlist.has(email.trim().toLowerCase()));
     } else {
-      recipients = requestData.customer_email ? [requestData.customer_email] : [];
+      recipients = request.customer_email ? [request.customer_email] : [];
     }
 
     if (recipients.length === 0) {
       return { success: false, error: 'ไม่มีอีเมลผู้รับ กรุณาเลือกผู้รับก่อนส่ง' };
     }
 
-    const { data: docData, error: docErr } = await supabaseAdmin
-      .from('document_attachments')
-      .select('file_path')
-      .eq('request_id', requestId)
-      .maybeSingle();
+    // ── phase 1 (ack) vs phase 2/ปกติ ──
+    // ใบงานแลกเปลี่ยนที่ CSR กรอกแทน: ตราบใดที่ยังไม่ผ่านการตรวจ compliance (current_status
+    // ยังเป็น pending_review) การส่งอีเมลจากหน้านี้ = "แจ้งรับเรื่อง" (ack — ไม่มีลิงก์ PDF
+    // เพราะเอกสารยังเป็นฉบับ draft) + จำ recipients ไว้ให้ email #2 (verified) ที่
+    // deliverVerifiedExchangeDoc ส่งไปชุดเดียวกันอัตโนมัติหลัง CSR อนุมัติ/ปฏิเสธรายการ
+    const isExchange = request.request_type === 'รับคืนแลกเปลี่ยน';
+    const ackPhase = isExchange && request.current_status === 'pending_review';
+    const mode = ackPhase ? 'ack' : resolveEmailMode(request);
 
-    if (docErr || !docData?.file_path) {
-      return { success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' };
+    if (ackPhase) {
+      // จำ recipients ที่ CSR เลือก ให้ email #2 (verified) ส่งไปชุดเดียวกันอัตโนมัติ
+      await supabaseAdmin.from('requests').update({ notify_emails: recipients }).eq('id', requestId);
+    } else if (isExchange && request.submission_channel === 'csr_manual' && !(request.notify_emails?.length)) {
+      // ส่งเอกสารฉบับตรวจสอบแล้วย้อนหลัง (CSR ไม่ได้เลือกผู้รับตอนแจ้งรับเรื่อง หรือตอนนั้นส่งไม่ผ่าน)
+      // — บันทึกผู้รับไว้เป็นหลักฐาน และเคลียร์ banner "เอกสารรอส่ง" หน้า dashboard
+      await supabaseAdmin.from('requests').update({ notify_emails: recipients }).eq('id', requestId);
     }
 
-    const { data: signed, error: signErr } = await supabaseAdmin.storage
-      .from('return-documents')
-      .createSignedUrl(docData.file_path, 60 * 60 * 24);
-
-    if (signErr || !signed) {
-      return { success: false, error: 'สร้างลิงก์เอกสารไม่สำเร็จ' };
+    if (!ackPhase) {
+      // ส่งฉบับจริง (มีลิงก์ PDF) ต้องมีเอกสารฉบับสมบูรณ์ (kind='final') อยู่แล้ว —
+      // ยังไม่ได้สร้าง = แจ้งให้กดสร้างเอกสารก่อน (ข้อความเดียวกับ sendPdfEmailAction ฝั่งลูกค้า)
+      const { data: finalDoc } = await supabaseAdmin
+        .from('document_attachments')
+        .select('file_path')
+        .eq('request_id', requestId)
+        .eq('kind', 'final')
+        .maybeSingle();
+      if (!finalDoc?.file_path) {
+        return { success: false, error: 'ไม่พบไฟล์เอกสาร กรุณาสร้างเอกสาร PDF ก่อนส่งอีเมล' };
+      }
     }
-
-    const pdfEmailParams = {
-      refId: requestData.ref_id,
-      hospitalName: requestData.hospital_name ?? 'หน่วยงานของท่าน',
-      docNumber: requestData.doc_number ?? null,
-      requestDateText: formatThaiDate(requestData.request_date ?? requestData.created_at),
-      requestType: requestData.request_type ?? null,
-      returnReason: requestData.return_reason ?? null,
-      deliveryType: requestData.delivery_type ?? null,
-      totalValueText: (requestData.total_value ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 }),
-      items: ((requestData.drug_items ?? []) as DrugItemRow[]).map((d) => ({
-        drugName: d.drug_name, qty: d.qty, unit: d.unit, lot: d.lot_number, exp: formatThaiDate(d.exp_date),
-      })),
-      downloadUrl: signed.signedUrl,
-      preparedByStaff: true,
-    };
 
     // ★ ส่งแยกทีละฉบับต่อผู้รับ (ไม่ยัดทุกคนรวมกันใน to[] เดียว) กันผู้รับเห็นอีเมลกันเอง
     const results = await Promise.all(
       recipients.map((email) =>
-        sendPdfDocumentEmail({ ...pdfEmailParams, to: email }).then((r) => ({ email, ok: !r.error }))
+        sendReturnFormEmail({ request, to: email, mode, preparedByStaff: true }).then((r) => ({ email, ok: !r.error })),
       )
     );
 
@@ -498,11 +494,15 @@ export async function sendStaffPdfEmailAction(requestId: number, recipientEmails
       return { success: false, error: 'ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่ภายหลัง' };
     }
 
+    // exchange (non-ack) = ส่งเอกสารฉบับตรวจสอบแล้ว → ลง 'document_sent' ให้ตรงกับ
+    // deliverVerifiedExchangeDoc (invariant เดียวกัน: มี log นี้ = เอกสารถึงลูกค้าแล้ว)
     await supabaseAdmin.from('status_logs').insert({
       request_id: requestId,
       department: 'system',
-      status_name: 'email_sent',
-      staff_remark: `เจ้าหน้าที่ CSR ส่งเอกสารไปยังอีเมล ${sentEmails.join(', ')} เรียบร้อยแล้ว`,
+      status_name: ackPhase ? 'ack_email_sent' : isExchange ? 'document_sent' : 'email_sent',
+      staff_remark: ackPhase
+        ? `เจ้าหน้าที่ CSR ส่งอีเมลแจ้งรับเรื่องไปยัง ${sentEmails.join(', ')} — รอตรวจสอบรายการสินค้า`
+        : `เจ้าหน้าที่ CSR ส่งเอกสารไปยังอีเมล ${sentEmails.join(', ')} เรียบร้อยแล้ว`,
       actor_type: 'system',
     });
 
