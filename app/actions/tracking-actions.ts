@@ -119,10 +119,14 @@ export async function trackMyRequestByRefId(refId: string) {
   // ★ เช็คสิทธิ์ระดับหน่วยงาน (customer_code) ไม่ใช่ exact b2b_customer_id — 1 หน่วยงานมี
   // login ได้หลายบัญชี (เช่น CSR กรอกแทนลูกค้าโดยเลือกบัญชีหนึ่ง แต่ลูกค้าคนที่ login จริงเป็น
   // อีกบัญชีของหน่วยงานเดียวกัน) ใช้ pattern เดียวกับ getOrgExchangeHistory/get_org_history
-  // ที่ scope ด้วย customer_code เช่นกัน ไม่ใช้ requests.customer_code เพราะคอลัมน์นี้เป็น legacy
-  // ไม่ได้ถูกเติมค่าเสมอไป (ตัวจริงต้องอ่านจาก b2b_customers ที่ join มา)
+  // ★ ปกติเจ้าของหน่วยงานมาจาก b2b_customers ที่ join — แต่ใบงานที่ CSR กรอกแทนลูกค้า
+  // (csr_manual) มี b2b_customer_id = NULL จึงไม่มี join นี้ ให้ fallback ไปดู
+  // requests.customer_code ตรง ๆ (createStaffReturnRequest ตั้งค่าจาก organization เสมอ) —
+  // pattern เดียวกับ generatePdfAction (ให้ลูกค้าหน่วยงานเดียวกันติดตามสถานะจาก
+  // "ประวัติงานรวมทั้งหน่วยงาน" ได้)
   const owner = Array.isArray(request?.b2b_customers) ? request.b2b_customers[0] : request?.b2b_customers;
-  const sameOrg = !!session.customer_code && !!owner?.customer_code && owner.customer_code === session.customer_code;
+  const ownerCode = owner?.customer_code ?? request?.customer_code ?? null;
+  const sameOrg = !!session.customer_code && !!ownerCode && ownerCode === session.customer_code;
 
   if (reqErr || !request || !sameOrg) {
     return { success: false, error: 'ไม่พบข้อมูล หรือไม่มีสิทธิ์เข้าถึง' };
