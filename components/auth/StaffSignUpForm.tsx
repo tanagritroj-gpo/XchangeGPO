@@ -91,7 +91,7 @@ export function StaffSignUpForm() {
               validate: (v: string) => assertPasswordAllowed(v).ok || assertPasswordAllowed(v).error,
             })}
             className={inputStyle}
-            placeholder="อย่างน้อย 12 ตัวอักษร"
+            placeholder="อย่างน้อย 8 ตัวอักษร"
           />
           <PasswordStrengthHint
             value={watch("password") ?? ''}

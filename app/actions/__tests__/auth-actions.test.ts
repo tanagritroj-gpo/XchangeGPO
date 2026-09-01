@@ -258,9 +258,9 @@ describe('resetCustomerPassword', () => {
   });
 
   it('rejects a password that fails the policy shape check, before the rate limiter / DB', async () => {
-    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     const res = await resetCustomerPassword('cust@example.com', '123456', 'abc');
-    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     expect(mockCheckRateLimit).not.toHaveBeenCalled();
     expect(mockAssertPassword).toHaveBeenCalledWith('abc', { identifiers: ['cust@example.com'] });
   });
@@ -394,11 +394,11 @@ describe('updateCustomerPassword — password policy (P0-2)', () => {
   it('rejects a policy-failing new password with the session email + contact name as blocklist identifiers, without checking the current password', async () => {
     seedCustomerSession({ email: 'cust@example.com', contact_name: 'สมชาย' });
     await setCustomerCookie(CUST_TOKEN);
-    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
 
     const res = await updateCustomerPassword('whatever', 'abc');
 
-    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     expect(mockAssertPassword).toHaveBeenCalledWith('abc', { identifiers: ['cust@example.com', 'สมชาย'] });
   });
 

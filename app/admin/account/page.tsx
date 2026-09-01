@@ -315,7 +315,7 @@ export default function AccountSettingsPage() {
                 required
                 minLength={MIN_PASSWORD_LENGTH}
                 className={inputStyle}
-                placeholder="อย่างน้อย 12 ตัวอักษร"
+                placeholder="อย่างน้อย 8 ตัวอักษร"
               />
               <PasswordStrengthHint value={newPassword} identifiers={[staff?.username ?? '', staff?.email ?? '']} />
             </div>

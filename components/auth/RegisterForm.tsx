@@ -175,7 +175,7 @@ export function RegisterForm() {
             </div>
             <div className="mt-4">
               <label className={labelStyle}>ตั้งรหัสผ่าน</label>
-              <PasswordInput {...register("password")} placeholder="อย่างน้อย 12 ตัวอักษร" className={inputStyle} />
+              <PasswordInput {...register("password")} placeholder="อย่างน้อย 8 ตัวอักษร" className={inputStyle} />
               <PasswordStrengthHint value={watch("password") ?? ''} identifiers={[watch("email") ?? '', watch("contact_name") ?? '', watch("hospital_name") ?? '']} />
               {errors.password && <p className={errorStyle}><AlertCircle className="w-3 h-3 shrink-0" />{errors.password.message as string}</p>}
             </div>

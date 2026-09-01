@@ -210,7 +210,7 @@ export default function CustomerAccountPage() {
                 required
                 minLength={MIN_PASSWORD_LENGTH}
                 className={inputStyle}
-                placeholder="อย่างน้อย 12 ตัวอักษร"
+                placeholder="อย่างน้อย 8 ตัวอักษร"
               />
               <PasswordStrengthHint value={newPassword} identifiers={[customer?.email ?? '', customer?.contact_name ?? '']} />
             </div>

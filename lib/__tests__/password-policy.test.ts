@@ -19,11 +19,11 @@ async function sha1Upper(s: string): Promise<string> {
 }
 
 describe('assertPasswordAllowed — รูปแบบ', () => {
-  const OK = 'จักรยานสีส้มคันเก่ง2569'; // ยาวพอ ไม่ trivial ไม่มีคำต้องห้าม
+  const OK = 'Rot-Sisom-Kaeng29'; // ยาวพอ มีพิมพ์ใหญ่+เล็ก+ตัวเลข ไม่ trivial ไม่มีคำต้องห้าม
 
   it('ผ่านรหัสผ่านที่ยาวพอและไม่มีปัญหา', () => {
     expect(assertPasswordAllowed(OK)).toEqual({ ok: true });
-    expect(assertPasswordAllowed('correct-horse-battery-staple')).toEqual({ ok: true });
+    expect(assertPasswordAllowed('Correct-Horse-Battery-Staple9')).toEqual({ ok: true });
   });
 
   it('ปฏิเสธค่าว่าง / ไม่ใช่ string', () => {
@@ -33,10 +33,19 @@ describe('assertPasswordAllowed — รูปแบบ', () => {
   });
 
   it(`ปฏิเสธสั้นกว่า ${MIN_PASSWORD_LENGTH} ตัว`, () => {
-    const r = assertPasswordAllowed('Xk9-mLp2#Qw'); // 11 ตัว ไม่ trivial
+    const r = assertPasswordAllowed('Xk9-mLp'); // 7 ตัว ไม่ trivial
     expect(r.ok).toBe(false);
     expect(r.error).toContain(String(MIN_PASSWORD_LENGTH));
-    expect(assertPasswordAllowed('Xk9-mLp2#QwZ').ok).toBe(true); // 12 ตัว → ผ่าน
+    expect(assertPasswordAllowed('Xk9-mLpQ').ok).toBe(true); // 8 ตัว → ผ่าน
+  });
+
+  it('ปฏิเสธเมื่อไม่มีพิมพ์ใหญ่ / พิมพ์เล็ก / ตัวเลขหรืออักขระพิเศษ', () => {
+    expect(assertPasswordAllowed('lowercaseonly9').ok).toBe(false); // ไม่มีพิมพ์ใหญ่
+    expect(assertPasswordAllowed('UPPERCASEONLY9').ok).toBe(false); // ไม่มีพิมพ์เล็ก
+    expect(assertPasswordAllowed('OnlyLettersHere').ok).toBe(false); // ไม่มีตัวเลข/อักขระพิเศษ
+    expect(assertPasswordAllowed('จักรยานสีส้มคันเก่ง2569').ok).toBe(false); // ไทยล้วน — ไม่มี A–Z/a–z
+    expect(assertPasswordAllowed('Mix-Word9').ok).toBe(true); // อักขระพิเศษก็ผ่าน
+    expect(assertPasswordAllowed('MixWord99').ok).toBe(true); // ตัวเลขก็ผ่าน
   });
 
   it('ปฏิเสธยาวเกิน 72 ตัวอักษร และเกิน 72 ไบต์ (ภาษาไทยหลายตัว)', () => {
@@ -55,24 +64,24 @@ describe('assertPasswordAllowed — รูปแบบ', () => {
   });
 
   it('ปฏิเสธคำต้องห้ามในระบบ + คำที่มาจาก identifier', () => {
-    expect(assertPasswordAllowed('mypasswordislong123').ok).toBe(false); // "password"
-    expect(assertPasswordAllowed('gpoxchange-portal-2569').ok).toBe(false);
+    expect(assertPasswordAllowed('Mypasswordislong123').ok).toBe(false); // "password"
+    expect(assertPasswordAllowed('Gpoxchange-Portal-2569').ok).toBe(false);
     expect(
-      assertPasswordAllowed('somchai-likes-cats-2569', { identifiers: ['somchai@hospital.go.th'] }).ok,
+      assertPasswordAllowed('Somchai-Likes-Cats-2569', { identifiers: ['somchai@hospital.go.th'] }).ok,
     ).toBe(false); // "somchai"
     expect(
-      assertPasswordAllowed('bkkgeneral-return-flow', { identifiers: ['bkkgeneral'] }).ok,
+      assertPasswordAllowed('Bkkgeneral-Return-Flow9', { identifiers: ['bkkgeneral'] }).ok,
     ).toBe(false);
   });
 
   it('identifier สั้นกว่า 4 ตัว ไม่ถูกใช้เป็น blocklist (กัน false positive)', () => {
-    expect(assertPasswordAllowed('abc-is-a-fine-phrase-2569', { identifiers: ['abc'] }).ok).toBe(true);
+    expect(assertPasswordAllowed('Abc-Is-A-Fine-Phrase-2569', { identifiers: ['abc'] }).ok).toBe(true);
   });
 });
 
 describe('passwordField (Zod)', () => {
   it('สะท้อน assertPasswordAllowed', () => {
-    expect(passwordField.safeParse('จักรยานสีส้มคันเก่ง2569').success).toBe(true);
+    expect(passwordField.safeParse('Rot-Sisom-Kaeng29').success).toBe(true);
     const bad = passwordField.safeParse('short');
     expect(bad.success).toBe(false);
     if (!bad.success) expect(bad.error.issues[0].message).toContain(String(MIN_PASSWORD_LENGTH));
@@ -124,7 +133,7 @@ describe('validateNewPassword — รวม shape + HIBP', () => {
   });
 
   it('ปฏิเสธเมื่อ HIBP บอกว่าเคยรั่ว', async () => {
-    const pw = 'จักรยานสีส้มคันเก่ง2569';
+    const pw = 'Rot-Sisom-Kaeng29';
     const hash = await sha1Upper(pw);
     hibp.respond = range(`${hash.slice(5)}:9\n`);
     const r = await validateNewPassword(pw);
@@ -133,7 +142,7 @@ describe('validateNewPassword — รวม shape + HIBP', () => {
 
   it('ผ่าน + breachCheckFailed=true เมื่อ HIBP ล่ม (fail-open)', async () => {
     hibp.respond = async () => { throw new Error('down'); };
-    const r = await validateNewPassword('จักรยานสีส้มคันเก่ง2569');
+    const r = await validateNewPassword('Rot-Sisom-Kaeng29');
     expect(r).toEqual({ ok: true, breachCheckFailed: true });
   });
 });

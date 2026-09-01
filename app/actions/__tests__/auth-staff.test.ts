@@ -233,12 +233,12 @@ describe('registerStaff', () => {
 
   it('rejects before touching storage when the password fails the policy', async () => {
     seed();
-    mockValidatePassword.mockResolvedValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    mockValidatePassword.mockResolvedValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     const uploadSpy = vi.spyOn(fakeAdmin.client.storage.from('signatures'), 'upload');
 
     const res = await registerStaff(validStaffPayload());
 
-    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     expect(uploadSpy).not.toHaveBeenCalled();
     expect(fakeAdmin.rows('staff_users')).toHaveLength(0);
   });
@@ -348,9 +348,9 @@ describe('resetStaffPassword', () => {
   });
 
   it('rejects a password that fails the policy shape check, before rate limit / DB', async () => {
-    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     const res = await resetStaffPassword('dofcoffee', '123456', 'abc');
-    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     expect(mockCheckRateLimit).not.toHaveBeenCalled();
   });
 
@@ -667,9 +667,9 @@ describe('updateStaffPassword', () => {
   it('rejects a new password that fails the policy shape check, without checking the current password', async () => {
     seedAuthedStaff();
     await setSessionCookie(VALID_TOKEN);
-    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    mockAssertPassword.mockReturnValueOnce({ ok: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     const res = await updateStaffPassword('whatever', 'abc');
-    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 12 ตัวอักษร' });
+    expect(res).toEqual({ success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร' });
     // passes the session username + email as blocklist identifiers
     expect(mockAssertPassword).toHaveBeenCalledWith('abc', { identifiers: ['dofcoffee', 'staff@example.com'] });
   });
