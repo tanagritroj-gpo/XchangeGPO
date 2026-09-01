@@ -2,9 +2,8 @@ import { z } from 'zod';
 
 /**
  * นโยบายรหัสผ่านของระบบ — ดูเอกสารเต็ม 12-password-policy-design.md
- * ออกแบบตาม NIST SP 800-63B + OWASP ASVS 4.0 L2:
- *  - ความยาวขั้นต่ำ 12 (ไม่มี MFA → ASVS ให้ 12)
- *  - ไม่มีกฎองค์ประกอบ (upper/lower/digit/symbol) — โดยตั้งใจตามมาตรฐาน
+ *  - ความยาวขั้นต่ำ 8
+ *  - ต้องมีตัวพิมพ์ใหญ่ (A–Z) และตัวพิมพ์เล็ก (a–z) และตัวเลขหรืออักขระพิเศษอย่างน้อย 1 ตัว
  *  - ต้องตรวจกับ HaveIBeenPwned ทุกครั้งที่ตั้ง/เปลี่ยนรหัสผ่าน (isPasswordBreached — server เท่านั้น)
  *  - กันคำที่เกี่ยวกับบัญชี/ระบบ + รหัสตัวซ้ำ/เรียงลำดับ
  *
@@ -12,7 +11,7 @@ import { z } from 'zod';
  * (ไม่ import 'server-only', ไม่ใช้ Buffer/node:crypto — ใช้ TextEncoder + Web Crypto)
  */
 
-export const MIN_PASSWORD_LENGTH = 12;
+export const MIN_PASSWORD_LENGTH = 8;
 // bcrypt ตัด input ที่ 72 ไบต์เงียบ ๆ — จำกัดทั้งจำนวนตัวอักษรและไบต์
 export const MAX_PASSWORD_LENGTH = 72;
 
@@ -80,6 +79,15 @@ export function assertPasswordAllowed(
   if (byteLength(password) > 72) {
     return { ok: false, error: 'รหัสผ่านยาวเกินไป (เกิน 72 ไบต์) — ลดจำนวนอักขระภาษาไทยลง' };
   }
+  const hasUpper = /[A-Z]/.test(password);
+  const hasLower = /[a-z]/.test(password);
+  const hasDigitOrSymbol = /\d/.test(password) || /[^\p{L}\p{N}]/u.test(password);
+  if (!hasUpper || !hasLower || !hasDigitOrSymbol) {
+    return {
+      ok: false,
+      error: 'รหัสผ่านต้องมีตัวพิมพ์ใหญ่ (A–Z) ตัวพิมพ์เล็ก (a–z) และตัวเลขหรืออักขระพิเศษอย่างน้อยอย่างละ 1 ตัว',
+    };
+  }
   if (isTrivial(password)) {
     return { ok: false, error: 'รหัสผ่านคาดเดาง่ายเกินไป (เป็นตัวซ้ำหรือเรียงลำดับ)' };
   }
@@ -104,7 +112,7 @@ export const passwordField = z.string().superRefine((val, ctx) => {
  * ตรวจว่ารหัสผ่านเคยปรากฏใน data breach ผ่าน HaveIBeenPwned range API (k-anonymity)
  * — ส่งแค่ 5 ตัวแรกของ SHA-1 hash ไม่เคยส่งรหัสผ่าน/hash เต็ม
  * — timeout 3s, fail-open (`checkFailed: true`) เมื่อ API ล่ม/ช้า — caller ควรยิง Sentry warning
- *   (fail-open เพราะ HIBP ไม่ใช่เกราะกัน brute-force โดยตรง — ยังมีความยาว 12 + rate limit)
+ *   (fail-open เพราะ HIBP ไม่ใช่เกราะกัน brute-force โดยตรง — ยังมีความยาว/กฎองค์ประกอบ + rate limit)
  *
  * เรียกจาก server action เท่านั้น
  */
@@ -171,8 +179,8 @@ export function assessPasswordStrength(password: string): PasswordStrength {
 
   let score = 0;
   if (password.length >= MIN_PASSWORD_LENGTH) score += 1;
+  if (password.length >= 12) score += 1;
   if (password.length >= 16) score += 1;
-  if (password.length >= 20) score += 1;
   const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9฀-๿]/, /[฀-๿]/]
     .filter((re) => re.test(password)).length;
   if (classes >= 3) score += 1;
@@ -183,7 +191,7 @@ export function assessPasswordStrength(password: string): PasswordStrength {
     password.length < MIN_PASSWORD_LENGTH
       ? `ต้องยาวอย่างน้อย ${MIN_PASSWORD_LENGTH} ตัวอักษร`
       : clamped < 3
-        ? 'ลองใช้วลี 3–4 คำที่จำได้ เช่น "แมวส้มชอบนอนหลับ2569"'
+        ? 'เพิ่มความยาว และผสมตัวพิมพ์ใหญ่-เล็ก ตัวเลข และอักขระพิเศษ'
         : '';
   return { score: clamped, label: labels[clamped], hint };
 }

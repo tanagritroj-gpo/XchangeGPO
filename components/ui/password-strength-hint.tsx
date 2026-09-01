@@ -12,7 +12,7 @@ export function PasswordStrengthHint({ value, identifiers }: { value: string; id
   if (!value) {
     return (
       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-        อย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร — แนะนำใช้วลีที่จำได้ 3–4 คำ
+        อย่างน้อย {MIN_PASSWORD_LENGTH} ตัวอักษร มีพิมพ์ใหญ่ พิมพ์เล็ก และตัวเลขหรืออักขระพิเศษอย่างน้อย 1 ตัว
       </p>
     );
   }

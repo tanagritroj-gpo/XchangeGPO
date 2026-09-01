@@ -215,7 +215,7 @@ export default function CustomerForgotPasswordPage() {
                     <div className="relative">
                       <KeyRound size={18} strokeWidth={2.25} className={iconStyle} />
                       <PasswordInput
-                        placeholder="อย่างน้อย 12 ตัวอักษร"
+                        placeholder="อย่างน้อย 8 ตัวอักษร"
                         className={inputStyle}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
