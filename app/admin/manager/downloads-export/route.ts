@@ -6,6 +6,7 @@ import { filterCsrRequests, parseCsrReportFilters } from '@/lib/csr-report-filte
 import { getStatusLabel } from '@/lib/tracking-status';
 import { getRejectionReasonLabel } from '@/lib/rejection-reasons';
 import { getErrorMessage } from '@/lib/error-message';
+import { logAuditEvent } from '@/lib/audit';
 import { STAGE_ORDER, STAGE_LABEL } from '@/lib/manager-stats';
 import { formatExchangeProduct } from '@/lib/exchange-product';
 import type { RequestRow, DrugItemRow } from '@/lib/types';
@@ -349,8 +350,9 @@ async function buildCustomerPortfolioWorkbook() {
 }
 
 export async function GET(request: NextRequest) {
+  let session;
   try {
-    await getManagerSession();
+    session = await getManagerSession();
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
@@ -366,6 +368,16 @@ export async function GET(request: NextRequest) {
 
     const buffer = await workbook.xlsx.writeBuffer();
     const dateStamp = new Date().toISOString().slice(0, 10);
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.export.generated', outcome: 'success',
+      actor: { type: 'staff', id: session.id, label: session.username },
+      target: { type: 'export', id: mode ?? 'range' },
+      detail: {
+        export_type: `manager-${mode ?? 'range'}`, format: 'xlsx',
+        request_id: mode === 'request' ? request.nextUrl.searchParams.get('requestId') : undefined,
+      },
+    });
 
     return new NextResponse(buffer as unknown as BodyInit, {
       headers: {

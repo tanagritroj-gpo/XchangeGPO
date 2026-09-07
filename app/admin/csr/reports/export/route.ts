@@ -6,6 +6,7 @@ import { computeManagerStats } from '@/lib/manager-stats';
 import { filterCsrRequests, parseCsrReportFilters } from '@/lib/csr-report-filters';
 import { getStatusLabel } from '@/lib/tracking-status';
 import { getErrorMessage } from '@/lib/error-message';
+import { logAuditEvent } from '@/lib/audit';
 import type { RequestRow, StatusLogRow, DrugItemRow } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -24,8 +25,9 @@ function addTableHeader(sheet: ExcelJS.Worksheet, cols: string[]) {
 }
 
 export async function GET(request: NextRequest) {
+  let session;
   try {
-    await getManagerOrCsrSession();
+    session = await getManagerOrCsrSession();
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
@@ -159,6 +161,13 @@ export async function GET(request: NextRequest) {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const dateStamp = new Date().toISOString().slice(0, 10);
+
+  void logAuditEvent({
+    category: 'data_access', action: 'data.export.generated', outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    target: { type: 'export', id: 'csr-report' },
+    detail: { export_type: 'csr-report', format: 'xlsx', row_count: requests.length, filters },
+  });
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
