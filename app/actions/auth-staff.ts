@@ -1206,7 +1206,9 @@ export async function getMyStaffSessionsAndDevices() {
       .select('token, user_agent, ip, last_seen_at, created_at, expires_at')
       .eq('staff_id', session.id)
       .eq('actor_type', 'staff')
-      .eq('mfa_pending', false),
+      .eq('mfa_pending', false)
+      // เฉพาะเซสชันที่ยังไม่หมดอายุ — แถวหมดอายุค้างในตาราง ไม่มีอะไรลบทิ้งจน logout/เพิกถอน
+      .gt('expires_at', new Date().toISOString()),
     supabaseAdmin
       .from('staff_trusted_devices')
       .select('id, label, user_agent, ip, last_used_at, created_at, expires_at')

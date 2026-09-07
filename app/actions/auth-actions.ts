@@ -611,11 +611,14 @@ export async function getMyCustomerSessions() {
   if (!session) return { success: false as const, error: 'กรุณาเข้าสู่ระบบใหม่' };
   const currentToken = (await cookies()).get('customer_session')?.value ?? '';
 
+  // เฉพาะเซสชันที่ยังไม่หมดอายุ — แถวที่หมดอายุแล้วไม่มีอะไรลบทิ้ง (ลบเฉพาะตอน logout/เพิกถอน)
+  // จึงค้างในตารางและเคยโผล่ในลิสต์เป็น "อุปกรณ์ที่ไม่ทราบ" (เซสชันเก่าก่อนเก็บ user_agent/ip)
   const { data: sessions } = await supabaseAdmin
     .from('sessions')
     .select('token, user_agent, ip, last_seen_at, created_at, expires_at')
     .eq('customer_id', session.id)
-    .eq('actor_type', 'customer');
+    .eq('actor_type', 'customer')
+    .gt('expires_at', new Date().toISOString());
 
   return {
     success: true as const,

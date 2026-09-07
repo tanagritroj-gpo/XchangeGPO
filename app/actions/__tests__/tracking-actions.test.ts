@@ -156,6 +156,18 @@ describe('trackMyRequestByRefId — private, org-scoped', () => {
     expect(res.success).toBe(true);
     expect(res.data.timeline[0]).toMatchObject({ drug_name: 'Paracetamol' });
   });
+
+  it('allows a csr_manual request (b2b_customer_id NULL) of the same org — matched via requests.customer_code', async () => {
+    seedOwnedRequest({ b2b_customer_id: null, b2b_customers: null, customer_code: 'C-0007', submission_channel: 'csr_manual' });
+    const res: any = await trackMyRequestByRefId('REF-1');
+    expect(res.success).toBe(true);
+  });
+
+  it('denies a csr_manual request whose customer_code is a different organization', async () => {
+    seedOwnedRequest({ b2b_customer_id: null, b2b_customers: null, customer_code: 'OTHER-ORG', submission_channel: 'csr_manual' });
+    const res = await trackMyRequestByRefId('REF-1');
+    expect(res).toEqual({ success: false, error: 'ไม่พบข้อมูล หรือไม่มีสิทธิ์เข้าถึง' });
+  });
 });
 
 describe('getRequestTrackingForStaff — manager/csr, sees every request regardless of organization', () => {
