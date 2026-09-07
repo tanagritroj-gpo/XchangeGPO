@@ -1,4 +1,4 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, PDFImage, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -62,6 +62,27 @@ export async function buildRegistrationConfirmationPdf(data: RegistrationDocumen
     size = 11,
     color = INK,
   ) => drawThaiText(page, str, { x, y, size, font, color });
+
+  // เหมือน text() แต่รับ y เอง — ใช้ในบล็อกที่วางแบบหลายคอลัมน์ (y ของแต่ละคอลัมน์เดินไม่พร้อมกัน)
+  const textAt = (str: string, x: number, yPos: number, size = 11, color = INK) =>
+    drawThaiText(page, str, { x, y: yPos, size, font, color });
+
+  // วาดภาพลายเซ็นให้พอดีกรอบโดยคงสัดส่วน แล้วคืนความสูงที่ใช้จริง
+  // — PNG จาก signature canvas ถูกคูณด้วย devicePixelRatio ทำให้ความละเอียดสูงมาก
+  //   ถ้า scale ด้วยค่าคงที่จะสูงเกิน 100pt จนดันเนื้อหาส่วนพนักงานล้นออกนอกหน้ากระดาษ
+  const drawSignatureFitted = (
+    img: PDFImage,
+    boxLeft: number,
+    boxWidth: number,
+    topY: number,
+    maxHeight: number,
+  ) => {
+    const scale = Math.min(boxWidth / img.width, maxHeight / img.height, 1);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    page.drawImage(img, { x: boxLeft + (boxWidth - w) / 2, y: topY - h, width: w, height: h });
+    return h;
+  };
 
   const centeredText = (str: string, size = 11, color = INK) => {
     const width = thaiTextWidth(font, str, size);
@@ -169,40 +190,38 @@ export async function buildRegistrationConfirmationPdf(data: RegistrationDocumen
   text(`ยินยอมแล้วเมื่อ ${formatThaiDate(data.registered_at)}`, MARGIN_X + pdpaPadding, 8.5, ACCENT);
   y = pdpaBoxTop - pdpaBoxHeight - 20;
 
-  // ── ลายเซ็นลูกค้า — ย้ายไปชิดขอบขวา ชื่อใต้เส้นจัดกึ่งกลาง ──
-  const sigBlockWidth = 220;
+  // ── ลายเซ็นลูกค้า — ชิดขอบขวา ชื่อใต้เส้นจัดกึ่งกลาง ──
+  const sigBlockWidth = 230;
   const sigBlockLeft = PAGE_WIDTH - MARGIN_X - sigBlockWidth;
+  const SIG_MAX_H = 44; // เพดานความสูงภาพลายเซ็น กันภาพความละเอียดสูงดันเลย์เอาต์ล้นหน้า
 
   text('ลายเซ็นต์ผู้มีอำนาจลงนาม (ฝั่งลูกค้า)', sigBlockLeft, 10.5, MUTED);
-  y -= 8;
+  y -= 12;
 
+  let custSigH = SIG_MAX_H;
   if (data.customer_signature_png) {
     try {
       const sigImage = await pdfDoc.embedPng(data.customer_signature_png);
-      const sigDims = sigImage.scale(0.35);
-      const sigX = sigBlockLeft + (sigBlockWidth - sigDims.width) / 2;
-      page.drawImage(sigImage, { x: sigX, y: y - sigDims.height, width: sigDims.width, height: sigDims.height });
-      y -= sigDims.height + 6;
+      custSigH = drawSignatureFitted(sigImage, sigBlockLeft, sigBlockWidth, y, SIG_MAX_H);
     } catch {
-      y -= 40;
+      custSigH = SIG_MAX_H;
     }
-  } else {
-    y -= 40;
   }
+  y -= custSigH + 6;
   page.drawLine({ start: { x: sigBlockLeft, y }, end: { x: sigBlockLeft + sigBlockWidth, y }, thickness: 0.75, color: BORDER });
-  y -= 14;
+  y -= 13;
   const signerLabel = `(${data.contact_name})`;
   const signerWidth = thaiTextWidth(font, signerLabel, 9.5);
   text(signerLabel, sigBlockLeft + (sigBlockWidth - signerWidth) / 2, 9.5, MUTED);
 
-  y -= 16;
+  y -= 20;
 
   // ── ส่วนของพนักงาน GPO ──
   sectionHeader('ส่วนของพนักงาน GPO');
 
-  // ── กล่องรหัสลูกค้า — ย้ายมาไว้ในส่วนของพนักงาน (เป็นผลลัพธ์การอนุมัติของพนักงาน) ──
+  // ── กล่องรหัสลูกค้า + อายุการใช้งาน — เป็นผลลัพธ์การอนุมัติของพนักงาน รวมไว้กล่องเดียว ──
   const codeBoxTop = y;
-  const codeBoxHeight = 46;
+  const codeBoxHeight = 60;
   page.drawRectangle({
     x: MARGIN_X,
     y: codeBoxTop - codeBoxHeight,
@@ -212,66 +231,69 @@ export async function buildRegistrationConfirmationPdf(data: RegistrationDocumen
     borderWidth: 1,
     color: ACCENT_TINT,
   });
-  y = codeBoxTop - 18;
-  text('รหัสลูกค้า (Customer Code)', MARGIN_X + 16, 10.5, MUTED);
-  y -= 20;
-  text(data.customer_code, MARGIN_X + 16, 16, ACCENT);
-  y = codeBoxTop - codeBoxHeight - 14;
+  textAt('รหัสลูกค้า (Customer Code)', MARGIN_X + 16, codeBoxTop - 16, 10, MUTED);
+  textAt(data.customer_code, MARGIN_X + 16, codeBoxTop - 35, 15, ACCENT);
+  // อายุการใช้งาน 2 ปีนับจากวันอนุมัติ — ตรวจสอบ/ต่ออายุได้ที่แท็บ "การต่ออายุเข้าใช้ระบบ" ฝั่ง CSR
+  textAt(
+    `มีอายุการใช้งาน 2 ปีนับจากวันที่อนุมัติ — หมดอายุวันที่ ${formatThaiDate(data.access_expires_at)}`,
+    MARGIN_X + 16,
+    codeBoxTop - 51,
+    8.5,
+    MUTED,
+  );
+  y = codeBoxTop - codeBoxHeight - 24;
 
-  // ── อายุการใช้งาน 2 ปีนับจากวันอนุมัติ — แจ้งลูกค้าไว้ในเอกสารตั้งแต่ต้น ต่ออายุ/
-  // ตรวจสอบสถานะได้ที่แท็บ "การต่ออายุเข้าใช้ระบบ" ฝั่ง CSR (csr-actions.ts) ──
-  text(`การลงทะเบียนนี้มีอายุการใช้งาน 2 ปี นับจากวันที่อนุมัติ — หมดอายุวันที่ ${formatThaiDate(data.access_expires_at)}`, MARGIN_X, 9, MUTED);
-  y -= 16;
+  // ── วางสองคอลัมน์ระดับเดียวกัน: ซ้าย = ผลการพิจารณา/ผู้ดำเนินการ, ขวา = ลายเซ็นพนักงาน
+  //    (เดิมเรียงต่อกันลงแนวตั้งจนล้นออกใต้ footer) ──
+  const colTop = y;
 
-  // ── checkbox/ฟิลด์/ลายเซ็นฝั่งพนักงาน — ย้ายมาชิดขอบขวาเหมือนฝั่งลูกค้า
-  // ใช้คอลัมน์ความกว้างเดียวกับ sigBlockLeft/sigBlockWidth ให้แนวขอบขวาตรงกันหมด ──
-  const checkbox = (x: number, checked: boolean, label: string) => {
+  const checkbox = (x: number, yPos: number, checked: boolean, label: string) => {
     const size = 11;
-    const boxBottom = y - 2; // จัดกล่องให้อยู่ระดับเดียวกับ baseline ของ label (เดิมกล่องอยู่ต่ำกว่าตัวหนังสือ)
+    const boxBottom = yPos - 2;
     page.drawRectangle({ x, y: boxBottom, width: size, height: size, borderColor: INK, borderWidth: 1 });
     if (checked) {
       page.drawLine({ start: { x: x + 1.5, y: boxBottom + size / 2 - 0.5 }, end: { x: x + size / 2, y: boxBottom + 1.5 }, thickness: 1.3, color: ACCENT });
       page.drawLine({ start: { x: x + size / 2, y: boxBottom + 1.5 }, end: { x: x + size - 1, y: boxBottom + size - 1 }, thickness: 1.3, color: ACCENT });
     }
-    text(label, x + size + 6, 11, INK);
+    textAt(label, x + size + 6, yPos, 11, INK);
   };
 
-  checkbox(sigBlockLeft, data.staff_action === 'approved', 'อนุมัติ');
-  checkbox(sigBlockLeft + 110, data.staff_action === 'rejected', 'ไม่อนุมัติ');
-  y -= 24;
+  // คอลัมน์ซ้าย
+  let ly = colTop;
+  textAt('ผลการพิจารณา', MARGIN_X, ly, 10, MUTED);
+  ly -= 19;
+  checkbox(MARGIN_X, ly, data.staff_action === 'approved', 'อนุมัติ');
+  checkbox(MARGIN_X + 96, ly, data.staff_action === 'rejected', 'ไม่อนุมัติ');
+  ly -= 28;
+  textAt('ชื่อพนักงานผู้ดำเนินการ', MARGIN_X, ly, 10, MUTED);
+  ly -= 16;
+  textAt(data.staff_full_name, MARGIN_X, ly, 11.5, INK);
+  ly -= 24;
+  textAt('วันที่ดำเนินการ', MARGIN_X, ly, 10, MUTED);
+  ly -= 16;
+  textAt(formatThaiDate(data.decided_at), MARGIN_X, ly, 11.5, INK);
+  ly -= 8;
 
-  text('ชื่อพนักงานผู้ดำเนินการ', sigBlockLeft, 10.5, MUTED);
-  y -= 15;
-  text(data.staff_full_name, sigBlockLeft, 11.5, INK);
-  y -= 20;
-
-  text('วันที่ดำเนินการ', sigBlockLeft, 10.5, MUTED);
-  y -= 15;
-  text(formatThaiDate(data.decided_at), sigBlockLeft, 11.5, INK);
-  y -= 22;
-
-  // ── ลายเซ็นพนักงาน GPO ผู้ดำเนินการ — ฝังภาพลายเซ็นดิจิทัลของพนักงานที่กดอนุมัติ/ไม่อนุมัติ
-  // (เดิมเป็นช่องเซ็นกำกับด้วยลายมือจริงบนกระดาษเปล่าๆ) เหมือนฝั่งลูกค้า ──
-  text('ลงชื่อ (พนักงาน GPO)', sigBlockLeft, 10.5, MUTED);
-  y -= 8;
-
+  // คอลัมน์ขวา — ฝังภาพลายเซ็นดิจิทัลของพนักงานที่กดอนุมัติ/ไม่อนุมัติ
+  let ry = colTop;
+  textAt('ลงชื่อ (พนักงาน GPO)', sigBlockLeft, ry, 10, MUTED);
+  ry -= 14;
+  let staffSigH = SIG_MAX_H;
   if (data.staff_signature_png) {
     try {
       const staffSigImage = await pdfDoc.embedPng(data.staff_signature_png);
-      const staffSigDims = staffSigImage.scale(0.35);
-      const staffSigX = sigBlockLeft + (sigBlockWidth - staffSigDims.width) / 2;
-      page.drawImage(staffSigImage, { x: staffSigX, y: y - staffSigDims.height, width: staffSigDims.width, height: staffSigDims.height });
-      y -= staffSigDims.height + 6;
+      staffSigH = drawSignatureFitted(staffSigImage, sigBlockLeft, sigBlockWidth, ry, SIG_MAX_H);
     } catch {
-      y -= 40;
+      staffSigH = SIG_MAX_H;
     }
-  } else {
-    y -= 40;
   }
-  page.drawLine({ start: { x: sigBlockLeft, y }, end: { x: sigBlockLeft + sigBlockWidth, y }, thickness: 0.75, color: BORDER });
-  y -= 14;
+  ry -= staffSigH + 6;
+  page.drawLine({ start: { x: sigBlockLeft, y: ry }, end: { x: sigBlockLeft + sigBlockWidth, y: ry }, thickness: 0.75, color: BORDER });
+  ry -= 13;
   const staffNameWidth = thaiTextWidth(font, data.staff_full_name, 9.5);
-  text(data.staff_full_name, sigBlockLeft + (sigBlockWidth - staffNameWidth) / 2, 9.5, MUTED);
+  textAt(data.staff_full_name, sigBlockLeft + (sigBlockWidth - staffNameWidth) / 2, ry, 9.5, MUTED);
+
+  // เนื้อหาสองคอลัมน์จบราว 90pt เหนือ footer (footerY = 50) — ตรวจงบพื้นที่แนวตั้งแล้วไม่ทับกัน
 
   // ── Footer: เลขหน้า / วันที่ออกเอกสาร / หมายเหตุระบบอัตโนมัติ ──
   const footerY = 50;
