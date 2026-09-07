@@ -4,6 +4,7 @@ import { admin as supabaseAdmin } from '@/lib/supabase/admin';
 import { getManagerOrCsrSession } from '@/app/actions/manager-actions';
 import { ORG_TYPE_OPTIONS } from '@/lib/sale-coverage';
 import { getErrorMessage } from '@/lib/error-message';
+import { logAuditEvent } from '@/lib/audit';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,8 +14,9 @@ const orgTypeLabel = (value: string | null) =>
   ORG_TYPE_OPTIONS.find((o) => o.value === value)?.label ?? '-';
 
 export async function GET() {
+  let session;
   try {
-    await getManagerOrCsrSession();
+    session = await getManagerOrCsrSession();
   } catch (e: unknown) {
     return NextResponse.json({ error: getErrorMessage(e) }, { status: 403 });
   }
@@ -66,6 +68,15 @@ export async function GET() {
 
   const buffer = await workbook.xlsx.writeBuffer();
   const dateStamp = new Date().toISOString().slice(0, 10);
+
+  void logAuditEvent({
+    category: 'data_access',
+    action: 'data.export.generated',
+    outcome: 'success',
+    actor: { type: 'staff', id: session.id, label: session.username },
+    target: { type: 'export', id: 'customer-list' },
+    detail: { export_type: 'customer-list', format: 'xlsx', row_count: customers?.length ?? 0 },
+  });
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {

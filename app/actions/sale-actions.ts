@@ -5,6 +5,7 @@ import { getStaffSession } from './auth-staff';
 import { expandToOrgTypes } from '@/lib/sale-coverage';
 import { getErrorMessage } from '@/lib/error-message';
 import { assertDepartmentAccess } from '@/lib/staff-permissions';
+import { logAuditEvent } from '@/lib/audit';
 import type { DrugItemRow } from '@/lib/types';
 import { z } from 'zod';
 import { parseOrError, positiveIntId } from '@/lib/validate-input';
@@ -114,6 +115,13 @@ export async function getSaleRequestDetail(requestId: number) {
     if (!organization || !coverage.orgTypes.includes(organization.org_type) || !coverage.provinces.includes(organization.province)) {
       throw new Error('ไม่มีสิทธิ์เข้าถึงข้อมูลใบงานนี้');
     }
+
+    void logAuditEvent({
+      category: 'data_access', action: 'data.request.detail_viewed', outcome: 'success',
+      actor: { type: 'staff', id: coverage.staffId, label: (await getStaffSession())?.username ?? null },
+      target: { type: 'request', id: requestId },
+      detail: { ref_id: request.ref_id, department: 'sale' },
+    });
 
     const { data: timelineRaw } = await supabaseAdmin
       .from('timeline_summary')
